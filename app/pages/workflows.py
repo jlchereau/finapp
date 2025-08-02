@@ -1,4 +1,4 @@
-""" Workflows page """
+"""Workflows page"""
 
 import reflex as rx
 from ..templates.template import template
@@ -6,6 +6,7 @@ from ..templates.template import template
 
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
+
     pass
 
 

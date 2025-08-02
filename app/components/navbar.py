@@ -25,7 +25,6 @@ def navbar() -> rx.Component:
                 spacing="3",
                 align="center",
             ),
-
             # Navigation links
             rx.hstack(
                 rx.link(
@@ -94,10 +93,8 @@ def navbar() -> rx.Component:
                 spacing="6",
                 align="center",
             ),
-
             # Theme toggle
             theme_toggle(),
-
             justify="between",
             align="center",
             width="100%",

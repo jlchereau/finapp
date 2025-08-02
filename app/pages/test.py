@@ -5,7 +5,13 @@ Test page
 from typing import List
 import reflex as rx
 from ..templates.template import template
-from ..components.combobox import combobox, combobox_input, combobox_button, combobox_options, combobox_option
+from ..components.combobox import (
+    combobox,
+    combobox_input,
+    combobox_button,
+    combobox_options,
+    combobox_option,
+)
 
 
 options: List[str] = ["Option 1", "Option 2", "Option 3"]
@@ -13,10 +19,11 @@ options: List[str] = ["Option 1", "Option 2", "Option 3"]
 
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
+
     option: str = "No selection yet."
     combobox_value: str = ""
     query: str = ""
-    
+
     def set_combobox_value(self, value: str):
         """Set the combobox selected value."""
         self.combobox_value = value
@@ -60,7 +67,7 @@ def page():
                     lambda option: combobox_option(
                         option,
                         value=option,
-                    )
+                    ),
                 )
             ),
             value=State.combobox_value,

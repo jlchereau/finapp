@@ -12,7 +12,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
     # Sample market data for combobox testing
     markets: list[str] = [
         "SPY - SPDR S&P 500 ETF",
-        "QQQ - Invesco QQQ Trust", 
+        "QQQ - Invesco QQQ Trust",
         "VTI - Vanguard Total Stock Market",
         "AAPL - Apple Inc.",
         "MSFT - Microsoft Corporation",

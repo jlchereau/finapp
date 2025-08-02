@@ -1,4 +1,4 @@
-""" A page template sharing the navbar """
+"""A page template sharing the navbar"""
 
 from typing import Callable
 import reflex as rx

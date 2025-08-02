@@ -1,4 +1,4 @@
-""" Optimize page """
+"""Optimize page"""
 
 import random
 import numpy as np
@@ -37,6 +37,7 @@ def create_plot(theme: str, plot_data: tuple, scale: list):
 
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
+
     num_points: int = 100
     plot_data: tuple = tuple(np.random.rand(2, 100) for _ in range(3))
     scale: list = [random.uniform(0, 100) for _ in range(100)]

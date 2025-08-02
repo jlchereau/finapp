@@ -28,5 +28,5 @@ def page():
     return rx.container(
         rx.markdown(MD, padding="1em", font_size="1.1em", width="80%"),
         margin="auto",
-        padding="2em"
+        padding="2em",
     )
