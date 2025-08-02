@@ -1,0 +1,13 @@
+bt
+cvxpy
+duckdb # with https://ducklake.select/
+numpy
+pandas
+pybind11
+matplotlib
+# mosek
+prefect
+riskfolio-lib
+yfinance
+reflex
+reflex==0.8.4
