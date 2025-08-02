@@ -11,4 +11,6 @@ pyarrow
 riskfolio-lib
 yfinance
 reflex
+# reflex-echarts # https://echarts.apache.org/
+# reflex-highchart # https://www.highcharts.com/
 reflex-pyplot
