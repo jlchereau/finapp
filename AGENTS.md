@@ -9,6 +9,11 @@
  make install  # Install dependencies from requirements-dev.txt
  ```
 
+ ### Building the Application
+ ```bash
+ make build      # Compile the Reflex application using '.venv/bin/reflex compile'
+ ```
+
  ### Running the Application
  ```bash
  make run      # Run the Reflex application using '.venv/bin/reflex run'

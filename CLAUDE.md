@@ -8,6 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make install  # Install dependencies from requirements-dev.txt
 ```
+ 
+ ### Building the Application
+ ```bash
+ make build      # Compile the Reflex application using '.venv/bin/reflex compile'
+ ```
 
 ### Running the Application
 ```bash

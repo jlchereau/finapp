@@ -2,6 +2,9 @@ install:
 	.venv/bin/pip install -U pip &&\
 		.venv/bin/pip install -r requirements-dev.txt
 
+build:
+	.venv/bin/reflex compile
+
 run:
 	.venv/bin/reflex run
 
