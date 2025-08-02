@@ -9,6 +9,7 @@ from .pages import (
     optimize,
     portfolio,
     screen,
+    test,
     workflows,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "optimize",
     "portfolio",
     "screen",
+    "test",
     "workflows",
 ]
