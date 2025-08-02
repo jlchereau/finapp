@@ -1,8 +1,8 @@
 __pycache__/
 .pytest_cache/
-.states/
+.states
 .venv/
-.web/
+.web
 assets/external/
 data/
 temp/
