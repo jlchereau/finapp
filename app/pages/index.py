@@ -23,7 +23,7 @@ MD = load_markdown("index")
 
 @rx.page(route="/")  # pyright: ignore[reportArgumentType]
 @template
-def index():
+def page():
     """The index page."""
     return rx.container(
         rx.markdown(MD, padding="1em", font_size="1.1em", width="80%"),

@@ -1,6 +1,4 @@
-"""
-Workflows page
-"""
+""" Workflows page """
 
 import reflex as rx
 from ..templates.template import template
@@ -13,7 +11,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 @rx.page(route="/workflows")  # pyright: ignore[reportArgumentType]
 @template
-def data():
+def page():
     """The workflows page."""
     return rx.vstack(
         rx.heading("Workflows", size="9"),

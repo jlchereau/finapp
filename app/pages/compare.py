@@ -403,7 +403,7 @@ def main_content() -> rx.Component:
     on_load=CompareState.update_chart  # pyright: ignore[reportArgumentType]
 )
 @template
-def compare():
+def page():
     """The compare page."""
     return rx.hstack(
         left_sidebar(),

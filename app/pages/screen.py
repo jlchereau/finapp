@@ -11,7 +11,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 @rx.page(route="/screen")  # pyright: ignore[reportArgumentType]
 @template
-def portfolio():
+def page():
     """The screen page."""
     return rx.vstack(
         rx.heading("Screen", size="9"),

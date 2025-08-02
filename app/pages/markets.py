@@ -26,11 +26,10 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 @rx.page(route="/markets")  # pyright: ignore[reportArgumentType]
 @template
-def portfolio():
+def page():
     """The markets page."""
     return rx.vstack(
         rx.heading("Markets", size="9"),
-        rx.text("Test Combobox Component:", size="4", margin_top="6"),
         spacing="5",
         justify="center",
         min_height="85vh",

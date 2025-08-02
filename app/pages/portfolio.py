@@ -1,4 +1,4 @@
-"""Portfolio page"""
+""" Portfolio page """
 
 import reflex as rx
 from ..templates.template import template
@@ -11,7 +11,7 @@ class PortfolioState(rx.State):  # pylint: disable=inherit-non-class
 
 @rx.page(route="/portfolio")  # pyright: ignore[reportArgumentType]
 @template
-def portfolio():
+def page():
     """The portfolio page."""
     return rx.vstack(
         rx.heading("Portfolio", size="9"),
