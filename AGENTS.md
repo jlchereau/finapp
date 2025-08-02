@@ -9,9 +9,13 @@
  make install  # Install dependencies from requirements-dev.txt
  ```
 
+ ### Resetting the Application
+ ```bash
+ make reset    # Deletes the .web directory
+
  ### Building the Application
  ```bash
- make build      # Compile the Reflex application using '.venv/bin/reflex compile'
+ make build    # Compile the Reflex application using '.venv/bin/reflex compile'
  ```
 
  ### Running the Application
@@ -40,8 +44,10 @@
  - **rxconfig.py**: Reflex configuration with app name "app" and plugins (Sitemap, TailwindV4)
  - **app/app.py**: Main application entry point with Reflex components
  - **app/components/**: Application UI components
- - **app/models/**: Application models
- - **app/pages/**: Application pages
+ - **app/flows/**: Prefect workflows
+ - **app/lib/**: Applicatin logic (business layer)
+ - **app/models/**: Application models (persistence layer)
+ - **app/pages/**: Application pages (presentation layer)
  - **app/states/**: Application states
  - **app/templates/**: Application templates
  - **assets/**: Static assets like favicon
@@ -57,7 +63,7 @@
  ### Dependencies
  - **Core**: reflex
  - **Financial/Data**: bt, cvxpy, numpy, pandas, yfinance, riskfolio-lib
- - **Visualization**: matplotlib
+ - **Visualization**: matplotlib, plotly
  - **Persistence**: duckdb, json, csv, parquet
  - **Development**: black, pylint, flake8, pytest, pytest-cov
 

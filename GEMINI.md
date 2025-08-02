@@ -1,6 +1,6 @@
-# CLAUDE.md
+# GEMINI.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Gemini when working with code in this repository.
 
 ## Development Commands
 
@@ -8,15 +8,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 make install  # Install dependencies from requirements-dev.txt
 ```
- 
- ### Building the Application
- ```bash
- make build   # Compile the Reflex application using '.venv/bin/reflex compile'
- ```
 
 ### Resetting the Application
- ```bash
- make reset   # Deletes the .web directory
+```bash
+make reset    # Deletes the .web directory
+```
+
+### Building the Application
+```bash
+make build    # Compile the Reflex application using '.venv/bin/reflex compile'
+```
 
 ### Running the Application
 ```bash
@@ -32,21 +33,15 @@ make all      # Run install, lint, test, and format in sequence
 
 ### Testing
 ```bash
-make test     # Run pytest on test_hello.py (note: test file may not exist yet)
+make test     # Run pytest suite
 ```
 
 ## Project Architecture
 
 This is a **Reflex web application**. Reflex is a Python web framework for building reactive web apps.
-Documentation at https://reflex.dev/docs/.
-Examples at:
-    - https://github.com/reflex-dev/reflex-examples
-    - https://github.com/reflex-dev/templates
-    - https://github.com/reflex-dev/sidebar-template
+See https://reflex.dev/docs/ for reference.
 
 ### Core Structure
-
-Core structure follows the principles of https://reflex.dev/docs/advanced-onboarding/code-structure/.
 - **rxconfig.py**: Reflex configuration with app name "app" and plugins (Sitemap, TailwindV4)
 - **app/app.py**: Main application entry point with Reflex components
 - **app/components/**: Application UI components
@@ -57,8 +52,8 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **app/states/**: Application states
 - **app/templates/**: Application templates
 - **assets/**: Static assets like favicon
-- **data/**: Data files (data from Yahoo Finance)
-- **tests/**: Unit tests
+- **data/**: Data files (e.g., Yahoo Finance)
+- **tests/**: Unit and integration tests
 
 ### Application Components
 - **State Management**: Uses `rx.State` class for reactive state
@@ -74,12 +69,17 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Development**: black, pylint, flake8, pytest, pytest-cov
 
 ### Key Notes
-- Virtual environment located at `.venv/`
-- All commands should be run with `.venv/bin/` prefix
-- Linting and formatting covers `app/`, `tests/`, and root-level Python files
-- Sample data suggests this may be intended for financial/data analysis applications
+- The Python virtual environment is located at `.venv/`. The `make` commands already use the correct interpreter from this environment.
+- Linting and formatting (`make format`, `make lint`) target the `app/`, `tests/`, and root-level Python files.
+- The `data/` directory holds data for the financial analysis features of the application.
 
 ### UI Kit Components
-- **DO NOT MODIFY** any JSX files in `app/components/uikit/` or `assets/external/app/components/*/uikit/` - these are from Tailwind's Catalyst UI Kit
+- **DO NOT MODIFY** any JSX files in `app/components/uikit/` or `assets/external/app/components/*/uikit/`
 - Only modify the Python Reflex wrappers in `app/components/` to fix integration issues
-- The JSX components expect specific prop types and structure that must be respected in the Python wrappers
+
+## Suggested Improvements
+- Consolidate development commands under a single `make setup` or `make dev` alias for convenience.
+- Ensure a `pre-commit` hook is configured to run `make format` and `make lint` automatically.
+- Add a quick start section for new contributors including venv activation.
+- Include a troubleshooting section for common errors (e.g., port conflicts, missing dependencies).
+- Document how to run and update UI Kit and external assets when upstream changes.
