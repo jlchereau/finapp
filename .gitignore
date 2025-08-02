@@ -5,6 +5,7 @@ __pycache__/
 assets/external/
 temp
 
+.DS_Store
 .env
 *.db
 *.py[cod]
