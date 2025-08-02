@@ -5,11 +5,14 @@ install:
 build:
 	.venv/bin/reflex compile
 
+reset:
+	rm -rf .web
+
 run:
 	.venv/bin/reflex run
 
 test:
-	.venv/bin/python -m pytest -vv test_hello.py
+	.venv/bin/python -m pytest -vv tests/
 
 format:
 	.venv/bin/black app/ tests/ *.py
