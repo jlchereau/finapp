@@ -14,7 +14,7 @@ from ..templates.template import template
 from ..models.ticker import ticker_model
 
 
-class CompareState(rx.State):
+class CompareState(rx.State):  # pylint: disable=inherit-non-class
     """State management for the compare page."""
     
     # Ticker input and selection
@@ -398,7 +398,10 @@ def main_content() -> rx.Component:
     )
 
 
-@rx.page(route="/compare", on_load=CompareState.update_chart)
+@rx.page(
+    route="/compare",
+    on_load=CompareState.update_chart  # pyright: ignore[reportArgumentType]
+)
 @template
 def compare():
     """The compare page."""

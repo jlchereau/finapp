@@ -11,4 +11,4 @@ See:
 import reflex as rx
 
 
-app = rx.App()
+app = rx.App()  # pylint: disable=not-callable
