@@ -1,10 +1,11 @@
 __pycache__/
-.pytest_cache
-.states
-.venv
-.web
+.pytest_cache/
+.states/
+.venv/
+.web/
 assets/external/
-temp
+data/
+temp/
 
 .DS_Store
 .env
