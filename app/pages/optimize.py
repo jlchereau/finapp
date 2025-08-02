@@ -45,7 +45,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         self.plot_data = tuple(np.random.rand(2, self.num_points) for _ in range(3))
         self.scale = [random.uniform(0, 100) for _ in range(self.num_points)]
 
-    def set_num_points(self, num_points: list[int]):
+    def set_num_points(self, num_points: list[int | float]):
         self.num_points = num_points[0]
         print(self.num_points)
         self.randomize()
