@@ -9,6 +9,10 @@ reset:
 	rm -rf .web
 
 run:
+	@echo "Killing any processes on ports 3000 and 8000..."
+	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+	@sleep 1
 	.venv/bin/reflex run
 
 test:
