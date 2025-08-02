@@ -37,10 +37,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     loading_chart: bool = False
     loading_metrics: bool = False
 
-    def __init__(self):
-        """Initialize state with ticker model instance."""
-        super().__init__()
-        self._ticker_model = TickerModel()
+    @property
+    def ticker_model(self) -> TickerModel:
+        """Get ticker model instance."""
+        if not hasattr(self, '_ticker_model'):
+            self._ticker_model = TickerModel()
+        return self._ticker_model
 
     def add_ticker(self):
         """Add ticker to selected list."""
@@ -91,7 +93,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             base_date = self._get_base_date()
 
             # Get price data
-            price_data = self._ticker_model.get_price_data(
+            price_data = self.ticker_model.get_price_data(
                 self.selected_tickers, base_date
             )
 
@@ -165,7 +167,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         try:
             flattened_metrics = []
             for ticker in self.selected_tickers:
-                metrics = self._ticker_model.calculate_graham_metrics(ticker)
+                metrics = self.ticker_model.calculate_graham_metrics(ticker)
                 if metrics:
                     for metric_name, metric_data in metrics.items():
                         flattened_metrics.append(
