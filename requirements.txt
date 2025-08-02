@@ -10,4 +10,4 @@ prefect
 riskfolio-lib
 yfinance
 reflex
-reflex==0.8.4
+reflex-pyplot
