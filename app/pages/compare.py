@@ -11,176 +11,187 @@ import reflex as rx
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from ..templates.template import template
-from ..models.ticker import ticker_model
+from ..models.ticker import TickerModel
 
 
 class CompareState(rx.State):  # pylint: disable=inherit-non-class
     """State management for the compare page."""
-    
+
     # Ticker input and selection
     ticker_input: str = ""
     selected_tickers: List[str] = []
-    favorites: List[str] = [
-        "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA"
-    ]
-    
+    favorites: List[str] = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA"]
+
     # Chart settings
     active_tab: str = "plot"
     base_date_option: str = "1Y"
-    base_date_options: List[str] = [
-        "1Y", "2Y", "5Y", "10Y", "YTD", "MAX"
-    ]
-    
+    base_date_options: List[str] = ["1Y", "2Y", "5Y", "10Y", "YTD", "MAX"]
+
     # Chart data
     chart_image: str = ""
-    
+
     # Metrics data - simplified for Reflex
     metrics_data: List[Dict[str, str]] = []
-    
+
     # Loading states
     loading_chart: bool = False
     loading_metrics: bool = False
-    
+
+    def __init__(self):
+        """Initialize state with ticker model instance."""
+        super().__init__()
+        self._ticker_model = TickerModel()
+
     def add_ticker(self):
         """Add ticker to selected list."""
-        if (self.ticker_input and 
-                self.ticker_input.upper() not in self.selected_tickers):
+        if self.ticker_input and self.ticker_input.upper() not in self.selected_tickers:
             self.selected_tickers.append(self.ticker_input.upper())
             self.ticker_input = ""
             self.update_chart()
-    
+
     def remove_ticker(self, ticker: str):
         """Remove ticker from selected list."""
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
             self.update_chart()
-    
+
     def select_from_favorites(self, ticker: str):
         """Select ticker from favorites dropdown."""
         self.ticker_input = ticker
-    
+
     def toggle_favorite(self, ticker: str):
         """Toggle ticker in favorites list."""
         if ticker in self.favorites:
             self.favorites.remove(ticker)
         else:
             self.favorites.append(ticker)
-    
-    
+
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
         self.active_tab = tab
         if tab == "metrics":
             self.update_metrics()
-    
+
     def set_base_date(self, option: str):
         """Set base date option and update chart."""
         self.base_date_option = option
         self.update_chart()
-    
+
     def update_chart(self):
         """Update the matplotlib chart."""
         if not self.selected_tickers:
             self.chart_image = ""
             return
-        
+
         self.loading_chart = True
         yield
-        
+
         try:
             # Calculate base date
             base_date = self._get_base_date()
-            
+
             # Get price data
-            price_data = ticker_model.get_price_data(
+            price_data = self._ticker_model.get_price_data(
                 self.selected_tickers, base_date
             )
-            
+
             if price_data.empty:
                 self.chart_image = ""
                 return
-            
+
             # Create matplotlib chart
-            plt.style.use('default')
+            plt.style.use("default")
             _, ax = plt.subplots(figsize=(12, 8))
-            
+
             # Plot each ticker
             colors = [
-                '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', 
-                '#9467bd', '#8c564b', '#e377c2'
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+                "#e377c2",
             ]
             for i, ticker in enumerate(price_data.columns):
                 color = colors[i % len(colors)]
                 ax.plot(
-                    price_data.index, price_data[ticker], 
-                    label=ticker, linewidth=2, color=color
+                    price_data.index,
+                    price_data[ticker],
+                    label=ticker,
+                    linewidth=2,
+                    color=color,
                 )
-            
+
             # Formatting
-            ax.set_xlabel('Date')
-            ax.set_ylabel('Return')
+            ax.set_xlabel("Date")
+            ax.set_ylabel("Return")
             title = f"Price Comparison ({', '.join(self.selected_tickers)})"
             ax.set_title(title)
             ax.legend()
             ax.grid(True, alpha=0.3)
-            
+
             # Format x-axis dates
-            ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
             ax.xaxis.set_major_locator(mdates.YearLocator())
             plt.xticks(rotation=45)
-            
+
             plt.tight_layout()
-            
+
             # Convert to base64 image
             buffer = io.BytesIO()
-            plt.savefig(buffer, format='png', dpi=100, bbox_inches='tight')
+            plt.savefig(buffer, format="png", dpi=100, bbox_inches="tight")
             buffer.seek(0)
             image_base64 = base64.b64encode(buffer.getvalue()).decode()
             plt.close()
-            
+
             self.chart_image = f"data:image/png;base64,{image_base64}"
-            
+
         except Exception as e:
             print(f"Chart update error: {e}")
             self.chart_image = ""
         finally:
             self.loading_chart = False
-    
+
     def update_metrics(self):
         """Update Graham metrics for selected tickers."""
         if not self.selected_tickers:
             self.metrics_data = []
             return
-        
+
         self.loading_metrics = True
         yield
-        
+
         try:
             flattened_metrics = []
             for ticker in self.selected_tickers:
-                metrics = ticker_model.calculate_graham_metrics(ticker)
+                metrics = self._ticker_model.calculate_graham_metrics(ticker)
                 if metrics:
                     for metric_name, metric_data in metrics.items():
-                        flattened_metrics.append({
-                            "ticker": ticker,
-                            "metric": metric_name,
-                            "value": f"{metric_data['value']:.2f}" + 
-                                   ("%" if metric_name == "Dividend Yield" else ""),
-                            "criterion": metric_data["criterion"],
-                            "status": "✓" if metric_data["passes"] else "✗",
-                            "status_color": "green" if metric_data["passes"] else "red"
-                        })
-            
+                        flattened_metrics.append(
+                            {
+                                "ticker": ticker,
+                                "metric": metric_name,
+                                "value": f"{metric_data['value']:.2f}"
+                                + ("%" if metric_name == "Dividend Yield" else ""),
+                                "criterion": metric_data["criterion"],
+                                "status": "✓" if metric_data["passes"] else "✗",
+                                "status_color": (
+                                    "green" if metric_data["passes"] else "red"
+                                ),
+                            }
+                        )
+
             self.metrics_data = flattened_metrics
         except Exception as e:
             print(f"Metrics update error: {e}")
         finally:
             self.loading_metrics = False
-    
+
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
         today = datetime.now()
-        
+
         if self.base_date_option == "1Y":
             base_date = today - timedelta(days=365)
         elif self.base_date_option == "2Y":
@@ -193,8 +204,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             base_date = datetime(today.year, 1, 1)
         else:  # MAX
             return None
-        
-        return base_date.strftime('%Y-%m-%d')
+
+        return base_date.strftime("%Y-%m-%d")
 
 
 def ticker_input_section() -> rx.Component:
@@ -359,10 +370,7 @@ def plot_tab_content() -> rx.Component:
                     border_radius="md",
                 ),
                 rx.center(
-                    rx.text(
-                        "Select tickers to view comparison chart", 
-                        color="gray"
-                    ),
+                    rx.text("Select tickers to view comparison chart", color="gray"),
                     height="400px",
                 ),
             ),
@@ -400,7 +408,7 @@ def main_content() -> rx.Component:
 
 @rx.page(
     route="/compare",
-    on_load=CompareState.update_chart  # pyright: ignore[reportArgumentType]
+    on_load=CompareState.update_chart,  # pyright: ignore[reportArgumentType]
 )
 @template
 def page():
