@@ -1,6 +1,7 @@
 -r requirements.txt
-flake8
 black
+flake8
+ipykernel
 pylint
 pytest
 pytest-cov
