@@ -1,6 +1,8 @@
 install:
 	.venv/bin/pip install -U pip &&\
-		.venv/bin/pip install -r requirements-dev.txt
+		.venv/bin/pip install -r requirements-dev.txt &&\
+		.venv/bin/pip install --upgrade prefect &&\
+		.venv/bin/pip install --upgrade reflex
 
 build:
 	.venv/bin/reflex compile
