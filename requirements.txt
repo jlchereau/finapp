@@ -1,12 +1,12 @@
 bt
 cvxpy
 duckdb # with https://ducklake.select/
+llama-index-workflows
 numpy
 pandas
 pybind11
 matplotlib
 # mosek
-prefect
 pyarrow
 riskfolio-lib
 yfinance
