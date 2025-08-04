@@ -1,6 +1,9 @@
 bt
 cvxpy
 duckdb # with https://ducklake.select/
+httpx
+jmespath
+Jinja2
 llama-index-workflows
 numpy
 pandas
@@ -8,6 +11,7 @@ pybind11
 matplotlib
 # mosek
 pyarrow
+pydantic
 riskfolio-lib
 yfinance
 reflex
