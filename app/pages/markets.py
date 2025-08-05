@@ -26,7 +26,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
     ]
 
     selected_market: str = ""
-    
+
     # Workflow execution state
     is_running: bool = False
     progress: Dict[str, str] = {}
@@ -39,47 +39,55 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         async with self:
             if self.is_running:
                 return
-                
+
             # Reset state
             self.is_running = True
-            self.progress = {"AAPL": "Starting...", "GOOG": "Starting...", "MSFT": "Starting..."}
+            self.progress = {
+                "AAPL": "Starting...",
+                "GOOG": "Starting...",
+                "MSFT": "Starting...",
+            }
             self.results = []
             self.errors = []
-        
+
         tickers = ["AAPL", "GOOG", "MSFT"]
-        
+
         async def process_single_ticker(ticker: str):
             """Process a single ticker and update progress."""
             try:
                 async with self:
                     self.progress[ticker] = "Generating seed..."
-                
+
                 await asyncio.sleep(0.1)  # Small delay to ensure UI updates
-                
+
                 # After 3 seconds, update to second step
                 await asyncio.sleep(3)
                 async with self:
                     self.progress[ticker] = "Generating stock price..."
-                
+
                 # Process the ticker
                 result = await process_ticker(ticker)
-                
+
                 async with self:
                     if "error" in result:
-                        self.errors.append(f"Error processing {ticker}: {result['error']}")
+                        self.errors.append(
+                            f"Error processing {ticker}: {result['error']}"
+                        )
                         self.progress[ticker] = "Error"
                     else:
                         self.results.append(result)
                         self.progress[ticker] = "Completed"
-                        
+
             except Exception as e:
                 async with self:
-                    self.errors.append(f"Unexpected error processing {ticker}: {str(e)}")
+                    self.errors.append(
+                        f"Unexpected error processing {ticker}: {str(e)}"
+                    )
                     self.progress[ticker] = "Error"
-        
+
         # Run all workflows in parallel
         await asyncio.gather(*[process_single_ticker(ticker) for ticker in tickers])
-        
+
         async with self:
             self.is_running = False
 
@@ -90,7 +98,6 @@ def page():
     """The markets page."""
     return rx.vstack(
         rx.heading("Markets", size="9"),
-        
         # Button to trigger workflows
         rx.button(
             "Get Stock Prices (AAPL, GOOG, MSFT)",
@@ -99,7 +106,6 @@ def page():
             size="3",
             variant="solid",
         ),
-        
         # Progress display
         rx.cond(
             State.is_running | (State.progress != {}),
@@ -117,7 +123,6 @@ def page():
                 width="100%",
             ),
         ),
-        
         # Error display
         rx.cond(
             State.errors != [],
@@ -131,7 +136,6 @@ def page():
                 width="100%",
             ),
         ),
-        
         # Results table
         rx.cond(
             State.results != [],
@@ -159,7 +163,6 @@ def page():
                 width="100%",
             ),
         ),
-        
         spacing="5",
         align="center",
         min_height="85vh",

@@ -12,6 +12,7 @@ from workflows.events import Event, StartEvent, StopEvent
 
 class SeedGeneratedEvent(Event):
     """Event emitted when seed is generated."""
+
     ticker: str
     seed: int
 
@@ -34,10 +35,7 @@ class StockPriceWorkflow(Workflow):
         random.seed(ev.seed)
         # Generate a realistic stock price between $10 - $500
         stock_price = random.uniform(10.0, 500.0)
-        return StopEvent(result={
-            "ticker": ev.ticker, 
-            "price": round(stock_price, 2)
-        })
+        return StopEvent(result={"ticker": ev.ticker, "price": round(stock_price, 2)})
 
 
 async def process_ticker(ticker: str) -> Dict[str, Any]:
@@ -47,13 +45,13 @@ async def process_ticker(ticker: str) -> Dict[str, Any]:
         start_event = StartEvent(ticker=ticker)
         handler = workflow.run(start_event=start_event)
         result = await handler
-        
+
         # Check if result has a .result attribute
-        if hasattr(result, 'result'):
+        if hasattr(result, "result"):
             return result.result
         else:
             # If no .result attribute, return the result directly
             return result
-            
+
     except Exception as e:
         return {"ticker": ticker, "error": str(e)}

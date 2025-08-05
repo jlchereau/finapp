@@ -2,16 +2,17 @@
 Compare page - Stock comparison and analysis
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Any, Optional
 import io
 import base64
 from datetime import datetime, timedelta
+import asyncio
 
 import reflex as rx
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 from ..templates.template import template
-from ..models.ticker import TickerModel
+from ..models.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
 
 
 class CompareState(rx.State):  # pylint: disable=inherit-non-class
@@ -30,19 +31,129 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     # Chart data
     chart_image: str = ""
 
-    # Metrics data - simplified for Reflex
-    metrics_data: List[Dict[str, str]] = []
-
     # Loading states
     loading_chart: bool = False
-    loading_metrics: bool = False
 
     @property
-    def ticker_model(self) -> TickerModel:
-        """Get ticker model instance."""
-        if not hasattr(self, '_ticker_model'):
-            self._ticker_model = TickerModel()
-        return self._ticker_model
+    def history_provider(self):
+        """Get Yahoo history provider instance."""
+        if not hasattr(self, "_history_provider"):
+            self._history_provider = create_yahoo_history_provider()
+        return self._history_provider
+
+    @property
+    def info_provider(self):
+        """Get Yahoo info provider instance."""
+        if not hasattr(self, "_info_provider"):
+            self._info_provider = create_yahoo_info_provider()
+        return self._info_provider
+
+    async def get_price_data(self, tickers: List[str], base_date: datetime):
+        """Get normalized price data for tickers from base_date."""
+        if not tickers:
+            return None
+
+        import pandas as pd
+        import yfinance as yf
+
+        try:
+            # Calculate period from base_date to now
+            end_date = datetime.now()
+
+            # Download data for all tickers
+            data = yf.download(
+                tickers,
+                start=base_date,
+                end=end_date,
+                group_by="ticker" if len(tickers) > 1 else None,
+                auto_adjust=True,
+                prepost=True,
+                threads=True,
+            )
+
+            if data.empty:
+                return pd.DataFrame()
+
+            # Normalize the data for comparison (set first value as 100)
+            normalized_data = pd.DataFrame()
+
+            if len(tickers) == 1:
+                # Single ticker case
+                if "Close" in data.columns:
+                    close_prices = data["Close"].dropna()
+                    if not close_prices.empty:
+                        normalized_data[tickers[0]] = (
+                            close_prices / close_prices.iloc[0]
+                        ) * 100
+            else:
+                # Multiple tickers case
+                for ticker in tickers:
+                    try:
+                        close_prices = None
+                        if hasattr(data, "columns"):
+                            if (ticker, "Close") in data.columns:
+                                close_prices = data[(ticker, "Close")].dropna()
+                            elif (
+                                ticker in data.columns
+                                and hasattr(data[ticker], "columns")
+                                and "Close" in data[ticker].columns
+                            ):
+                                close_prices = data[ticker]["Close"].dropna()
+
+                        if close_prices is not None and not close_prices.empty:
+                            normalized_data[ticker] = (
+                                close_prices / close_prices.iloc[0]
+                            ) * 100
+                    except (KeyError, IndexError, AttributeError):
+                        continue
+
+            return normalized_data
+
+        except Exception as e:
+            print(f"Error fetching price data: {e}")
+            return pd.DataFrame()
+
+    async def calculate_graham_metrics(self, ticker: str):
+        """Calculate Graham metrics using the info provider."""
+        try:
+            result = await self.info_provider.get_data(ticker)
+            if not result.success:
+                return None
+
+            info_data = result.data
+            metrics = {}
+
+            # P/E Ratio (should be < 15)
+            pe_ratio = getattr(info_data, "pe_ratio", 0) or 0
+            metrics["P/E Ratio"] = {
+                "value": pe_ratio,
+                "criterion": "< 15",
+                "passes": pe_ratio and pe_ratio < 15,
+            }
+
+            # Market Cap info
+            market_cap = getattr(info_data, "market_cap", 0) or 0
+            if market_cap:
+                metrics["Market Cap"] = {
+                    "value": market_cap / 1e9,  # Convert to billions
+                    "criterion": "Information",
+                    "passes": True,
+                }
+
+            # Beta
+            beta = getattr(info_data, "beta", 0) or 0
+            if beta:
+                metrics["Beta"] = {
+                    "value": beta,
+                    "criterion": "< 1.5",
+                    "passes": beta < 1.5,
+                }
+
+            return metrics
+
+        except Exception as e:
+            print(f"Error calculating Graham metrics for {ticker}: {e}")
+            return None
 
     def add_ticker(self):
         """Add ticker to selected list."""
@@ -71,34 +182,38 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
         self.active_tab = tab
-        if tab == "metrics":
-            self.update_metrics()
 
     def set_base_date(self, option: str):
         """Set base date option and update chart."""
         self.base_date_option = option
         self.update_chart()
 
-    def update_chart(self):
-        """Update the matplotlib chart."""
+    @rx.event(background=True)
+    async def update_chart(self):
+        """Update the matplotlib chart using background processing."""
         if not self.selected_tickers:
-            self.chart_image = ""
+            async with self:
+                self.chart_image = ""
             return
 
-        self.loading_chart = True
-        yield
+        async with self:
+            self.loading_chart = True
 
         try:
             # Calculate base date
             base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use a very old date
+                base_date = datetime(2000, 1, 1)
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
 
             # Get price data
-            price_data = self.ticker_model.get_price_data(
-                self.selected_tickers, base_date
-            )
+            price_data = await self.get_price_data(self.selected_tickers, base_date)
 
-            if price_data.empty:
-                self.chart_image = ""
+            if price_data is None or price_data.empty:
+                async with self:
+                    self.chart_image = ""
                 return
 
             # Create matplotlib chart
@@ -147,48 +262,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             image_base64 = base64.b64encode(buffer.getvalue()).decode()
             plt.close()
 
-            self.chart_image = f"data:image/png;base64,{image_base64}"
+            async with self:
+                self.chart_image = f"data:image/png;base64,{image_base64}"
 
         except Exception as e:
             print(f"Chart update error: {e}")
-            self.chart_image = ""
+            async with self:
+                self.chart_image = ""
         finally:
-            self.loading_chart = False
-
-    def update_metrics(self):
-        """Update Graham metrics for selected tickers."""
-        if not self.selected_tickers:
-            self.metrics_data = []
-            return
-
-        self.loading_metrics = True
-        yield
-
-        try:
-            flattened_metrics = []
-            for ticker in self.selected_tickers:
-                metrics = self.ticker_model.calculate_graham_metrics(ticker)
-                if metrics:
-                    for metric_name, metric_data in metrics.items():
-                        flattened_metrics.append(
-                            {
-                                "ticker": ticker,
-                                "metric": metric_name,
-                                "value": f"{metric_data['value']:.2f}"
-                                + ("%" if metric_name == "Dividend Yield" else ""),
-                                "criterion": metric_data["criterion"],
-                                "status": "✓" if metric_data["passes"] else "✗",
-                                "status_color": (
-                                    "green" if metric_data["passes"] else "red"
-                                ),
-                            }
-                        )
-
-            self.metrics_data = flattened_metrics
-        except Exception as e:
-            print(f"Metrics update error: {e}")
-        finally:
-            self.loading_metrics = False
+            async with self:
+                self.loading_chart = False
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
@@ -307,43 +390,10 @@ def left_sidebar() -> rx.Component:
 
 
 def metrics_tab_content() -> rx.Component:
-    """Metrics tab showing Graham's defensive investor criteria."""
-    return rx.cond(
-        CompareState.loading_metrics,
-        rx.spinner(),
-        rx.cond(
-            CompareState.metrics_data,
-            rx.table.root(
-                rx.table.header(
-                    rx.table.row(
-                        rx.table.column_header_cell("Ticker"),
-                        rx.table.column_header_cell("Metric"),
-                        rx.table.column_header_cell("Value"),
-                        rx.table.column_header_cell("Criterion"),
-                        rx.table.column_header_cell("Status"),
-                    ),
-                ),
-                rx.table.body(
-                    rx.foreach(
-                        CompareState.metrics_data,
-                        lambda metric: rx.table.row(
-                            rx.table.cell(metric["ticker"]),
-                            rx.table.cell(metric["metric"]),
-                            rx.table.cell(metric["value"]),
-                            rx.table.cell(metric["criterion"]),
-                            rx.table.cell(
-                                rx.badge(
-                                    metric["status"],
-                                    color_scheme=metric["status_color"],
-                                )
-                            ),
-                        ),
-                    ),
-                ),
-                width="100%",
-            ),
-            rx.text("Select tickers to view metrics", color="gray"),
-        ),
+    """Metrics tab placeholder - to be implemented later."""
+    return rx.center(
+        rx.text("Metrics functionality coming soon...", color="gray"),
+        height="400px",
     )
 
 
