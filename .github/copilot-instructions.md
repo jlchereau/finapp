@@ -56,8 +56,7 @@ Examples at:
     - https://github.com/reflex-dev/templates
     - https://github.com/reflex-dev/sidebar-template
 
-Code is written in Python, leveraging Reflex components for the UI and state management.
-Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser. Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
+Code is written in Python 3.10+ (a requirement for Reflex), leveraging Reflex components for the UI and state management. Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser. Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
 ### Core Structure
 
