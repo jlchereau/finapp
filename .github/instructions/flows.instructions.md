@@ -1,3 +1,7 @@
+---
+applyTo: "app/flows/**/*.py"
+---
+
 # Workflows
 
 We have considered the following workflow brokers:
