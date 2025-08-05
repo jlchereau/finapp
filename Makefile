@@ -24,5 +24,4 @@ format:
 lint:
 	.venv/bin/pylint --disable=R,C app/ tests/ *.py
 
-all:
-	install lint test format
+all: install format lint test

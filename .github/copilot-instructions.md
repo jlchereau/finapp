@@ -23,9 +23,12 @@ make install  # Install dependencies from requirements-dev.txt
  make build   # Compile the Reflex application using '.venv/bin/reflex compile'
  ```
 
+Note: always run `make build` after making changes to the code to ensure the application is compiling without errors. Sometimes the compilation gets stuck, in which case you can reset the application with `make reset` and then run `make build` again.
+
 ### Resetting the Application
  ```bash
- make reset   # Deletes the .web directory
+ make reset   # Delete the .web directory
+ ```
 
 ### Running the Application
 ```bash
@@ -36,12 +39,12 @@ make run      # Run the Reflex application using '.venv/bin/reflex run'
 ```bash
 make format   # Format code with black (app/, tests/, *.py)
 make lint     # Run pylint on app/, tests/, *.py (disable R,C categories)
-make all      # Run install, lint, test, and format in sequence
+make all      # Run install, format, lint, test in sequence
 ```
 
 ### Testing
 ```bash
-make test     # Run pytest on test_hello.py (note: test file may not exist yet)
+make test     # Run pytest on app/ and tests/ directories
 ```
 
 ## Project Architecture
@@ -52,6 +55,9 @@ Examples at:
     - https://github.com/reflex-dev/reflex-examples
     - https://github.com/reflex-dev/templates
     - https://github.com/reflex-dev/sidebar-template
+
+Code is written in Python, leveraging Reflex components for the UI and state management.
+Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser. Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
 ### Core Structure
 
@@ -77,11 +83,13 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 
 ### Dependencies
 - **Core**: reflex
-- **Financial/Data**: bt, cvxpy, numpy, pandas, yfinance, riskfolio-lib
+- **Finance**: bt, cvxpy, yfinance, riskfolio-lib
+- **Data**: numpy, pandas, httpx, jmespath, pydantic
+- **Templates**: Jinja2
 - **Workflows**: llama-index-workflows
 - **Visualization**: matplotlib, plotly
-- **Persistence**: duckdb, json, csv, parquet
-- **Development**: black, pylint, flake8, pytest, pytest-cov
+- **Persistence**: duckdb, pyarrow (parquet), json, csv
+- **Development**: black, flake8, pylint, pytest, pytest-cov
 
 ### Key Notes
 - Virtual environment located at `.venv/`
