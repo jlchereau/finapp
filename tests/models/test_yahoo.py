@@ -1,21 +1,13 @@
-#!/usr/bin/env pytest
-# pylint: skip-file
-# flake8: noqa
-# type: ignore
-#!/usr/bin/env pytest
-# pylint: skip-file
-# flake8: noqa
-# type: ignore
 """
 Unit tests for the Yahoo provider module.
 Tests both YahooHistoryProvider and YahooInfoProvider.
 """
 
 import asyncio
-import pytest
 from unittest.mock import patch, MagicMock, PropertyMock
 from pandas import DataFrame
 from pydantic import BaseModel
+import pytest
 
 from app.models.yahoo import (
     YahooHistoryProvider,
@@ -32,6 +24,7 @@ class TestYahooHistoryProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # pylint:disable=attribute-defined-outside-init
         self.provider = YahooHistoryProvider()
 
     def test_provider_type(self):
@@ -78,9 +71,11 @@ class TestYahooHistoryProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is True
+        # Ensure data is present before checking its type
+        assert result.data is not None
         assert isinstance(result.data, DataFrame)
         assert len(result.data) == 2
-        assert result.ticker == "AAPL"
+        assert result.query == "AAPL"
         assert result.provider_type == ProviderType.YAHOO_HISTORY
 
         # Verify yfinance was called correctly
@@ -101,6 +96,8 @@ class TestYahooHistoryProvider:
         result = await self.provider.get_data("AAPL", period="6mo", interval="1h")
 
         assert result.success is True
+        # Ensure data is present
+        assert result.data is not None
         mock_ticker.history.assert_called_once_with(period="6mo", interval="1h")
 
     @pytest.mark.asyncio
@@ -119,6 +116,8 @@ class TestYahooHistoryProvider:
         )
 
         assert result.success is True
+        # Ensure data is present
+        assert result.data is not None
         mock_ticker.history.assert_called_once_with(
             start="2023-01-01", end="2023-12-31", interval="1d"
         )
@@ -134,7 +133,7 @@ class TestYahooHistoryProvider:
         result = await self.provider.get_data("INVALID")
 
         assert result.success is False
-        assert "No historical data found" in result.error_message
+        assert "No historical data found" in (result.error_message or "")
         assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
@@ -148,7 +147,7 @@ class TestYahooHistoryProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "yfinance error" in result.error_message
+        assert "yfinance error" in (result.error_message or "")
         assert result.error_code == "RetriableProviderException"
 
     def test_get_data_sync(self):
@@ -171,6 +170,7 @@ class TestYahooInfoProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
+        # pylint:disable=attribute-defined-outside-init
         self.provider = YahooInfoProvider()
 
     def test_provider_type(self):
@@ -207,8 +207,10 @@ class TestYahooInfoProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is True
+        # Ensure data is present before checking type
+        assert result.data is not None
         assert isinstance(result.data, BaseModel)
-        assert result.ticker == "AAPL"
+        assert result.query == "AAPL"
         assert result.provider_type == ProviderType.YAHOO_INFO
 
         # Check parsed data fields (access via getattr due to dynamic model)
@@ -227,7 +229,7 @@ class TestYahooInfoProvider:
         result = await self.provider.get_data("INVALID")
 
         assert result.success is False
-        assert "No info data found" in result.error_message
+        assert "No info data found" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("yfinance.Ticker")
@@ -240,7 +242,7 @@ class TestYahooInfoProvider:
         result = await self.provider.get_data("INVALID")
 
         assert result.success is False
-        assert "No info data found" in result.error_message
+        assert "No info data found" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("yfinance.Ticker")
@@ -280,7 +282,7 @@ class TestYahooInfoProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "yfinance info error" in result.error_message
+        assert "yfinance info error" in (result.error_message or "")
 
 
 class TestYahooFactoryFunctions:
@@ -346,6 +348,7 @@ class TestYahooInfoConfig:
 
     def test_yahoo_info_config_all_fields_have_defaults(self):
         """Test that all fields have default values."""
+        # pylint:disable=no-member
         for field_name, field_config in YAHOO_INFO_CONFIG.fields.items():
             assert "default" in field_config
             # Most should have None default, except currency

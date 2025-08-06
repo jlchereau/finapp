@@ -53,12 +53,12 @@ class ZacksProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.ZACKS
 
-    async def _fetch_data(self, ticker: str, **kwargs) -> BaseModel:
+    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
         """
         Fetch data from Zacks API.
 
         Args:
-            ticker: Stock ticker symbol
+            query: Stock ticker symbol to fetch (must be non-null)
             **kwargs: Additional parameters (currently unused)
 
         Returns:
@@ -69,6 +69,12 @@ class ZacksProvider(BaseProvider[BaseModel]):
             ValueError: If no data is returned or response is invalid
             Exception: For other network-related errors
         """
+        # Prepare and validate query
+        if query is None:
+            raise NonRetriableProviderException(
+                "Query must be provided for ZacksProvider"
+            )
+        ticker = query.upper().strip()
         # HTTP request with exception mapping
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(

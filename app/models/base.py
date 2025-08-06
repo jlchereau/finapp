@@ -17,10 +17,10 @@ import asyncio
 import logging
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar, Generic
-from pandas import DataFrame
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from pandas import DataFrame
+from pydantic import BaseModel, Field
 
 
 class NonRetriableProviderException(Exception):
@@ -91,9 +91,9 @@ class ProviderResult(BaseModel, Generic[T]):
     provider_type: ProviderType = Field(
         description="Type of provider that generated this result"
     )
-    ticker: str | None = Field(
+    query: str | None = Field(
         default=None,
-        description="Ticker symbol if applicable",
+        description="A query, for example a stock ticker",
     )
 
 
@@ -162,13 +162,13 @@ class BaseProvider(ABC, Generic[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    async def _fetch_data(self, ticker: str, **kwargs) -> T:
+    async def _fetch_data(self, query: str | None, **kwargs) -> T:
         """
         Internal method to fetch data. Must be implemented by subclasses.
         This method should contain the actual data fetching logic.
 
         Args:
-            ticker: Stock ticker symbol
+            query: a query, for example a stock ticker or None if not applicable
             **kwargs: Additional parameters specific to the provider
 
         Returns:
@@ -179,31 +179,35 @@ class BaseProvider(ABC, Generic[T]):
         """
         raise NotImplementedError()
 
-    async def get_data(self, ticker: str, **kwargs) -> ProviderResult[T]:
+    async def get_data(self, query: str | None, **kwargs) -> ProviderResult[T]:
         """
         Fetch data from the provider with comprehensive error handling.
         This is the main public interface that workflows should use.
 
         Args:
-            ticker: Stock ticker symbol
+            query: a query, for example a stock ticker or None if not applicable
             **kwargs: Additional parameters specific to the provider
 
         Returns:
             ProviderResult containing data or error information
         """
+        # Basic type validation
+        if query is not None and not isinstance(query, str):
+            return ProviderResult(
+                success=False,
+                error_message="Query must be a string or None",
+                error_code="ValueError",
+                provider_type=self.provider_type,
+                query=None,
+            )
+
         start_time = asyncio.get_event_loop().time()
 
         async with self._semaphore:  # Limit concurrent operations
             try:
-                self.logger.info("Fetching data for ticker: %s", ticker)
+                self.logger.info("Fetching data for query: %s", query)
 
-                # Validate inputs
-                if not ticker or not isinstance(ticker, str):
-                    raise ValueError("Ticker must be a non-empty string")
-
-                ticker = ticker.upper().strip()
-
-                # TODO: Check cache here when caching is implemented
+                # Cache check placeholder (caching not yet implemented)
 
                 # Apply rate limiting if configured
                 if self.config.rate_limit:
@@ -214,14 +218,14 @@ class BaseProvider(ABC, Generic[T]):
                     try:
                         # Fetch data with timeout
                         data = await asyncio.wait_for(
-                            self._fetch_data(ticker, **kwargs),
+                            self._fetch_data(query, **kwargs),
                             timeout=self.config.timeout,
                         )
                         # Success
                         execution_time = asyncio.get_event_loop().time() - start_time
                         self.logger.info(
                             "Successfully fetched data for %s in %.2f",
-                            ticker,
+                            query,
                             execution_time,
                         )
                         return ProviderResult(
@@ -229,21 +233,21 @@ class BaseProvider(ABC, Generic[T]):
                             data=data,
                             execution_time=execution_time,
                             provider_type=self.provider_type,
-                            ticker=ticker,
+                            query=query,
                             metadata={"attempt": attempt + 1},
                         )
                     except asyncio.TimeoutError as e:
                         # retry on timeout
                         last_exception = e
                         self.logger.warning(
-                            "Timeout for %s (attempt %d)", ticker, attempt + 1
+                            "Timeout for %s (attempt %d)", query, attempt + 1
                         )
                         if attempt < self.config.retries:
                             await asyncio.sleep(self.config.retry_delay * (attempt + 1))
                     except NonRetriableProviderException as e:
                         # fail fast on non-retriable
                         self.logger.error(
-                            "Non-retriable error fetching %s: %s", ticker, e
+                            "Non-retriable error fetching %s: %s", query, e
                         )
                         return ProviderResult(
                             success=False,
@@ -251,14 +255,14 @@ class BaseProvider(ABC, Generic[T]):
                             error_code=type(e).__name__,
                             execution_time=asyncio.get_event_loop().time() - start_time,
                             provider_type=self.provider_type,
-                            ticker=ticker,
+                            query=query,
                         )
                     except RetriableProviderException as e:
                         # backoff and retry
                         last_exception = e
                         self.logger.warning(
                             "Retryable error fetching %s (attempt %d): %s",
-                            ticker,
+                            query,
                             attempt + 1,
                             e,
                         )
@@ -270,7 +274,7 @@ class BaseProvider(ABC, Generic[T]):
                         last_exception = e
                         self.logger.warning(
                             "Error fetching %s (attempt %d): %s",
-                            ticker,
+                            query,
                             attempt + 1,
                             e,
                         )
@@ -284,24 +288,20 @@ class BaseProvider(ABC, Generic[T]):
                     msg += f": {last_exception}"
                 execution_time = asyncio.get_event_loop().time() - start_time
                 # Prepare final error code
-                error_code = (
-                    type(last_exception).__name__
-                    if last_exception
-                    else None
-                )
+                error_code = type(last_exception).__name__ if last_exception else None
                 return ProviderResult(
                     success=False,
                     error_message=msg,
                     error_code=error_code,
                     execution_time=execution_time,
                     provider_type=self.provider_type,
-                    ticker=ticker,
+                    query=query,
                     metadata={"total_attempts": attempts},
                 )
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 execution_time = asyncio.get_event_loop().time() - start_time
-                self.logger.error("Unexpected error for %s: %s", ticker, e)
+                self.logger.error("Unexpected error for %s: %s", query, e)
 
                 return ProviderResult[T](
                     success=False,
@@ -309,18 +309,18 @@ class BaseProvider(ABC, Generic[T]):
                     error_code=type(e).__name__,
                     execution_time=execution_time,
                     provider_type=self.provider_type,
-                    ticker=ticker,
+                    query=query,
                 )
 
-    def get_data_sync(self, ticker: str, **kwargs) -> ProviderResult[T]:
+    def get_data_sync(self, query: str | None, **kwargs) -> ProviderResult[T]:
         """
         Synchronous wrapper for get_data. Useful for non-async contexts.
 
         Args:
-            ticker: Stock ticker symbol
+            query: a query, for example a stock ticker or None if not applicable
             **kwargs: Additional parameters specific to the provider
 
         Returns:
             ProviderResult containing data or error information
         """
-        return asyncio.run(self.get_data(ticker, **kwargs))
+        return asyncio.run(self.get_data(query, **kwargs))

@@ -55,12 +55,12 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
         """Return the provider type."""
         return ProviderType.YAHOO_HISTORY
 
-    async def _fetch_data(self, ticker: str, **kwargs) -> DataFrame:
+    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
         """
         Fetch historical price data for a ticker from yfinance.
 
         Args:
-            ticker: Stock ticker symbol
+            query: Stock ticker symbol to fetch (must be non-null)
             **kwargs: Additional parameters:
                 - period: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y,
                   10y, ytd, max)
@@ -85,6 +85,11 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             start = kwargs.get("start", self.config.extra_config.get("start"))
             end = kwargs.get("end", self.config.extra_config.get("end"))
 
+            # Validate query
+            if query is None:
+                raise ValueError("Query must be provided for YahooHistoryProvider")
+            ticker = query.upper().strip()
+
             # Run yfinance call in a separate thread to avoid blocking
             def fetch_history():
                 yf_ticker = yf.Ticker(ticker)
@@ -95,7 +100,7 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             data = await asyncio.to_thread(fetch_history)
 
             if data.empty:
-                raise ValueError(f"No historical data found for ticker: {ticker}")
+                raise ValueError(f"No historical data found for query: {query}")
 
             # Clean up the data
             data.index.name = "Date"
@@ -103,8 +108,10 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
 
             return data
         except ValueError as e:
+            # Non-retriable errors (e.g., empty data)
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
+            # Other errors retriable
             raise RetriableProviderException(str(e)) from e
 
 
@@ -120,12 +127,12 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.YAHOO_INFO
 
-    async def _fetch_data(self, ticker: str, **kwargs) -> BaseModel:
+    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
         """
         Get ticker info/fundamentals from yfinance.
 
         Args:
-            ticker: Stock ticker symbol
+            query: Stock ticker symbol to fetch (must be non-null)
             **kwargs: Additional parameters (currently unused)
 
         Returns:
@@ -136,7 +143,12 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             Exception: For other yfinance-related errors
         """
         try:
+            # Validate query
+            if query is None:
+                raise ValueError("Query must be provided for YahooInfoProvider")
+            ticker = query.upper().strip()
             # Run yfinance call in a separate thread to avoid blocking
+
             def fetch_info():
                 yf_ticker = yf.Ticker(ticker)
                 return yf_ticker.info
@@ -144,7 +156,7 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             json_data = await asyncio.to_thread(fetch_info)
 
             if not json_data or not isinstance(json_data, dict):
-                raise ValueError(f"No info data found for ticker: {ticker}")
+                raise ValueError(f"No info data found for query: {query}")
 
             # Parse the JSON data using our parser
             parser = PydanticJSONParser(YAHOO_INFO_CONFIG)

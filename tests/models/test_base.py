@@ -1,22 +1,12 @@
-#!/usr/bin/env pytest
-# pylint: skip-file
-# flake8: noqa
-# type: ignore
 """
 Unit tests for the base provider module.
 Tests the abstract base classes and core functionality.
 """
-# pylint: skip-file
-# flake8: noqa
-# type: ignore
-# pylint: disable=all
-# flake8: noqa
-# type: ignore
 
 import asyncio
-import pytest
 from unittest.mock import patch
 from datetime import datetime
+import pytest
 from pandas import DataFrame
 
 from app.models.base import (
@@ -34,11 +24,12 @@ class MockProvider(BaseProvider[DataFrame]):
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.CUSTOM
 
-    async def _fetch_data(self, ticker: str, **kwargs) -> DataFrame:
+    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
         """Mock implementation that returns a simple DataFrame."""
-        if ticker == "ERROR":
+        # Providers expect non-null query for testing; None support not simulated here
+        if query == "ERROR":
             raise ValueError("Mock error for testing")
-        if ticker == "TIMEOUT":
+        if query == "TIMEOUT":
             await asyncio.sleep(100)  # This will timeout
         return DataFrame({"price": [100.0], "volume": [1000]})
 
@@ -92,15 +83,17 @@ class TestProviderResult:
             success=True,
             data=data,
             provider_type=ProviderType.YAHOO_HISTORY,
-            ticker="AAPL",
+            query="AAPL",
         )
 
         assert result.success is True
+        # Ensure data is present before calling equals()
+        assert result.data is not None
         assert result.data.equals(data)
         assert result.error_message is None
         assert result.error_code is None
         assert result.provider_type == ProviderType.YAHOO_HISTORY
-        assert result.ticker == "AAPL"
+        assert result.query == "AAPL"
         assert isinstance(result.timestamp, datetime)
         assert isinstance(result.metadata, dict)
 
@@ -111,7 +104,7 @@ class TestProviderResult:
             error_message="Test error",
             error_code="ValueError",
             provider_type=ProviderType.YAHOO_HISTORY,
-            ticker="INVALID",
+            query="INVALID",
         )
 
         assert result.success is False
@@ -119,7 +112,7 @@ class TestProviderResult:
         assert result.error_message == "Test error"
         assert result.error_code == "ValueError"
         assert result.provider_type == ProviderType.YAHOO_HISTORY
-        assert result.ticker == "INVALID"
+        assert result.query == "INVALID"
 
 
 class TestBaseProvider:
@@ -127,7 +120,7 @@ class TestBaseProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = MockProvider()
+        self.provider = MockProvider()  # pylint:disable=attribute-defined-outside-init
 
     def test_provider_initialization(self):
         """Test provider initialization."""
@@ -154,7 +147,7 @@ class TestBaseProvider:
         assert isinstance(result.data, DataFrame)
         assert result.error_message is None
         assert result.provider_type == ProviderType.CUSTOM
-        assert result.ticker == "AAPL"
+        assert result.query == "AAPL"
         assert result.execution_time is not None
         assert result.execution_time > 0
 
@@ -165,10 +158,10 @@ class TestBaseProvider:
 
         assert result.success is False
         assert result.data is None
-        assert "Mock error for testing" in result.error_message
+        assert "Mock error for testing" in (result.error_message or "")
         assert result.error_code == "ValueError"
         assert result.provider_type == ProviderType.CUSTOM
-        assert result.ticker == "ERROR"
+        assert result.query == "ERROR"
 
     @pytest.mark.asyncio
     async def test_get_data_timeout(self):
@@ -183,7 +176,7 @@ class TestBaseProvider:
         assert result.data is None
         # The error message should contain information about the failure
         assert result.error_message is not None
-        assert "Failed after" in result.error_message
+        assert "Failed after" in (result.error_message or "")
         assert result.error_code in ["TimeoutError", "CancelledError"]
 
     @pytest.mark.asyncio
@@ -196,26 +189,38 @@ class TestBaseProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "Failed after 3 attempts" in result.error_message
+        assert "Failed after 3 attempts" in (result.error_message or "")
         assert result.metadata["total_attempts"] == 3
 
     @pytest.mark.asyncio
-    async def test_get_data_invalid_ticker(self):
-        """Test validation of invalid ticker."""
-        result = await self.provider.get_data("")
+    async def test_get_data_non_string_query(self):
+        """Test validation of non-string query type."""
+        # Passing non-string should error
+        result = await self.provider.get_data(123)  # type: ignore
 
         assert result.success is False
         assert result.error_message is not None
-        assert "Ticker must be a non-empty string" in result.error_message
+        assert "Query must be a string or None" in (result.error_message or "")
         assert result.error_code == "ValueError"
 
     @pytest.mark.asyncio
-    async def test_get_data_ticker_normalization(self):
-        """Test ticker normalization (uppercase, stripped)."""
-        result = await self.provider.get_data("  aapl  ")
+    async def test_get_data_empty_string(self):
+        """Test empty string query is passed to provider."""
+        result = await self.provider.get_data("")
 
         assert result.success is True
-        assert result.ticker == "AAPL"
+        assert result.data is not None
+        assert isinstance(result.data, DataFrame)
+        assert result.query == ""
+
+    @pytest.mark.asyncio
+    async def test_get_data_query_passthrough(self):
+        """Test query is passed through unmodified without normalization."""
+        raw_query = "  aapl  "
+        result = await self.provider.get_data(raw_query)
+
+        assert result.success is True
+        assert result.query == raw_query
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""
@@ -231,7 +236,7 @@ class TestBaseProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "Mock error for testing" in result.error_message
+        assert "Mock error for testing" in (result.error_message or "")
 
     @pytest.mark.asyncio
     async def test_rate_limiting(self):
@@ -258,7 +263,7 @@ class TestBaseProvider:
         # Create provider with very small semaphore for testing
         provider = MockProvider()
         # Only 1 concurrent operation
-        provider._semaphore = asyncio.Semaphore(1)
+        provider._semaphore = asyncio.Semaphore(1)  # pylint: disable=protected-access
 
         # Start multiple tasks
         tasks = [provider.get_data("AAPL") for _ in range(3)]

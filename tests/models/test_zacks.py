@@ -1,27 +1,13 @@
-#!/usr/bin/env pytest
-# pylint: disable=all
-# flake8: noqa
-# type: ignore
 """
 Unit tests for the Zacks provider module.
 Tests ZacksProvider for fetching financial data from Zacks API.
 """
-# pylint: disable=attribute-defined-outside-init, unused-variable, unused-argument, no-member
-# flake8: noqa
-# pylint: disable=all
-# flake8: noqa
-# type: ignore
 
-import asyncio  # noqa: F401
-
-# pylint: disable=attribute-defined-outside-init, unused-variable, unused-argument, no-member
-import pytest  # noqa: F401
-
-# pylint: disable=attribute-defined-outside-init, unused-variable, unused-argument, no-member
-import pytest
+import asyncio
 from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
 from pydantic import BaseModel
+import pytest
 
 from app.models.zacks import (
     ZacksProvider,
@@ -36,7 +22,7 @@ class TestZacksProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = ZacksProvider()
+        self.provider = ZacksProvider()  # pylint:disable=attribute-defined-outside-init
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
@@ -97,7 +83,7 @@ class TestZacksProvider:
 
         assert result.success is True
         assert isinstance(result.data, BaseModel)
-        assert result.ticker == "AAPL"
+        assert result.query == "AAPL"
         assert result.provider_type == ProviderType.ZACKS
 
         # Check parsed data fields
@@ -129,7 +115,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("INVALID")
 
         assert result.success is False
-        assert "Ticker not found in Zacks" in result.error_message
+        assert "Ticker not found in Zacks" in (result.error_message or "")
         assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
@@ -152,7 +138,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "Rate limit exceeded" in result.error_message
+        assert "Rate limit exceeded" in (result.error_message or "")
         assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
@@ -175,7 +161,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "HTTP 500 error" in result.error_message
+        assert "HTTP 500 error" in (result.error_message or "")
         assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
@@ -193,7 +179,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "Network error connecting to Zacks API" in result.error_message
+        assert "Network error connecting to Zacks API" in (result.error_message or "")
         assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
@@ -215,7 +201,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "Invalid response from Zacks API" in result.error_message
+        assert "Invalid response from Zacks API" in (result.error_message or "")
         assert result.error_code == "ValueError"
 
     @pytest.mark.asyncio
@@ -237,7 +223,7 @@ class TestZacksProvider:
         result = await self.provider.get_data("AAPL")
 
         assert result.success is False
-        assert "Invalid response from Zacks API" in result.error_message
+        assert "Invalid response from Zacks API" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -275,7 +261,13 @@ class TestZacksProvider:
         config = ProviderConfig(timeout=0.1)  # Very short timeout
         provider = ZacksProvider(config)
 
+        # --- stub out the response so that raise_for_status() is a normal method ---
+        mock_response = MagicMock()
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"ticker": "AAPL", "price": 150.0}
+
         mock_client = AsyncMock()
+        mock_client.get.return_value = mock_response
         mock_client.__aenter__.return_value = mock_client
         mock_client.__aexit__.return_value = None
         mock_client_class.return_value = mock_client
@@ -284,7 +276,7 @@ class TestZacksProvider:
         await provider.get_data("AAPL")
 
         # Check that AsyncClient was created with correct timeout
-        args, kwargs = mock_client_class.call_args
+        _, kwargs = mock_client_class.call_args
         assert "timeout" in kwargs
         assert kwargs["timeout"].connect == 0.1
 
@@ -308,7 +300,7 @@ class TestZacksProvider:
         await provider.get_data("AAPL")
 
         # Check that AsyncClient was created with correct headers
-        args, kwargs = mock_client_class.call_args
+        _, kwargs = mock_client_class.call_args
         assert "headers" in kwargs
         assert kwargs["headers"]["User-Agent"] == "CustomAgent/1.0"
 
@@ -375,7 +367,7 @@ class TestZacksConfig:
 
     def test_zacks_config_all_fields_have_defaults(self):
         """Test that all fields have default values."""
-        for field_name, field_config in ZACKS_CONFIG.fields.items():
+        for _, field_config in ZACKS_CONFIG.fields.items():  # pylint:disable=no-member
             assert "default" in field_config
             assert field_config["default"] is None
 
@@ -460,7 +452,7 @@ class TestZacksProviderIntegration:
             # Track call count to return different responses
             call_count = 0
 
-            def get_side_effect(*args, **kwargs):
+            def get_side_effect(*args, **kwargs):  # pylint:disable=unused-argument
                 nonlocal call_count
                 call_count += 1
                 if call_count == 1:
@@ -486,4 +478,4 @@ class TestZacksProviderIntegration:
 
             assert results[0].success is True
             assert results[1].success is False
-            assert "Ticker not found in Zacks" in results[1].error_message
+            assert "Ticker not found in Zacks" in (results[1].error_message or "")
