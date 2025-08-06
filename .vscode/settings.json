@@ -1,4 +1,8 @@
 {
+    "python.linting.enabled": true,
+    "python.linting.flake8Enabled": true,
+    // only needed if you want to explicitly point to the config file:
+    "python.linting.flake8Args": ["--config", "${workspaceFolder}/.flake8"],
     "python.testing.pytestArgs": [
         "tests"
     ],

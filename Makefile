@@ -21,7 +21,14 @@ test:
 format:
 	.venv/bin/black app/ tests/ *.py
 
-lint:
+pylint:
 	.venv/bin/pylint --disable=R,C app/ tests/ *.py
+
+# flake8 will auto-read .flake8
+flake8:
+    .venv/bin/flake8 app/ tests/ *.py
+
+# lint with flake8 and pylint
+lint: flake8 pylint
 
 all: install format lint test
