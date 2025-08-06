@@ -135,7 +135,7 @@ class TestYahooHistoryProvider:
 
         assert result.success is False
         assert "No historical data found" in result.error_message
-        assert result.error_code == "ValueError"
+        assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
     @patch("yfinance.Ticker")
@@ -149,6 +149,7 @@ class TestYahooHistoryProvider:
 
         assert result.success is False
         assert "yfinance error" in result.error_message
+        assert result.error_code == "RetriableProviderException"
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""

@@ -7,7 +7,13 @@ import asyncio
 from pandas import DataFrame
 from pydantic import BaseModel
 import yfinance as yf
-from .base import BaseProvider, ProviderType, ProviderConfig
+from .base import (
+    BaseProvider,
+    ProviderType,
+    ProviderConfig,
+    NonRetriableProviderException,
+    RetriableProviderException,
+)
 from .parsers import PydanticJSONParser, ParserConfig
 
 
@@ -70,31 +76,36 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             ValueError: If no data is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
-        # Extract parameters with defaults
-        period = kwargs.get("period", self.config.extra_config.get("period", "1y"))
-        interval = kwargs.get(
-            "interval", self.config.extra_config.get("interval", "1d")
-        )
-        start = kwargs.get("start", self.config.extra_config.get("start"))
-        end = kwargs.get("end", self.config.extra_config.get("end"))
+        try:
+            # Extract parameters with defaults
+            period = kwargs.get("period", self.config.extra_config.get("period", "1y"))
+            interval = kwargs.get(
+                "interval", self.config.extra_config.get("interval", "1d")
+            )
+            start = kwargs.get("start", self.config.extra_config.get("start"))
+            end = kwargs.get("end", self.config.extra_config.get("end"))
 
-        # Run yfinance call in a separate thread to avoid blocking
-        def fetch_history():
-            yf_ticker = yf.Ticker(ticker)
-            if start and end:
-                return yf_ticker.history(start=start, end=end, interval=interval)
-            return yf_ticker.history(period=period, interval=interval)
+            # Run yfinance call in a separate thread to avoid blocking
+            def fetch_history():
+                yf_ticker = yf.Ticker(ticker)
+                if start and end:
+                    return yf_ticker.history(start=start, end=end, interval=interval)
+                return yf_ticker.history(period=period, interval=interval)
 
-        data = await asyncio.to_thread(fetch_history)
+            data = await asyncio.to_thread(fetch_history)
 
-        if data.empty:
-            raise ValueError(f"No historical data found for ticker: {ticker}")
+            if data.empty:
+                raise ValueError(f"No historical data found for ticker: {ticker}")
 
-        # Clean up the data
-        data.index.name = "Date"
-        data = data.round(2)  # Round to 2 decimal places
+            # Clean up the data
+            data.index.name = "Date"
+            data = data.round(2)  # Round to 2 decimal places
 
-        return data
+            return data
+        except ValueError as e:
+            raise NonRetriableProviderException(str(e)) from e
+        except Exception as e:
+            raise RetriableProviderException(str(e)) from e
 
 
 class YahooInfoProvider(BaseProvider[BaseModel]):
@@ -124,22 +135,26 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             ValueError: If no info is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
+        try:
+            # Run yfinance call in a separate thread to avoid blocking
+            def fetch_info():
+                yf_ticker = yf.Ticker(ticker)
+                return yf_ticker.info
 
-        # Run yfinance call in a separate thread to avoid blocking
-        def fetch_info():
-            yf_ticker = yf.Ticker(ticker)
-            return yf_ticker.info
+            json_data = await asyncio.to_thread(fetch_info)
 
-        json_data = await asyncio.to_thread(fetch_info)
+            if not json_data or not isinstance(json_data, dict):
+                raise ValueError(f"No info data found for ticker: {ticker}")
 
-        if not json_data or not isinstance(json_data, dict):
-            raise ValueError(f"No info data found for ticker: {ticker}")
+            # Parse the JSON data using our parser
+            parser = PydanticJSONParser(YAHOO_INFO_CONFIG)
+            result = await parser.parse_async(json_data)
 
-        # Parse the JSON data using our parser
-        parser = PydanticJSONParser(YAHOO_INFO_CONFIG)
-        result = await parser.parse_async(json_data)
-
-        return result
+            return result
+        except ValueError as e:
+            raise NonRetriableProviderException(str(e)) from e
+        except Exception as e:
+            raise RetriableProviderException(str(e)) from e
 
 
 # Factory functions for easy provider creation

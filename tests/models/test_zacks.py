@@ -130,7 +130,7 @@ class TestZacksProvider:
 
         assert result.success is False
         assert "Ticker not found in Zacks" in result.error_message
-        assert result.error_code == "ValueError"
+        assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -153,7 +153,7 @@ class TestZacksProvider:
 
         assert result.success is False
         assert "Rate limit exceeded" in result.error_message
-        assert result.error_code == "HTTPError"
+        assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -176,7 +176,7 @@ class TestZacksProvider:
 
         assert result.success is False
         assert "HTTP 500 error" in result.error_message
-        assert result.error_code == "HTTPError"
+        assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -194,7 +194,7 @@ class TestZacksProvider:
 
         assert result.success is False
         assert "Network error connecting to Zacks API" in result.error_message
-        assert result.error_code == "ConnectionError"
+        assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")

@@ -4,10 +4,14 @@ This module provides functionality to fetch data from Zacks API.
 """
 
 import httpx
-import asyncio
-from httpx import HTTPError
 from pydantic import BaseModel
-from .base import BaseProvider, ProviderType, ProviderConfig
+from .base import (
+    BaseProvider,
+    ProviderType,
+    ProviderConfig,
+    NonRetriableProviderException,
+    RetriableProviderException,
+)
 from .parsers import PydanticJSONParser, ParserConfig
 
 
@@ -65,45 +69,43 @@ class ZacksProvider(BaseProvider[BaseModel]):
             ValueError: If no data is returned or response is invalid
             Exception: For other network-related errors
         """
-        url = f"https://quote-feed.zacks.com/index?t={ticker}"
-
-        # Use httpx for async HTTP requests
-        timeout = httpx.Timeout(self.config.timeout)
-
+        # HTTP request with exception mapping
         async with httpx.AsyncClient(
-            timeout=timeout, headers={"User-Agent": self.config.user_agent}
+            timeout=httpx.Timeout(
+                connect=self.config.timeout,
+                read=self.config.timeout,
+                write=self.config.timeout,
+                pool=self.config.timeout,
+            ),
+            headers={"User-Agent": self.config.user_agent},
         ) as client:
+            url = f"https://quote-feed.zacks.com/index?t={ticker}"
             try:
                 response = await client.get(url)
                 response.raise_for_status()
-
-                # Parse JSON in a separate thread to avoid blocking
-                json_data = await asyncio.to_thread(response.json)
-
-                if not json_data or not isinstance(json_data, dict):
-                    raise ValueError(
-                        f"Invalid response from Zacks API for ticker: {ticker}"
-                    )
-
-                # Parse the JSON data using our parser
-                parser = PydanticJSONParser(ZACKS_CONFIG)
-                result = await parser.parse_async(json_data)
-
-                return result
-
             except httpx.HTTPStatusError as e:
-                if e.response.status_code == 404:
-                    raise ValueError(f"Ticker not found in Zacks: {ticker}") from e
-                elif e.response.status_code == 429:
-                    raise HTTPError("Rate limit exceeded for Zacks API") from e
-                else:
-                    raise HTTPError(
-                        f"HTTP {e.response.status_code} error from Zacks API"
+                status = e.response.status_code
+                if status == 404:
+                    raise NonRetriableProviderException(
+                        "Ticker not found in Zacks"
                     ) from e
-            except httpx.RequestError as e:
-                raise ConnectionError(
-                    f"Network error connecting to Zacks API: {e}"
+                # Retryable for rate limits and server errors
+                raise RetriableProviderException(
+                    "Rate limit exceeded" if status == 429 else f"HTTP {status} error"
                 ) from e
+            except httpx.RequestError as e:
+                # Network issues are retryable
+                raise RetriableProviderException(
+                    "Network error connecting to Zacks API"
+                ) from e
+
+        # Validate and parse JSON data
+        json_data = response.json()
+        if not json_data:
+            raise ValueError("Invalid response from Zacks API")
+        parser = PydanticJSONParser(ZACKS_CONFIG)
+        result = await parser.parse_async(json_data)
+        return result
 
 
 # Factory function for easy provider creation

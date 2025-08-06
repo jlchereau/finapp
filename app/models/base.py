@@ -23,6 +23,14 @@ from datetime import datetime
 from enum import Enum
 
 
+class NonRetriableProviderException(Exception):
+    """Indicates a provider error that should not be retried."""
+
+
+class RetriableProviderException(Exception):
+    """Indicates a transient provider error that can be retried."""
+
+
 # Type variables for generic typing
 T = TypeVar("T", bound=DataFrame | BaseModel)
 
@@ -201,23 +209,22 @@ class BaseProvider(ABC, Generic[T]):
                 if self.config.rate_limit:
                     await asyncio.sleep(1.0 / self.config.rate_limit)
 
-                # Retry logic
                 last_exception = None
                 for attempt in range(self.config.retries + 1):
                     try:
-                        # Apply timeout
+                        # Fetch data with timeout
                         data = await asyncio.wait_for(
                             self._fetch_data(ticker, **kwargs),
                             timeout=self.config.timeout,
                         )
-
-                        # Calculate execution time
-                        loop = asyncio.get_event_loop()
-                        execution_time = loop.time() - start_time
-
-                        # TODO: Store in cache here when caching is implemented
-
-                        result = ProviderResult[T](
+                        # Success
+                        execution_time = asyncio.get_event_loop().time() - start_time
+                        self.logger.info(
+                            "Successfully fetched data for %s in %.2f",
+                            ticker,
+                            execution_time,
+                        )
+                        return ProviderResult(
                             success=True,
                             data=data,
                             execution_time=execution_time,
@@ -225,64 +232,74 @@ class BaseProvider(ABC, Generic[T]):
                             ticker=ticker,
                             metadata={"attempt": attempt + 1},
                         )
-
-                        # pylint: disable=logging-fstring-interpolation
-                        self.logger.info(
-                            "Successfully fetched data for %s in %.2f",
-                            ticker,
-                            execution_time,
-                        )
-                        return result
-
                     except asyncio.TimeoutError as e:
+                        # retry on timeout
                         last_exception = e
                         self.logger.warning(
-                            "Timeout for %s, attempt %d", ticker, attempt + 1
+                            "Timeout for %s (attempt %d)", ticker, attempt + 1
                         )
                         if attempt < self.config.retries:
-                            delay = self.config.retry_delay * (attempt + 1)
-                            await asyncio.sleep(delay)
-
-                    # pylint: disable=broad-exception-caught
-                    except Exception as e:
+                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                    except NonRetriableProviderException as e:
+                        # fail fast on non-retriable
+                        self.logger.error(
+                            "Non-retriable error fetching %s: %s", ticker, e
+                        )
+                        return ProviderResult(
+                            success=False,
+                            error_message=str(e),
+                            error_code=type(e).__name__,
+                            execution_time=asyncio.get_event_loop().time() - start_time,
+                            provider_type=self.provider_type,
+                            ticker=ticker,
+                        )
+                    except RetriableProviderException as e:
+                        # backoff and retry
                         last_exception = e
                         self.logger.warning(
-                            "Error fetching %s, attempt %d: %s",
+                            "Retryable error fetching %s (attempt %d): %s",
                             ticker,
                             attempt + 1,
                             e,
                         )
                         if attempt < self.config.retries:
-                            delay = self.config.retry_delay * (attempt + 1)
-                            await asyncio.sleep(delay)
-
-                # All retries failed
-                # Calculate execution time
-                loop = asyncio.get_event_loop()
-                execution_time = loop.time() - start_time
-                error_message = (
-                    f"Failed after {self.config.retries + 1} attempts: "
-                    f"{last_exception}"
-                )
-
-                # Determine error code
+                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                        continue
+                    except Exception as e:  # pylint: disable=broad-exception-caught
+                        # retry on unexpected errors
+                        last_exception = e
+                        self.logger.warning(
+                            "Error fetching %s (attempt %d): %s",
+                            ticker,
+                            attempt + 1,
+                            e,
+                        )
+                        if attempt < self.config.retries:
+                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                        continue
+                # All retries exhausted without success
+                attempts = self.config.retries + 1
+                msg = f"Failed after {attempts} attempts"
                 if last_exception:
-                    error_code = type(last_exception).__name__
-                else:
-                    error_code = "UnknownError"
-
-                return ProviderResult[T](
+                    msg += f": {last_exception}"
+                execution_time = asyncio.get_event_loop().time() - start_time
+                # Prepare final error code
+                error_code = (
+                    type(last_exception).__name__
+                    if last_exception
+                    else None
+                )
+                return ProviderResult(
                     success=False,
-                    error_message=error_message,
+                    error_message=msg,
                     error_code=error_code,
                     execution_time=execution_time,
                     provider_type=self.provider_type,
                     ticker=ticker,
-                    metadata={"total_attempts": self.config.retries + 1},
+                    metadata={"total_attempts": attempts},
                 )
 
-            # pylint: disable=broad-exception-caught
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 execution_time = asyncio.get_event_loop().time() - start_time
                 self.logger.error("Unexpected error for %s: %s", ticker, e)
 
