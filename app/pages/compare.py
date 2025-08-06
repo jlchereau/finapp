@@ -2,11 +2,10 @@
 Compare page - Stock comparison and analysis
 """
 
-from typing import List, Any, Optional
+from typing import List, Optional
 import io
 import base64
 from datetime import datetime, timedelta
-import asyncio
 
 import reflex as rx
 import matplotlib.pyplot as plt

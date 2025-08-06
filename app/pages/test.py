@@ -55,7 +55,8 @@ class TestState(rx.State):  # pylint: disable=inherit-non-class
             # 2. No successful data sources, OR
             # 3. Has provider errors (indicating some providers failed)
             if has_explicit_error or successful_sources == 0 or has_provider_errors:
-                # Failed: either explicit error, no providers succeeded, or provider errors
+                # Failed: either explicit error, no providers succeeded,
+                # or provider errors
                 error_msg = has_explicit_error or "No data found for this ticker"
                 if result.get("errors"):
                     # Use the first specific error if available
