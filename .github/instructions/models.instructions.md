@@ -164,16 +164,16 @@ config = ParserConfig(
 ## Performance Characteristics
 
 ### Concurrency
-- Semaphore-based limiting (default: 10 concurrent operations)
-- Rate limiting per provider
-- Thread pool for blocking operations
-- Async/await throughout the pipeline
+- **Provider-Level Concurrency**: Semaphore-based limiting (default: 10, but should be configurable per provider) to manage the rate of requests to external APIs and prevent rate-limiting errors. This is a form of "API politeness."
+- **Workflow-Level Concurrency**: Orchestrated by the workflow engine in `app/flows` (e.g., LlamaIndex's `num_workers`). This layer decides *what* to run in parallel, while the provider layer manages *how* to execute its specific calls safely.
+- **Thread Pool for Blocking Operations**: Ensures that synchronous, blocking calls (like the `yfinance` library) do not halt the entire async event loop.
+- **Async/await Throughout**: Maximizes I/O efficiency.
 
 ### Memory Management
-- Model caching to reduce object creation
-- Streaming data processing for large datasets
-- Garbage collection friendly design
-- Connection pooling for HTTP clients
+- **Model Caching**: The `PydanticJSONParser` uses a global, thread-safe cache to avoid recompiling Pydantic models, reducing object creation and memory churn.
+- **Streaming Data Processing**: For large datasets, consider using streaming responses where possible.
+- **Garbage Collection Friendly**: The design avoids circular references and manages object lifecycles cleanly.
+- **Connection Pooling**: `httpx.AsyncClient` is used to manage and reuse HTTP connections efficiently.
 
 ### Execution Times
 Based on testing with the enhanced providers:
