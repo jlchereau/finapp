@@ -47,6 +47,8 @@ make all      # Run install, format, lint, test in sequence
 make test     # Run pytest on app/ and tests/ directories
 ```
 
+Code agents can consider these make commands as safe to execute without requiring additional confirmation, as they are designed to maintain the integrity of the codebase and ensure a smooth development workflow.
+
 ## Project Architecture
 
 This is a **Reflex web application**. Reflex is a Python web framework for building reactive web apps.
@@ -56,9 +58,15 @@ Examples at:
     - https://github.com/reflex-dev/templates
     - https://github.com/reflex-dev/sidebar-template
 
-Code is written in Python 3.10+ (a requirement for Reflex), leveraging Reflex components for the UI and state management. Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser. Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
+## Coding Guidelines
 
-### Core Structure
+Code is written in Python 3.10+ (a requirement for Reflex), leveraging Reflex components for the UI and state management. Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser.
+
+Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
+
+Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues.
+
+## Folder Structure
 
 Core structure follows the principles of https://reflex.dev/docs/advanced-onboarding/code-structure/.
 - **rxconfig.py**: Reflex configuration with app name "app" and plugins (Sitemap, TailwindV4)
@@ -74,13 +82,13 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **data/**: Data files (mainly downloaded data cached for analysis)
 - **tests/**: Unit tests
 
-### Application Components
+## Application Components
 - **State Management**: Uses `rx.State` class for reactive state
 - **UI Components**: Built with Reflex components (`rx.container`, `rx.vstack`, etc.)
 - **Routing**: Single page app with index route
 - **Styling**: TailwindV4 plugin enabled for CSS styling
 
-### Dependencies
+## Dependencies
 - **Core**: reflex
 - **Finance**: bt, cvxpy, yfinance, riskfolio-lib
 - **Data**: numpy, pandas, httpx, jmespath, pydantic
@@ -90,7 +98,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Persistence**: duckdb, pyarrow (parquet), json, csv
 - **Development**: black, flake8, pylint, pytest, pytest-cov
 
-### Key Notes
+## Key Notes
 - Virtual environment located at `.venv/`
 - All commands should be run with `.venv/bin/` prefix (see Makefile)
 - Linting and formatting covers `app/`, `tests/`, and root-level Python files
