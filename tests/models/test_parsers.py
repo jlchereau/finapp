@@ -192,8 +192,8 @@ class TestPydanticJSONParser:
         assert result.symbol == "UNKNOWN"
 
     @pytest.mark.asyncio
-    async def test_parse_empty_data_strict_mode(self):
-        """Test parsing empty data in strict mode."""
+    async def test_strict_mode_no_data(self):
+        """Test strict mode with no data provided."""
         strict_config = ParserConfig(
             name="StrictEmptyTestModel",
             fields={"price": {"expr": "price", "default": None}},
