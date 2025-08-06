@@ -26,7 +26,7 @@ pylint:
 
 # flake8 will auto-read .flake8
 flake8:
-    .venv/bin/flake8 app/ tests/ *.py
+	.venv/bin/flake8 app/ tests/ *.py
 
 # lint with flake8 and pylint
 lint: flake8 pylint
