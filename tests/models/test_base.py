@@ -39,7 +39,7 @@ class TestProviderConfig:
     def test_provider_config_defaults(self):
         """Test ProviderConfig with default values."""
         config = ProviderConfig()
-        
+
         assert config.timeout == 30.0
         assert config.retries == 3
         assert config.retry_delay == 1.0
@@ -59,9 +59,9 @@ class TestProviderConfig:
             cache_ttl=7200,
             rate_limit=0.5,
             user_agent="TestApp/2.0",
-            extra_config={"test": "value"}
+            extra_config={"test": "value"},
         )
-        
+
         assert config.timeout == 60.0
         assert config.retries == 5
         assert config.retry_delay == 2.0
@@ -82,9 +82,9 @@ class TestProviderResult:
             success=True,
             data=data,
             provider_type=ProviderType.YAHOO_HISTORY,
-            ticker="AAPL"
+            ticker="AAPL",
         )
-        
+
         assert result.success is True
         assert result.data.equals(data)
         assert result.error_message is None
@@ -101,9 +101,9 @@ class TestProviderResult:
             error_message="Test error",
             error_code="ValueError",
             provider_type=ProviderType.YAHOO_HISTORY,
-            ticker="INVALID"
+            ticker="INVALID",
         )
-        
+
         assert result.success is False
         assert result.data is None
         assert result.error_message == "Test error"
@@ -123,14 +123,14 @@ class TestBaseProvider:
         """Test provider initialization."""
         assert isinstance(self.provider.config, ProviderConfig)
         assert self.provider.provider_type == ProviderType.CUSTOM
-        assert hasattr(self.provider, 'logger')
-        assert hasattr(self.provider, '_semaphore')
+        assert hasattr(self.provider, "logger")
+        assert hasattr(self.provider, "_semaphore")
 
     def test_provider_initialization_with_custom_config(self):
         """Test provider initialization with custom config."""
         config = ProviderConfig(timeout=60.0, retries=5)
         provider = MockProvider(config)
-        
+
         assert provider.config.timeout == 60.0
         assert provider.config.retries == 5
 
@@ -138,7 +138,7 @@ class TestBaseProvider:
     async def test_get_data_success(self):
         """Test successful data retrieval."""
         result = await self.provider.get_data("AAPL")
-        
+
         assert result.success is True
         assert result.data is not None
         assert isinstance(result.data, DataFrame)
@@ -152,7 +152,7 @@ class TestBaseProvider:
     async def test_get_data_error(self):
         """Test error handling in data retrieval."""
         result = await self.provider.get_data("ERROR")
-        
+
         assert result.success is False
         assert result.data is None
         assert "Mock error for testing" in result.error_message
@@ -166,9 +166,9 @@ class TestBaseProvider:
         # Use a very short timeout for testing
         config = ProviderConfig(timeout=0.1, retries=0)
         provider = MockProvider(config)
-        
+
         result = await provider.get_data("TIMEOUT")
-        
+
         assert result.success is False
         assert result.data is None
         # The error message should contain information about the failure
@@ -181,9 +181,9 @@ class TestBaseProvider:
         """Test retry mechanism."""
         config = ProviderConfig(retries=2, retry_delay=0.01)
         provider = MockProvider(config)
-        
+
         result = await provider.get_data("ERROR")
-        
+
         assert result.success is False
         assert result.error_message is not None
         assert "Failed after 3 attempts" in result.error_message
@@ -193,7 +193,7 @@ class TestBaseProvider:
     async def test_get_data_invalid_ticker(self):
         """Test validation of invalid ticker."""
         result = await self.provider.get_data("")
-        
+
         assert result.success is False
         assert result.error_message is not None
         assert "Ticker must be a non-empty string" in result.error_message
@@ -203,14 +203,14 @@ class TestBaseProvider:
     async def test_get_data_ticker_normalization(self):
         """Test ticker normalization (uppercase, stripped)."""
         result = await self.provider.get_data("  aapl  ")
-        
+
         assert result.success is True
         assert result.ticker == "AAPL"
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""
         result = self.provider.get_data_sync("AAPL")
-        
+
         assert result.success is True
         assert result.data is not None
         assert isinstance(result.data, DataFrame)
@@ -218,7 +218,7 @@ class TestBaseProvider:
     def test_get_data_sync_error(self):
         """Test synchronous wrapper with error."""
         result = self.provider.get_data_sync("ERROR")
-        
+
         assert result.success is False
         assert result.error_message is not None
         assert "Mock error for testing" in result.error_message
@@ -228,15 +228,15 @@ class TestBaseProvider:
         """Test rate limiting functionality."""
         config = ProviderConfig(rate_limit=2.0)  # 2 requests per second
         provider = MockProvider(config)
-        
+
         start_time = asyncio.get_event_loop().time()
-        
+
         # Make two requests
         result1 = await provider.get_data("AAPL")
         result2 = await provider.get_data("AAPL")
-        
+
         end_time = asyncio.get_event_loop().time()
-        
+
         # Should take at least 0.5 seconds due to rate limiting
         assert end_time - start_time >= 0.4  # Small tolerance for timing
         assert result1.success is True
@@ -249,24 +249,25 @@ class TestBaseProvider:
         provider = MockProvider()
         # Only 1 concurrent operation
         provider._semaphore = asyncio.Semaphore(1)
-        
+
         # Start multiple tasks
         tasks = [provider.get_data("AAPL") for _ in range(3)]
         results = await asyncio.gather(*tasks)
-        
+
         # All should succeed despite concurrency limit
         assert all(result.success for result in results)
 
     @pytest.mark.asyncio
     async def test_logger_usage(self):
         """Test that logger is used properly."""
-        with patch.object(self.provider.logger, 'info') as mock_info, \
-             patch.object(self.provider.logger, 'warning') as mock_warning:
-            
+        with patch.object(self.provider.logger, "info") as mock_info, patch.object(
+            self.provider.logger, "warning"
+        ) as mock_warning:
+
             # Test successful case
             await self.provider.get_data("AAPL")
             mock_info.assert_called()
-            
+
             # Test error case - should use warning for retry failures
             await self.provider.get_data("ERROR")
             mock_warning.assert_called()

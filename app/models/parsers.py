@@ -10,28 +10,28 @@ This module provides parsing capabilities for various data formats:
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional, Type, Union, List
 from abc import ABC, abstractmethod
+from typing import Any, Optional, Type
+from threading import Lock
 import jmespath
 from pydantic import BaseModel, create_model, Field
-from threading import Lock
 
-# Global cache (model name → generated model) with thread safety
-MODEL_CACHE: Dict[str, Type[BaseModel]] = {}
+# Parsers for different data formats and sources.
+MODEL_CACHE: dict[str, Type[BaseModel]] = {}
 CACHE_LOCK = Lock()
 
 
 class ParseError(Exception):
     """Custom exception for parsing errors."""
 
-    pass
+    # Custom exception for parsing errors
 
 
 class ParserConfig(BaseModel):
     """Configuration for parsers."""
 
     name: str = Field(description="Name of the generated model")
-    fields: Dict[str, Dict[str, Any]] = Field(
+    fields: dict[str, dict[str, Any]] = Field(
         description="Field definitions with expressions and defaults"
     )
     strict_mode: bool = Field(
@@ -48,7 +48,7 @@ class BaseParser(ABC):
     Provides common functionality and enforces interface.
     """
 
-    def __init__(self, config: Union[Dict[str, Any], ParserConfig]):
+    def __init__(self, config: dict[str, Any] | ParserConfig) -> None:
         """Initialize parser with configuration."""
         if isinstance(config, dict):
             self.config = ParserConfig(**config)
@@ -59,24 +59,12 @@ class BaseParser(ABC):
 
     @abstractmethod
     async def parse_async(self, data: Any) -> BaseModel:
-        """
-        Asynchronously parse data into a Pydantic model.
-        Must be implemented by subclasses.
-        """
-        pass
+        """Asynchronously parse data into a Pydantic model."""
+        raise NotImplementedError()
 
     def parse(self, data: Any) -> BaseModel:
-        """
-        Synchronously parse data into a Pydantic model.
-        This is a convenience method that runs parse_async.
-        """
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-
-        return loop.run_until_complete(self.parse_async(data))
+        """Synchronously parse data into a Pydantic model using asyncio.run."""
+        return asyncio.run(self.parse_async(data))
 
 
 class PydanticJSONParser(BaseParser):
@@ -92,7 +80,7 @@ class PydanticJSONParser(BaseParser):
     - Comprehensive error handling
     """
 
-    def __init__(self, config: Union[Dict[str, Any], ParserConfig]):
+    def __init__(self, config: dict[str, Any] | ParserConfig) -> None:
         """Initialize JSON parser with configuration."""
         super().__init__(config)
         self.model = self._get_or_create_model()
@@ -119,13 +107,12 @@ class PydanticJSONParser(BaseParser):
 
             model = create_model(self.config.name, **fields)
             MODEL_CACHE[self.config.name] = model
-            self.logger.info(f"Created and cached model: {self.config.name}")
+            self.logger.info("Created and cached model: %s", self.config.name)
             return model
 
-    async def parse_async(self, json_data: Dict[str, Any]) -> BaseModel:
+    async def parse_async(self, data: Any) -> BaseModel:
         """
-        Asynchronously create an instance of the Pydantic model
-        from the provided JSON data.
+        Asynchronously create instance of the Pydantic model from data.
 
         Args:
             json_data: Dictionary containing the JSON data to parse
@@ -136,31 +123,32 @@ class PydanticJSONParser(BaseParser):
         Raises:
             ParseError: If parsing fails and strict_mode is enabled
         """
-        if not json_data:
+        if not data:
             if self.config.strict_mode:
                 raise ParseError("No data provided and strict mode is enabled")
             return self.model()
 
         try:
-            extracted_data = {}
-            missing_fields = []
-
+            extracted_data: dict[str, Any] = {}
+            missing_fields: list[str] = []
             for key, conf in self.config.fields.items():
                 expr = conf.get("expr")
                 default = conf.get("default", self.config.default_value)
 
                 if expr:
                     try:
-                        value = jmespath.search(expr, json_data)
-                    except Exception as e:
+                        value = jmespath.search(expr, data)
+                    except Exception as e:  # noqa: E722
                         self.logger.warning(
-                            f"JMESPath error for field '{key}' "
-                            f"with expression '{expr}': {e}"
+                            "JMESPath error for field '%s' with expr '%s': %s",
+                            key,
+                            expr,
+                            e,
                         )
                         value = None
                 else:
                     # Direct field access if no expression provided
-                    value = json_data.get(key)
+                    value = data.get(key)
 
                 if value is None:
                     if self.config.strict_mode and default is None:
@@ -170,15 +158,14 @@ class PydanticJSONParser(BaseParser):
                 extracted_data[key] = value
 
             if missing_fields and self.config.strict_mode:
-                raise ParseError(
-                    f"Missing required fields in strict mode: {missing_fields}"
-                )
+                msg = "Missing required fields in strict mode: " f"{missing_fields}"
+                raise ParseError(msg)
 
             return self.model(**extracted_data)
 
-        except Exception as e:
+        except Exception as e:  # noqa: E722
             error_msg = f"Failed to parse data with {self.config.name}: {e}"
-            self.logger.error(error_msg)
+            self.logger.error("%s", error_msg)
             if self.config.strict_mode:
                 raise ParseError(error_msg) from e
             # Return empty model if not in strict mode
@@ -191,7 +178,7 @@ class PydanticMultiSourceParser(BaseParser):
     Useful for providers that combine data from different sources.
     """
 
-    def __init__(self, parsers: List[BaseParser]):
+    def __init__(self, parsers: list[BaseParser]) -> None:
         """
         Initialize with a list of sub-parsers.
 
@@ -203,7 +190,7 @@ class PydanticMultiSourceParser(BaseParser):
         super().__init__(combined_config)
         self.parsers = parsers
 
-    async def parse_async(self, data_sources: List[Any]) -> List[BaseModel]:
+    async def parse_async(self, data: Any) -> list[BaseModel]:
         """
         Parse multiple data sources concurrently.
 
@@ -213,33 +200,39 @@ class PydanticMultiSourceParser(BaseParser):
         Returns:
             List of parsed Pydantic models
         """
-        if len(data_sources) != len(self.parsers):
-            raise ParseError(
-                f"Data sources count ({len(data_sources)}) must match "
-                f"parsers count ({len(self.parsers)})"
+        if not isinstance(data, list) or len(data) != len(self.parsers):
+            msg = (
+                f"Data sources count ({len(data)}) must match parsers count "
+                f"({len(self.parsers)})"
             )
+            raise ParseError(msg)
 
         # Parse all sources concurrently
-        tasks = [
-            parser.parse_async(data) for parser, data in zip(self.parsers, data_sources)
-        ]
+        # Launch parse tasks concurrently
+        tasks = []
+        for parser, src in zip(self.parsers, data):
+            tasks.append(parser.parse_async(src))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Check for any exceptions
         for i, result in enumerate(results):
             if isinstance(result, Exception):
-                self.logger.error(f"Parser {i} failed: {result}")
+                self.logger.error("Parser %d failed: %s", i, result)
                 if self.parsers[i].config.strict_mode:
                     raise result
 
         # Filter out exceptions if not in strict mode
-        return [r for r in results if not isinstance(r, Exception)]
+        # Filter out exceptions if not in strict mode
+        filtered: list[BaseModel] = [
+            r for r in results if not isinstance(r, Exception)
+        ]  # type: ignore
+        return filtered
 
 
 # Factory function for easy parser creation
 def create_json_parser(
-    name: str, field_mappings: Dict[str, str], strict_mode: bool = False
+    name: str, field_mappings: dict[str, str], strict_mode: bool = False
 ) -> PydanticJSONParser:
     """
     Factory function to create a JSON parser with simple field mappings.

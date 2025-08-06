@@ -78,16 +78,14 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
         start = kwargs.get("start", self.config.extra_config.get("start"))
         end = kwargs.get("end", self.config.extra_config.get("end"))
 
-        # Run yfinance call in thread pool to avoid blocking
+        # Run yfinance call in a separate thread to avoid blocking
         def fetch_history():
             yf_ticker = yf.Ticker(ticker)
             if start and end:
                 return yf_ticker.history(start=start, end=end, interval=interval)
-            else:
-                return yf_ticker.history(period=period, interval=interval)
+            return yf_ticker.history(period=period, interval=interval)
 
-        loop = asyncio.get_event_loop()
-        data = await loop.run_in_executor(None, fetch_history)
+        data = await asyncio.to_thread(fetch_history)
 
         if data.empty:
             raise ValueError(f"No historical data found for ticker: {ticker}")
@@ -127,13 +125,12 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             Exception: For other yfinance-related errors
         """
 
-        # Run yfinance call in thread pool to avoid blocking
+        # Run yfinance call in a separate thread to avoid blocking
         def fetch_info():
             yf_ticker = yf.Ticker(ticker)
             return yf_ticker.info
 
-        loop = asyncio.get_event_loop()
-        json_data = await loop.run_in_executor(None, fetch_info)
+        json_data = await asyncio.to_thread(fetch_info)
 
         if not json_data or not isinstance(json_data, dict):
             raise ValueError(f"No info data found for ticker: {ticker}")
@@ -147,7 +144,10 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
 
 # Factory functions for easy provider creation
 def create_yahoo_history_provider(
-    period: str = "1y", interval: str = "1d", timeout: float = 30.0, retries: int = 3
+    period: str = "1y",
+    interval: str = "1d",
+    timeout: float = 30.0,
+    retries: int = 3,
 ) -> YahooHistoryProvider:
     """
     Factory function to create a Yahoo History provider with custom settings.
@@ -170,7 +170,8 @@ def create_yahoo_history_provider(
 
 
 def create_yahoo_info_provider(
-    timeout: float = 30.0, retries: int = 3
+    timeout: float = 30.0,
+    retries: int = 3,
 ) -> YahooInfoProvider:
     """
     Factory function to create a Yahoo Info provider with custom settings.

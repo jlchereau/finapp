@@ -4,6 +4,7 @@ This module provides functionality to fetch data from Zacks API.
 """
 
 import httpx
+import asyncio
 from httpx import HTTPError
 from pydantic import BaseModel
 from .base import BaseProvider, ProviderType, ProviderConfig
@@ -76,7 +77,8 @@ class ZacksProvider(BaseProvider[BaseModel]):
                 response = await client.get(url)
                 response.raise_for_status()
 
-                json_data = response.json()
+                # Parse JSON in a separate thread to avoid blocking
+                json_data = await asyncio.to_thread(response.json)
 
                 if not json_data or not isinstance(json_data, dict):
                     raise ValueError(
