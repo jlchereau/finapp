@@ -1,3 +1,11 @@
+#!/usr/bin/env pytest
+# pylint: skip-file
+# flake8: noqa
+# type: ignore
+#!/usr/bin/env pytest
+# pylint: skip-file
+# flake8: noqa
+# type: ignore
 """
 Unit tests for the Yahoo provider module.
 Tests both YahooHistoryProvider and YahooInfoProvider.

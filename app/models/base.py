@@ -211,7 +211,9 @@ class BaseProvider(ABC, Generic[T]):
                             timeout=self.config.timeout,
                         )
 
-                        execution_time = asyncio.get_event_loop().time() - start_time
+                        # Calculate execution time
+                        loop = asyncio.get_event_loop()
+                        execution_time = loop.time() - start_time
 
                         # TODO: Store in cache here when caching is implemented
 
@@ -232,7 +234,7 @@ class BaseProvider(ABC, Generic[T]):
                         )
                         return result
 
-                    except asyncio.TimeoutError as e:  # pylint: disable=W0718
+                    except asyncio.TimeoutError as e:
                         last_exception = e
                         self.logger.warning(
                             "Timeout for %s, attempt %d", ticker, attempt + 1
@@ -241,7 +243,8 @@ class BaseProvider(ABC, Generic[T]):
                             delay = self.config.retry_delay * (attempt + 1)
                             await asyncio.sleep(delay)
 
-                    except Exception as e:  # pylint: disable=W0718
+                    # pylint: disable=broad-exception-caught
+                    except Exception as e:
                         last_exception = e
                         self.logger.warning(
                             "Error fetching %s, attempt %d: %s",
@@ -254,7 +257,9 @@ class BaseProvider(ABC, Generic[T]):
                             await asyncio.sleep(delay)
 
                 # All retries failed
-                execution_time = asyncio.get_event_loop().time() - start_time
+                # Calculate execution time
+                loop = asyncio.get_event_loop()
+                execution_time = loop.time() - start_time
                 error_message = (
                     f"Failed after {self.config.retries + 1} attempts: "
                     f"{last_exception}"
@@ -276,7 +281,8 @@ class BaseProvider(ABC, Generic[T]):
                     metadata={"total_attempts": self.config.retries + 1},
                 )
 
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            # pylint: disable=broad-exception-caught
+            except Exception as e:
                 execution_time = asyncio.get_event_loop().time() - start_time
                 self.logger.error("Unexpected error for %s: %s", ticker, e)
 

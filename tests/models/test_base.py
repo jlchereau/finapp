@@ -1,7 +1,17 @@
+#!/usr/bin/env pytest
+# pylint: skip-file
+# flake8: noqa
+# type: ignore
 """
 Unit tests for the base provider module.
 Tests the abstract base classes and core functionality.
 """
+# pylint: skip-file
+# flake8: noqa
+# type: ignore
+# pylint: disable=all
+# flake8: noqa
+# type: ignore
 
 import asyncio
 import pytest

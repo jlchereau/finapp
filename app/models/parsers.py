@@ -14,7 +14,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Type
 from threading import Lock
 import jmespath
-from pydantic import BaseModel, create_model, Field
+from pydantic import BaseModel, create_model, Field, ValidationError
+from jmespath.exceptions import JMESPathError
 
 # Parsers for different data formats and sources.
 MODEL_CACHE: dict[str, Type[BaseModel]] = {}
@@ -138,7 +139,7 @@ class PydanticJSONParser(BaseParser):
                 if expr:
                     try:
                         value = jmespath.search(expr, data)
-                    except Exception as e:  # noqa: E722
+                    except JMESPathError as e:
                         self.logger.warning(
                             "JMESPath error for field '%s' with expr '%s': %s",
                             key,
@@ -163,7 +164,7 @@ class PydanticJSONParser(BaseParser):
 
             return self.model(**extracted_data)
 
-        except Exception as e:  # noqa: E722
+        except ValidationError as e:
             error_msg = f"Failed to parse data with {self.config.name}: {e}"
             self.logger.error("%s", error_msg)
             if self.config.strict_mode:

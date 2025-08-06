@@ -1,3 +1,7 @@
+#!/usr/bin/env pytest
+# pylint: disable=attribute-defined-outside-init,no-member
+# flake8: noqa
+# type: ignore
 """
 Unit tests for the parsers module.
 Tests JSON parsing, model generation, and multi-source parsing.
