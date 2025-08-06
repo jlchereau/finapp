@@ -13,8 +13,10 @@ Tests ZacksProvider for fetching financial data from Zacks API.
 # type: ignore
 
 import asyncio  # noqa: F401
+
 # pylint: disable=attribute-defined-outside-init, unused-variable, unused-argument, no-member
 import pytest  # noqa: F401
+
 # pylint: disable=attribute-defined-outside-init, unused-variable, unused-argument, no-member
 import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
