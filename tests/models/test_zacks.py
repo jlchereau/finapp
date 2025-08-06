@@ -4,6 +4,7 @@ Tests ZacksProvider for fetching financial data from Zacks API.
 """
 
 import asyncio
+import os
 from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
 from pydantic import BaseModel
@@ -15,6 +16,17 @@ from app.models.zacks import (
     ZACKS_CONFIG,
 )
 from app.models.base import ProviderType, ProviderConfig
+
+
+os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
+
+
+@pytest.fixture(autouse=True)
+def isolate_cwd(tmp_path, monkeypatch):
+    # Use a temp cwd to avoid cache pollution and disable global cache
+    monkeypatch.chdir(tmp_path)
+    # from app.core.settings import settings
+    # monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
 
 
 class TestZacksProvider:
@@ -479,3 +491,62 @@ class TestZacksProviderIntegration:
             assert results[0].success is True
             assert results[1].success is False
             assert "Ticker not found in Zacks" in (results[1].error_message or "")
+
+    class TestCacheSettingsZacks:
+        """Test cases for cache setting on Zacks provider."""
+
+        @pytest.mark.asyncio
+        async def test_cache_disabled_per_provider(self, tmp_path, monkeypatch):
+            # Use isolated temp cwd
+            monkeypatch.chdir(tmp_path)
+            # Disable cache in provider config
+            config = ProviderConfig(cache_enabled=False)
+            provider = ZacksProvider(config)
+
+            # Patch AsyncClient to track calls
+            with patch("httpx.AsyncClient") as mock_client_cls:
+                mock_client = AsyncMock()
+                mock_resp = MagicMock()
+                mock_resp.raise_for_status.return_value = None
+                mock_resp.json.return_value = {"ticker": "AAPL", "price": 100.0}
+                mock_client.get.return_value = mock_resp
+                mock_client.__aenter__.return_value = mock_client
+                mock_client.__aexit__.return_value = None
+                mock_client_cls.return_value = mock_client
+
+                # First and second calls should fetch fresh data
+                await provider.get_data("AAPL")
+                await provider.get_data("AAPL")
+                # AsyncClient.get called twice due to cache disabled
+                assert mock_client.get.call_count == 2
+
+
+class TestGlobalCacheSettingsZacks:
+    """Test cases for global cache setting on Zacks provider."""
+
+    @pytest.mark.asyncio
+    async def test_global_cache_disabled(self, tmp_path, monkeypatch):
+        # Use isolated temp cwd
+        monkeypatch.chdir(tmp_path)
+        # Disable global cache
+        from app.core.settings import settings
+        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        provider = ZacksProvider(ProviderConfig())
+
+        # Patch AsyncClient to track calls
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_resp = MagicMock()
+            mock_resp.raise_for_status.return_value = None
+            mock_resp.json.return_value = {"ticker": "AAPL", "price": 100.0}
+            mock_client.get.return_value = mock_resp
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client_cls.return_value = mock_client
+
+            # First and second calls should fetch fresh data
+            await provider.get_data("AAPL")
+            await provider.get_data("AAPL")
+            # AsyncClient.get should be called twice when global cache disabled
+            assert mock_client.get.call_count == 2

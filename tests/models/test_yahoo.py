@@ -3,6 +3,7 @@ Unit tests for the Yahoo provider module.
 Tests both YahooHistoryProvider and YahooInfoProvider.
 """
 
+import os
 import asyncio
 from unittest.mock import patch, MagicMock, PropertyMock
 from pandas import DataFrame
@@ -17,6 +18,16 @@ from app.models.yahoo import (
     YAHOO_INFO_CONFIG,
 )
 from app.models.base import ProviderType, ProviderConfig
+
+os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
+
+
+@pytest.fixture(autouse=True)
+def isolate_cwd(tmp_path, monkeypatch):
+    # Change cwd to fresh tmp dir for each test to avoid persistent cache files
+    monkeypatch.chdir(tmp_path)
+    # from app.core.settings import settings
+    # monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
 
 
 class TestYahooHistoryProvider:
@@ -49,7 +60,7 @@ class TestYahooHistoryProvider:
         assert provider.config.extra_config["interval"] == "1h"
 
     @pytest.mark.asyncio
-    @patch("yfinance.Ticker")
+    @patch("app.models.yahoo.yf.Ticker")
     async def test_fetch_data_success(self, mock_ticker_class):
         """Test successful data fetching."""
         # Mock the yfinance response
@@ -83,7 +94,7 @@ class TestYahooHistoryProvider:
         mock_ticker.history.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("yfinance.Ticker")
+    @patch("app.models.yahoo.yf.Ticker")
     async def test_fetch_data_with_custom_parameters(self, mock_ticker_class):
         """Test data fetching with custom period and interval."""
         mock_data = DataFrame({"Close": [100.0]})
@@ -101,7 +112,7 @@ class TestYahooHistoryProvider:
         mock_ticker.history.assert_called_once_with(period="6mo", interval="1h")
 
     @pytest.mark.asyncio
-    @patch("yfinance.Ticker")
+    @patch("app.models.yahoo.yf.Ticker")
     async def test_fetch_data_with_date_range(self, mock_ticker_class):
         """Test data fetching with start/end dates."""
         mock_data = DataFrame({"Close": [100.0]})
@@ -123,7 +134,7 @@ class TestYahooHistoryProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("yfinance.Ticker")
+    @patch("app.models.yahoo.yf.Ticker")
     async def test_fetch_data_empty_response(self, mock_ticker_class):
         """Test handling of empty data response."""
         mock_ticker = MagicMock()
@@ -412,3 +423,114 @@ class TestYahooProviderIntegration:
             # All should succeed
             assert all(result.success for result in results)
             assert len(results) == 3
+
+
+class TestCacheSettingsYahoo:
+    """Test cases for cache setting on Yahoo providers."""
+
+    @pytest.mark.asyncio
+    async def test_history_cache_disabled_per_provider(self, tmp_path, monkeypatch):
+        # Redirect cwd to isolated temp directory
+        monkeypatch.chdir(tmp_path)
+        # Disable caching for this provider
+        config = ProviderConfig(cache_enabled=False)
+        provider = YahooHistoryProvider(config)
+        # Patch yfinance history
+        from unittest.mock import patch, MagicMock
+        from pandas import DataFrame
+
+        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+            mock_ticker = MagicMock()
+            mock_ticker.history.return_value = DataFrame({"Close": [123]})
+            mock_ticker_class.return_value = mock_ticker
+
+            # First and second calls should both fetch fresh data
+            await provider.get_data("AAPL")
+            await provider.get_data("AAPL")
+            # Should call history twice when cache is disabled
+            assert mock_ticker.history.call_count == 2, (
+                "History called twice; cache disabled"
+            )
+
+    @pytest.mark.asyncio
+    async def test_info_cache_disabled_per_provider(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        config = ProviderConfig(cache_enabled=False)
+        provider = YahooInfoProvider(config)
+        from unittest.mock import patch, AsyncMock, MagicMock
+        from pydantic import BaseModel
+
+        with patch("yfinance.Ticker") as mock_ticker_class:
+            # Mock underlying info data
+            mock_ticker = MagicMock()
+            mock_ticker.info = {"symbol": "AAPL"}
+            mock_ticker_class.return_value = mock_ticker
+            # Patch parser to track calls
+            with patch(
+                "app.models.yahoo.PydanticJSONParser.parse_async",
+                new_callable=AsyncMock,
+            ) as mock_parse:
+                # Return a dummy BaseModel instance via MagicMock
+                mock_parse.return_value = MagicMock(spec=BaseModel)
+
+                await provider.get_data("AAPL")
+                await provider.get_data("AAPL")
+                # Parser should be called twice when cache is disabled
+                assert mock_parse.call_count == 2, (
+                    "Parser called twice; cache disabled"
+                )
+
+
+class TestGlobalCacheSettingsYahoo:
+    """Test cases for global cache setting on Yahoo providers."""
+
+    @pytest.mark.asyncio
+    async def test_global_cache_disabled_history(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        # Disable global cache
+        from app.core.settings import settings
+        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        config = ProviderConfig()  # default cache_enabled True
+        provider = YahooHistoryProvider(config)
+
+        # Patch yfinance history
+        from unittest.mock import patch, MagicMock
+        from pandas import DataFrame
+
+        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+            mock_ticker = MagicMock()
+            mock_ticker.history.return_value = DataFrame({"Close": [1]})
+            mock_ticker_class.return_value = mock_ticker
+
+            await provider.get_data("AAPL")
+            await provider.get_data("AAPL")
+            # Should fetch fresh data twice since global cache disabled
+            assert mock_ticker.history.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_global_cache_disabled_info(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        # Disable global cache
+        from app.core.settings import settings
+        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        provider = YahooInfoProvider()  # default config
+        from unittest.mock import patch, MagicMock, AsyncMock
+        from pydantic import BaseModel
+
+        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+            mock_ticker = MagicMock()
+            mock_ticker.info = {"symbol": "AAPL"}
+            mock_ticker_class.return_value = mock_ticker
+            with patch(
+                "app.models.yahoo.PydanticJSONParser.parse_async",
+                new_callable=AsyncMock,
+            ) as mock_parse:
+                # Return dummy BaseModel instance via MagicMock
+                mock_parse.return_value = MagicMock(spec=BaseModel)
+
+                await provider.get_data("AAPL")
+                await provider.get_data("AAPL")
+                # Parser invoked each time when global cache disabled
+                assert mock_parse.call_count == 2

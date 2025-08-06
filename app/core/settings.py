@@ -6,7 +6,7 @@ It allows loading settings from environment variables and .env files,
 providing a centralized, type-safe configuration system.
 """
 
-import multiprocessing
+# import multiprocessing
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +23,9 @@ class Settings(BaseSettings):
     # A sensible default for I/O-bound tasks. Using cpu_count * 2.
     # This can be overridden by setting the variable in a .env file
     # or as an environment variable.
-    PROVIDER_CONCURRENCY_LIMIT: int = (multiprocessing.cpu_count() or 1) * 2
+    # PROVIDER_CONCURRENCY_LIMIT: int = (multiprocessing.cpu_count() or 1) * 2
+    # Enable or disable caching for providers (_fetch_data methods)
+    CACHE_ENABLED: bool = True
 
     # This tells Pydantic to look for a .env file.
     model_config = SettingsConfigDict(

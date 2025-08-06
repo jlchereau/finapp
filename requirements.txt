@@ -8,6 +8,7 @@ pydantic-settings
 Jinja2
 llama-index-workflows
 numpy
+orjson
 pandas
 pybind11
 matplotlib

@@ -12,6 +12,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
+from .cache import cache
 from .parsers import PydanticJSONParser, ParserConfig
 
 
@@ -53,6 +54,7 @@ class ZacksProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.ZACKS
 
+    @cache
     async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
         """
         Fetch data from Zacks API.

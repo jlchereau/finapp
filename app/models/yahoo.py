@@ -14,6 +14,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
+from .cache import cache
 from .parsers import PydanticJSONParser, ParserConfig
 
 
@@ -55,6 +56,7 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
         """Return the provider type."""
         return ProviderType.YAHOO_HISTORY
 
+    @cache
     async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
         """
         Fetch historical price data for a ticker from yfinance.
@@ -127,6 +129,7 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.YAHOO_INFO
 
+    @cache
     async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
         """
         Get ticker info/fundamentals from yfinance.

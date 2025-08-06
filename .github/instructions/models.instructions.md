@@ -34,11 +34,12 @@ This document outlines the enhanced design for data providers and parsers in the
 - JMESPath expressions for flexible data extraction
 - Strict/non-strict parsing modes
 
-### 5. **Future-Ready Caching**
-- Infrastructure prepared for caching implementation
-- Cache TTL and invalidation hooks
-- Provider-level cache configuration
-- Metadata tracking for cache management
+### 5. **Cache Decorator**
+- Transparent file-based caching via the `@cache` decorator in `app/models/cache.py`
+- Caches provider `_fetch_data` outputs under `data/YYYYMMDD/` as Parquet (for DataFrame)
+  or JSON (for Pydantic BaseModel)
+- Supports optional `cache_date` parameter for read-only historical reads
+- Ensures thread safety with per-file `asyncio.Lock`
 
 ## Architecture Overview
 
@@ -80,6 +81,15 @@ else:
 
 # Sync usage (for non-async contexts)
 result = provider.get_data_sync("AAPL")
+if result.success:
+    data = result.data
+    print(f"Company: {data.company_name}")
+
+# Read-only historical cache example (async only)
+# Reads from cache date 20250805 without writing
+cache_result = await provider.get_data("AAPL", cache_date="20250805")
+if cache_result.success:
+    old_data = cache_result.data  # Data type depends on provider
 ```
 
 ### Workflow Integration
@@ -97,12 +107,15 @@ async def fetch_ticker_data(self):
 ### Custom Provider Creation
 
 ```python
+from pandas import DataFrame
+from app.models.cache import cache
 from app.models.base import BaseProvider, ProviderType
 
 class CustomProvider(BaseProvider[DataFrame]):
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.CUSTOM
-    
+
+    @cache
     async def _fetch_data(self, ticker: str, **kwargs) -> DataFrame:
         # Your custom data fetching logic
         pass
@@ -117,8 +130,6 @@ config = ProviderConfig(
     timeout=30.0,           # Request timeout
     retries=3,              # Retry attempts
     retry_delay=1.0,        # Delay between retries
-    cache_enabled=True,     # Enable caching (future)
-    cache_ttl=3600,         # Cache TTL in seconds
     rate_limit=1.0,         # Requests per second
     extra_config={          # Provider-specific settings
         "period": "1y",
@@ -182,12 +193,6 @@ Based on testing with the enhanced providers:
 - Individual provider calls: ~0.5-2 seconds each
 
 ## Future Enhancements
-
-### Caching Implementation
-- Redis-based distributed caching
-- File-based local caching for development
-- Intelligent cache invalidation
-- Cache warming strategies
 
 ### Additional Providers
 - Alpha Vantage API integration
