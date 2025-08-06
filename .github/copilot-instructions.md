@@ -64,7 +64,7 @@ Code is written in Python >=3.10 (a requirement for Reflex), leveraging Reflex c
 
 Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
-Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues. Use `make test` to run unit tests with `pytest`, ensuring code correctness and functionality. Do not test code that does not compile.
+Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues. Run `.venv/bin/python -m pytest` on the scope of your changes while iterating. Use `make test` to run all unit tests ensuring code correctness and functionality (can take sevaral minutes). Do not test code that does not compile.
 
 ## Folder Structure
 
