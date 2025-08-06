@@ -3,6 +3,8 @@ cvxpy
 duckdb # with https://ducklake.select/
 httpx
 jmespath
+pydantic
+pydantic-settings
 Jinja2
 llama-index-workflows
 numpy
@@ -11,7 +13,6 @@ pybind11
 matplotlib
 # mosek
 pyarrow
-pydantic
 riskfolio-lib
 yfinance
 reflex
