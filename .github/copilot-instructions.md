@@ -60,11 +60,11 @@ Examples at:
 
 ## Coding Guidelines
 
-Code is written in Python 3.10+ (a requirement for Reflex), leveraging Reflex components for the UI and state management. Then a React single-page application (SPA) with a python backend is generated that can be run in a web browser.
+Code is written in Python >=3.10 (a requirement for Reflex), leveraging Reflex components for the UI and state management. Compilation generates a React single-page application (SPA) with a python backend. Follow [documented reflex conventions](https://reflex.dev/docs) and recent Python best practices considering there is no need to support any version of Python <3.10.
 
 Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
-Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues.
+Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues. Use `make test` to run unit tests with `pytest`, ensuring code correctness and functionality. Do not test code that does not compile.
 
 ## Folder Structure
 
