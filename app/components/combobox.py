@@ -15,7 +15,8 @@ The React combobox is located at:
 
 Enhancements:
 - Improve reflex styles
-- Add navigation with up down arrows
+- Open in portal over other content
+- Add option navigation with up down arrows
 - Implement filtering
 - Add check on selected option in the list
 - Add placeholder (if HeadlessUi allows it)
@@ -36,6 +37,7 @@ from reflex.event import (
     passthrough_event_spec,
 )
 from .headlessui import HeadlessUIComponent
+# from .portal import portal
 
 
 class Combobox(HeadlessUIComponent):
@@ -177,6 +179,7 @@ def combobox_wrapper(
             align="center",
             class_name="rt-TextFieldRoot rt-r-size-2 rt-variant-surface pr-2",
         ),
+        # portal(
         combobox_options(
             rx.foreach(
                 options,
@@ -188,6 +191,7 @@ def combobox_wrapper(
             ),
             class_name="rt-SelectContent rt-r-size-2 rt-variant-solid p-2",
         ),
+        # ),
         value=value,
         on_change=on_change,
     )
