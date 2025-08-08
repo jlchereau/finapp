@@ -15,7 +15,6 @@ The React combobox is located at:
 
 Enhancements:
 - Improve reflex styles
-- Add highlighting when hovering over options (add data-highlighted attribute)
 - Implement filtering
 - Add check on selected option in the list
 - Add placeholder (if HeadlessUi allows it)
@@ -50,11 +49,11 @@ class Combobox(HeadlessUIComponent):
     # Props
     disabled: Var[bool]
     # multiple: Var[bool]
-    value: Var[str]  # The selected value
+    value: Var[str | None]  # The selected value
     # class_name is inherited
 
     # Events
-    on_change: EventHandler[passthrough_event_spec(str)]
+    on_change: EventHandler[passthrough_event_spec(str | None)]
     on_close: EventHandler[no_args_event_spec]  # Fired when the combobox is closed
 
     @classmethod
@@ -73,7 +72,7 @@ class ComboboxInput(HeadlessUIComponent):
     tag = "ComboboxInput"
 
     # Props
-    display_value: Var[str]  # JavaScript function as string for display value
+    display_value: Var[str | None]  # JavaScript function as string for display value
 
     # Events
     on_change: EventHandler[input_event]
@@ -131,7 +130,7 @@ class ComboboxOption(HeadlessUIComponent):
 
     # Props from HeadlessUI ComboboxOption
     # key is inherited
-    value: Var[str]
+    value: Var[str | None]
     disabled: Var[bool]
 
     @classmethod

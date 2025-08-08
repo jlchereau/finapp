@@ -10,7 +10,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
     text: str = ""
     selected: str = ""
-    searched: str = ""
+    searched: str | None = None
 
     options = [
         "Durward Reynolds",
@@ -25,15 +25,16 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Set the text."""
         self.text = value
 
-    @rx.event
-    def set_searched(self, value: str) -> None:
-        """Set searched value."""
-        self.searched = value
 
     @rx.event
     def set_selected(self, value: str) -> None:
         """Set selected value."""
         self.selected = value
+
+    @rx.event
+    def set_searched(self, value: str | None) -> None:
+        """Set searched value."""
+        self.searched = value
 
 
 @rx.page(route="/workflows")  # pyright: ignore[reportArgumentType]
