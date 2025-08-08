@@ -15,6 +15,7 @@ The React combobox is located at:
 
 Enhancements:
 - Improve reflex styles
+- Add navigation with up down arrows
 - Implement filtering
 - Add check on selected option in the list
 - Add placeholder (if HeadlessUi allows it)
@@ -48,6 +49,7 @@ class Combobox(HeadlessUIComponent):
 
     # Props
     disabled: Var[bool]
+    immediate: Var[bool]
     # multiple: Var[bool]
     value: Var[str | None]  # The selected value
     # class_name is inherited
@@ -59,6 +61,7 @@ class Combobox(HeadlessUIComponent):
     @classmethod
     def create(cls, *children, **props):
         props.setdefault("disabled", False)
+        props.setdefault("immediate", True)
         return super().create(*children, **props)
 
 
@@ -136,6 +139,7 @@ class ComboboxOption(HeadlessUIComponent):
     @classmethod
     def create(cls, *children, **props):
         """Create a ComboboxOption component with hover highlighting."""
+        props.setdefault("anchor", "top left")
         # Add React event handlers to toggle data-highlighted attribute
         # which allows to use reflex stylesheets (styles from rx.select dropdown)
         custom_attrs = props.setdefault("custom_attrs", {})

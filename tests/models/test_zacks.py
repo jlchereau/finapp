@@ -530,7 +530,8 @@ class TestGlobalCacheSettingsZacks:
         monkeypatch.chdir(tmp_path)
         # Disable global cache
         from app.core.settings import settings
-        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
         provider = ZacksProvider(ProviderConfig())
 

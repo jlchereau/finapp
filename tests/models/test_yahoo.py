@@ -448,9 +448,9 @@ class TestCacheSettingsYahoo:
             await provider.get_data("AAPL")
             await provider.get_data("AAPL")
             # Should call history twice when cache is disabled
-            assert mock_ticker.history.call_count == 2, (
-                "History called twice; cache disabled"
-            )
+            assert (
+                mock_ticker.history.call_count == 2
+            ), "History called twice; cache disabled"
 
     @pytest.mark.asyncio
     async def test_info_cache_disabled_per_provider(self, tmp_path, monkeypatch):
@@ -476,9 +476,7 @@ class TestCacheSettingsYahoo:
                 await provider.get_data("AAPL")
                 await provider.get_data("AAPL")
                 # Parser should be called twice when cache is disabled
-                assert mock_parse.call_count == 2, (
-                    "Parser called twice; cache disabled"
-                )
+                assert mock_parse.call_count == 2, "Parser called twice; cache disabled"
 
 
 class TestGlobalCacheSettingsYahoo:
@@ -489,7 +487,8 @@ class TestGlobalCacheSettingsYahoo:
         monkeypatch.chdir(tmp_path)
         # Disable global cache
         from app.core.settings import settings
-        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
         config = ProviderConfig()  # default cache_enabled True
         provider = YahooHistoryProvider(config)
@@ -513,7 +512,8 @@ class TestGlobalCacheSettingsYahoo:
         monkeypatch.chdir(tmp_path)
         # Disable global cache
         from app.core.settings import settings
-        monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
+
+        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
         provider = YahooInfoProvider()  # default config
         from unittest.mock import patch, MagicMock, AsyncMock
