@@ -8,12 +8,14 @@ build:
 reset:
 	rm -rf .web
 
+# Note: add paths you want to exclude from hot reloading in .env
+# REFLEX_HOT_RELOAD_EXCLUDE_PATHS=data:docs:notebooks:temp:tests
 run:
 	@echo "Killing any processes on ports 3000 and 8000..."
 	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 	@lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 	@sleep 1
-	.venv/bin/reflex run
+	REFLEX_ENV_FILE=.env .venv/bin/reflex run
 
 test:
 	.venv/bin/python -m pytest -vv tests/
