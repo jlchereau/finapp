@@ -27,12 +27,10 @@ def cache(func):  # decorator for async _fetch_data methods
     async def wrapper(self, query, *args, cache_date: str | None = None, **kwargs):
         # If caching is disabled globally or per-provider, bypass cache entirely
         from app.core.settings import settings
+
         # Check if cache is enabled globally and for this provider
         cache_enabled = getattr(self.config, "cache_enabled", True)
-        if (
-            not settings.CACHE_ENABLED
-            or not cache_enabled
-        ):
+        if not settings.CACHE_ENABLED or not cache_enabled:
             # Directly fetch without caching
             return await func(self, query, *args, **kwargs)
         # Determine cache directory based on date

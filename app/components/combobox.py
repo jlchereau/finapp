@@ -14,7 +14,8 @@ The React combobox is located at:
     %40headlessui-react/src/components/combobox
 
 Enhancements:
-- Add reflex styles
+- Improve reflex styles
+- Add placeholder (if HeadlessUi allows it)
 - Support for multiple selection
 - Support for disabled state
 - Support for JSON object values (dict[str, Any])
@@ -149,14 +150,6 @@ combobox_option = ComboboxOption.create
 
 
 # Wrapper function for the Combobox component
-#
-# We will need to add the following class_names but maybe not in the wrapper
-# Possibly as default props for the create functions - Not sure yet
-#     button_icon: str = "chevron_down",
-#     input_class: str = "rt-TextFieldRoot rt-r-size-2 rt-variant-surface",
-#     options_class: str = "rt-SelectContent rt-r-size-2 rt-variant-solid",
-#     option_class: str = "rt-SelectItem",
-#     container_class: str = "relative", # Not sure about this one
 def combobox_wrapper(
     value,
     on_change,
@@ -164,15 +157,25 @@ def combobox_wrapper(
 ):
     """Wrapper function for the Combobox component."""
     return combobox(
-        combobox_input(
-            display_value=value,
-            on_change=on_change,
+        rx.hstack(
+            combobox_input(
+                display_value=value,
+                on_change=on_change,
+                class_name="rt-reset rt-TextFieldInput"
+            ),
+            combobox_button(),
+            class_name="rt-TextFieldRoot rt-r-size-2 rt-variant-surface",
         ),
         combobox_options(
             rx.foreach(
                 options,
-                lambda option: combobox_option(rx.text(option), value=option),
-            )
+                lambda option: combobox_option(
+                    rx.text(option),
+                    value=option,
+                    class_name="rt-SelectItem",
+                ),
+            ),
+            class_name="rt-SelectContent rt-r-size-2 rt-variant-solid",
         ),
         value=value,
         on_change=on_change,
