@@ -15,14 +15,20 @@ The React combobox is located at:
 
 Enhancements:
 - Improve reflex styles
+- Add highlighting when hovering over options (add data-highlighted attribute)
+- Implement filtering
+- Add check on selected option in the list
 - Add placeholder (if HeadlessUi allows it)
+- Add literals for options like ComboboxOptions anchor
 - Support for multiple selection
 - Support for disabled state
 - Support for JSON object values (dict[str, Any])
+- Support virtual scrolling
+- Support more HeadlessUI Combobox parameters and features
 """
 
 import reflex as rx
-from reflex.vars import Var
+from reflex.vars import Var, VarData
 from reflex.event import (
     EventHandler,
     input_event,
@@ -114,6 +120,25 @@ class ComboboxOptions(HeadlessUIComponent):
         return super().create(*children, **props)
 
 
+ON_MOUSE_ENTER_LEAVE_JS = """
+// This is sample code that we need to adapt to
+// set/unset data-highlighted on mouse enter/leave 
+// It only show the implementation of a JavaScript event handler
+// This code should toggle the data-highlighted attribute
+// to highlight the currently focused option
+const enterKeySubmitOnKeyDown = (e, is_enabled) => {
+    if (is_enabled && e.which === 13 && !e.shiftKey) {
+        e.preventDefault();
+        if (!e.repeat) {
+            if (e.target.form) {
+                e.target.form.requestSubmit();
+            }
+        }
+    }
+}
+"""
+
+
 class ComboboxOption(HeadlessUIComponent):
     """
     The ComboboxOption reflex no-ssr component.
@@ -128,6 +153,12 @@ class ComboboxOption(HeadlessUIComponent):
     value: Var[str]
     disabled: Var[bool]
 
+    def _get_all_custom_code(self) -> set[str]:
+        """Include the custom code for highlighting on hovering using reflex styles"""
+        custom_code = super()._get_all_custom_code()
+        custom_code.add(ON_MOUSE_ENTER_LEAVE_JS)
+        return custom_code
+
     # Consider support for highlighted state
     # Adding the attribute data-highlighted allows to use reflex stylesheets
     # We need to find a way to add this attribute when HeadlessUI adds the
@@ -137,7 +168,16 @@ class ComboboxOption(HeadlessUIComponent):
     # https://reflex.dev/docs/wrapping-react/more-wrapping-examples/#react-pdf-renderer
     @classmethod
     def create(cls, *children, **props):
-        # Consider a CheckIcon
+        """Create a ComboboxOption component."""
+        custom_attrs = props.setdefault("custom_attrs", {})
+        # This is sample code that we need to adapt to
+        # set/unset data-highlighted on mouse enter/leave 
+        # enter_key_submit = props.get("enter_key_submit")
+        # enter_key_submit = Var.create(enter_key_submit)
+        # custom_attrs["on_key_down"] = Var(
+        #     _js_expr=f"(e) => enterKeySubmitOnKeyDown(e, {enter_key_submit!s})",
+        #     _var_data=VarData.merge(enter_key_submit._get_all_var_data()),
+        # )
         return super().create(*children, **props)
 
 
@@ -161,7 +201,7 @@ def combobox_wrapper(
             combobox_input(
                 display_value=value,
                 on_change=on_change,
-                class_name="rt-reset rt-TextFieldInput"
+                class_name="rt-reset rt-TextFieldInput",
             ),
             combobox_button(),
             class_name="rt-TextFieldRoot rt-r-size-2 rt-variant-surface",
