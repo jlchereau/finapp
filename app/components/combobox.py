@@ -28,7 +28,7 @@ Enhancements:
 """
 
 import reflex as rx
-from reflex.vars import Var, VarData
+from reflex.vars import Var
 from reflex.event import (
     EventHandler,
     input_event,
@@ -120,25 +120,6 @@ class ComboboxOptions(HeadlessUIComponent):
         return super().create(*children, **props)
 
 
-ON_MOUSE_ENTER_LEAVE_JS = """
-// This is sample code that we need to adapt to
-// set/unset data-highlighted on mouse enter/leave 
-// It only show the implementation of a JavaScript event handler
-// This code should toggle the data-highlighted attribute
-// to highlight the currently focused option
-const enterKeySubmitOnKeyDown = (e, is_enabled) => {
-    if (is_enabled && e.which === 13 && !e.shiftKey) {
-        e.preventDefault();
-        if (!e.repeat) {
-            if (e.target.form) {
-                e.target.form.requestSubmit();
-            }
-        }
-    }
-}
-"""
-
-
 class ComboboxOption(HeadlessUIComponent):
     """
     The ComboboxOption reflex no-ssr component.
@@ -153,31 +134,17 @@ class ComboboxOption(HeadlessUIComponent):
     value: Var[str]
     disabled: Var[bool]
 
-    def _get_all_custom_code(self) -> set[str]:
-        """Include the custom code for highlighting on hovering using reflex styles"""
-        custom_code = super()._get_all_custom_code()
-        custom_code.add(ON_MOUSE_ENTER_LEAVE_JS)
-        return custom_code
-
-    # Consider support for highlighted state
-    # Adding the attribute data-highlighted allows to use reflex stylesheets
-    # We need to find a way to add this attribute when HeadlessUI adds the
-    # data-focus attribute, which would save specific styles.
-    # data_highlighted: Var[bool]  # Indicates if the option is highlighted
-    # Possibly use renaming with _rename_props: dict[str, str] as in
-    # https://reflex.dev/docs/wrapping-react/more-wrapping-examples/#react-pdf-renderer
     @classmethod
     def create(cls, *children, **props):
-        """Create a ComboboxOption component."""
+        """Create a ComboboxOption component with hover highlighting."""
+        # Add React event handlers to toggle data-highlighted attribute
+        # which allows to use reflex stylesheets (styles from rx.select dropdown)
         custom_attrs = props.setdefault("custom_attrs", {})
-        # This is sample code that we need to adapt to
-        # set/unset data-highlighted on mouse enter/leave 
-        # enter_key_submit = props.get("enter_key_submit")
-        # enter_key_submit = Var.create(enter_key_submit)
-        # custom_attrs["on_key_down"] = Var(
-        #     _js_expr=f"(e) => enterKeySubmitOnKeyDown(e, {enter_key_submit!s})",
-        #     _var_data=VarData.merge(enter_key_submit._get_all_var_data()),
-        # )
+        enter_js = "(e) => e.currentTarget.setAttribute('data-highlighted','true')"
+        leave_js = "(e) => e.currentTarget.removeAttribute('data-highlighted')"
+        # Use camelCase event names for React
+        custom_attrs["onMouseEnter"] = Var(_js_expr=enter_js)
+        custom_attrs["onMouseLeave"] = Var(_js_expr=leave_js)
         return super().create(*children, **props)
 
 
@@ -189,7 +156,7 @@ combobox_options = ComboboxOptions.create
 combobox_option = ComboboxOption.create
 
 
-# Wrapper function for the Combobox component
+# Wrapper function for the Combobox component using rx.select styles
 def combobox_wrapper(
     value,
     on_change,

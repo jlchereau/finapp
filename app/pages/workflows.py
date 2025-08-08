@@ -11,6 +11,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
     text: str = ""
     selected: str = ""
     searched: str = ""
+
     options = [
         "Durward Reynolds",
         "Kenton Towne",
