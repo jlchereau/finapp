@@ -6,23 +6,17 @@ See:
     - https://headlessui.com/
 
 This base class is mainly responsible for loading the react libraries
-according to Reflex documentation about React wrappers:
-    - https://reflex.dev/docs/wrapping-react/overview/
-    - https://reflex.dev/docs/wrapping-react/library-and-tags/
-    - https://reflex.dev/docs/wrapping-react/props/
-    - https://reflex.dev/docs/wrapping-react/custom-code-and-hooks/
-    - https://reflex.dev/docs/wrapping-react/imports-and-styles/
-    - https://reflex.dev/docs/wrapping-react/local-packages/
-    - https://reflex.dev/docs/wrapping-react/serializers/
-    - https://reflex.dev/docs/wrapping-react/example/
-    - https://reflex.dev/docs/wrapping-react/more-wrapping-examples/
+according to Reflex documentation about React wrappers for components
+that do not render server side:
+    - https://reflex.dev/docs/wrapping-react/library-and-tags/#wrapping-a-dynamic-component
+    - https://reflex.dev/docs/wrapping-react/more-wrapping-examples#react-leaflet
 """
 
-from reflex.components.component import Component
+from reflex.components.component import NoSSRComponent
 
 
-class HeadlessUIComponent(Component):
-    """The base class for all Headless UI components."""
+class HeadlessUIComponent(NoSSRComponent):
+    """Base class for all Headless UI components."""
 
     library = "@headlessui/react"
 
