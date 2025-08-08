@@ -96,7 +96,7 @@ class ComboboxButton(HeadlessUIComponent):
     def create(cls, *children, **props):
         if len(children) == 0:
             # Consider ChevronDownIcon from heroicons
-            children = [rx.icon("chevron_down")]
+            children = [rx.icon("chevron_down", size=14)]
         return super().create(*children, **props)
 
 
@@ -170,7 +170,8 @@ def combobox_wrapper(
                 class_name="rt-reset rt-TextFieldInput",
             ),
             combobox_button(),
-            class_name="rt-TextFieldRoot rt-r-size-2 rt-variant-surface",
+            align="center",
+            class_name="rt-TextFieldRoot rt-r-size-2 rt-variant-surface pr-2",
         ),
         combobox_options(
             rx.foreach(
@@ -181,7 +182,7 @@ def combobox_wrapper(
                     class_name="rt-SelectItem",
                 ),
             ),
-            class_name="rt-SelectContent rt-r-size-2 rt-variant-solid",
+            class_name="rt-SelectContent rt-r-size-2 rt-variant-solid p-2",
         ),
         value=value,
         on_change=on_change,
