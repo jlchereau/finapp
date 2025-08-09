@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(make format)",
+      "Bash(make lint)",
+      "Bash(make build)",
+      "Bash(.venv/bin/python -m pytest:*)",
+      "Bash(make test)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot"
+    ],
+    "deny": [
+      "Bash(make run)"
+    ]
+  }
+}
