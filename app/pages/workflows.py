@@ -25,7 +25,6 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Set the text."""
         self.text = value
 
-
     @rx.event
     def set_selected(self, value: str) -> None:
         """Set selected value."""
