@@ -1,0 +1,1 @@
+"""A data provider for Fred data."""
