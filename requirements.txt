@@ -2,7 +2,7 @@ bt
 cvxpy
 duckdb # with https://ducklake.select/
 httpx
-jmespath
+# jmespath
 pydantic
 pydantic-settings
 Jinja2
