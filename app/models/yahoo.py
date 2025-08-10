@@ -4,9 +4,10 @@ This module provides functionality to fetch data from Yahoo Finance.
 """
 
 import asyncio
-from pandas import DataFrame
-from pydantic import BaseModel
+
 import yfinance as yf
+from pandas import DataFrame
+from pydantic import BaseModel, Field
 from .base import (
     BaseProvider,
     ProviderType,
@@ -15,33 +16,29 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from .parsers import PydanticJSONParser, ParserConfig
 
 
-# Configuration for Yahoo Finance info data parsing
-YAHOO_INFO_CONFIG = ParserConfig(
-    name="YahooInfoModel",
-    fields={
-        "ticker": {"expr": "symbol", "default": None},
-        "company_name": {"expr": "longName", "default": None},
-        "price": {"expr": "regularMarketPrice", "default": None},
-        "change": {"expr": "regularMarketChange", "default": None},
-        "percent_change": {"expr": "regularMarketChangePercent", "default": None},
-        "volume": {"expr": "regularMarketVolume", "default": None},
-        "market_cap": {"expr": "marketCap", "default": None},
-        "pe_ratio": {"expr": "trailingPE", "default": None},
-        "dividend_yield": {"expr": "dividendYield", "default": None},
-        "beta": {"expr": "beta", "default": None},
-        "52_week_high": {"expr": "fiftyTwoWeekHigh", "default": None},
-        "52_week_low": {"expr": "fiftyTwoWeekLow", "default": None},
-        "currency": {"expr": "currency", "default": "USD"},
-        "exchange": {"expr": "exchange", "default": None},
-        "sector": {"expr": "sector", "default": None},
-        "industry": {"expr": "industry", "default": None},
-    },
-    strict_mode=False,
-    default_value=None,
-)
+class YahooInfoModel(BaseModel):
+    """Pydantic model for Yahoo Finance info data."""
+
+    ticker: str = Field(alias="symbol")
+    company_name: str = Field(alias="longName")
+    price: float = Field(alias="regularMarketPrice")
+    change: float = Field(alias="regularMarketChange")
+    percent_change: float = Field(alias="regularMarketChangePercent")
+    volume: int = Field(alias="regularMarketVolume")
+    market_cap: int = Field(alias="marketCap")
+    pe_ratio: float = Field(alias="trailingPE")
+    dividend_yield: float = Field(alias="dividendYield")
+    beta: float = Field(alias="beta")
+    week_52_high: float = Field(alias="fiftyTwoWeekHigh")
+    week_52_low: float = Field(alias="fiftyTwoWeekLow")
+    currency: str = Field(alias="currency")
+    exchange: str = Field(alias="exchange")
+    sector: str = Field(alias="sector")
+    industry: str = Field(alias="industry")
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
 
 
 class YahooHistoryProvider(BaseProvider[DataFrame]):
@@ -161,10 +158,8 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             if not json_data or not isinstance(json_data, dict):
                 raise ValueError(f"No info data found for query: {query}")
 
-            # Parse the JSON data using our parser
-            parser = PydanticJSONParser(YAHOO_INFO_CONFIG)
-            result = await parser.parse_async(json_data)
-
+            # Parse the JSON data using the Pydantic model (strict validation)
+            result = YahooInfoModel(**json_data)
             return result
         except ValueError as e:
             raise NonRetriableProviderException(str(e)) from e

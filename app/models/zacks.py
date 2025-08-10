@@ -4,7 +4,8 @@ This module provides functionality to fetch data from Zacks API.
 """
 
 import httpx
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Field
 from .base import (
     BaseProvider,
     ProviderType,
@@ -13,33 +14,29 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from .parsers import PydanticJSONParser, ParserConfig
 
 
-# Configuration for Zacks API data parsing
-ZACKS_CONFIG = ParserConfig(
-    name="ZacksModel",
-    fields={
-        "ticker": {"expr": "ticker", "default": None},
-        "price": {"expr": "price", "default": None},
-        "change": {"expr": "change", "default": None},
-        "percent_change": {"expr": "percentChange", "default": None},
-        "volume": {"expr": "volume", "default": None},
-        "high": {"expr": "high", "default": None},
-        "low": {"expr": "low", "default": None},
-        "open_price": {"expr": "open", "default": None},
-        "previous_close": {"expr": "previousClose", "default": None},
-        "market_cap": {"expr": "marketCap", "default": None},
-        "pe_ratio": {"expr": "peRatio", "default": None},
-        "zacks_rank": {"expr": "zacksRank", "default": None},
-        "value_score": {"expr": "valueScore", "default": None},
-        "growth_score": {"expr": "growthScore", "default": None},
-        "momentum_score": {"expr": "momentumScore", "default": None},
-        "vgm_score": {"expr": "vgmScore", "default": None},
-    },
-    strict_mode=False,
-    default_value=None,
-)
+class ZacksModel(BaseModel):
+    """Pydantic model for Zacks API data."""
+
+    ticker: str = Field(alias="ticker")
+    price: float = Field(alias="price")
+    change: float = Field(alias="change")
+    percent_change: float = Field(alias="percentChange")
+    volume: int = Field(alias="volume")
+    high: float = Field(alias="high")
+    low: float = Field(alias="low")
+    open_price: float = Field(alias="open")
+    previous_close: float = Field(alias="previousClose")
+    market_cap: int = Field(alias="marketCap")
+    pe_ratio: float = Field(alias="peRatio")
+    zacks_rank: int = Field(alias="zacksRank")
+    value_score: str = Field(alias="valueScore")
+    growth_score: str = Field(alias="growthScore")
+    momentum_score: str = Field(alias="momentumScore")
+    vgm_score: str = Field(alias="vgmScore")
+
+    model_config = {"populate_by_name": True, "extra": "ignore"}
 
 
 class ZacksProvider(BaseProvider[BaseModel]):
@@ -111,8 +108,9 @@ class ZacksProvider(BaseProvider[BaseModel]):
         json_data = response.json()
         if not json_data:
             raise ValueError("Invalid response from Zacks API")
-        parser = PydanticJSONParser(ZACKS_CONFIG)
-        result = await parser.parse_async(json_data)
+
+        # Parse the JSON data using the Pydantic model (strict validation)
+        result = ZacksModel(**json_data)
         return result
 
 

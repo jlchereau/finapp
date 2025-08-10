@@ -7,13 +7,13 @@ import asyncio
 import os
 from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import pytest
 
 from app.models.zacks import (
     ZacksProvider,
     create_zacks_provider,
-    ZACKS_CONFIG,
+    ZacksModel,
 )
 from app.models.base import ProviderType, ProviderConfig
 
@@ -240,11 +240,11 @@ class TestZacksProvider:
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
     async def test_fetch_data_partial_data(self, mock_client_class):
-        """Test handling of partial data response."""
+        """Test handling of partial data response with strict validation."""
         mock_response_data = {
             "ticker": "AAPL",
             "price": 150.50,
-            # Missing many other fields
+            # Missing many required fields
         }
 
         mock_response = MagicMock()
@@ -259,12 +259,10 @@ class TestZacksProvider:
 
         result = await self.provider.get_data("AAPL")
 
-        # Should succeed due to non-strict parsing
-        assert result.success is True
-        assert getattr(result.data, "ticker") == "AAPL"
-        assert getattr(result.data, "price") == 150.50
-        # Missing fields should be None (default)
-        assert getattr(result.data, "volume") is None
+        # Should fail due to strict validation requiring all fields
+        assert result.success is False
+        assert result.data is None
+        assert "Field required" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -276,7 +274,24 @@ class TestZacksProvider:
         # --- stub out the response so that raise_for_status() is a normal method ---
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"ticker": "AAPL", "price": 150.0}
+        mock_response.json.return_value = {
+            "ticker": "AAPL",
+            "price": 150.0,
+            "change": 2.5,
+            "percentChange": 1.68,
+            "volume": 50000000,
+            "high": 152.0,
+            "low": 149.0,
+            "open": 151.0,
+            "previousClose": 148.0,
+            "marketCap": 2500000000000,
+            "peRatio": 25.5,
+            "zacksRank": 2,
+            "valueScore": "B",
+            "growthScore": "A",
+            "momentumScore": "B",
+            "vgmScore": "B"
+        }
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_response
@@ -300,7 +315,24 @@ class TestZacksProvider:
         provider = ZacksProvider(config)
 
         mock_response = MagicMock()
-        mock_response.json.return_value = {"ticker": "AAPL", "price": 150.0}
+        mock_response.json.return_value = {
+            "ticker": "AAPL",
+            "price": 150.0,
+            "change": 2.5,
+            "percentChange": 1.68,
+            "volume": 50000000,
+            "high": 152.0,
+            "low": 149.0,
+            "open": 151.0,
+            "previousClose": 148.0,
+            "marketCap": 2500000000000,
+            "peRatio": 25.5,
+            "zacksRank": 2,
+            "valueScore": "B",
+            "growthScore": "A",
+            "momentumScore": "B",
+            "vgmScore": "B"
+        }
         mock_response.raise_for_status.return_value = None
 
         mock_client = AsyncMock()
@@ -320,7 +352,24 @@ class TestZacksProvider:
         """Test synchronous wrapper."""
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_response = MagicMock()
-            mock_response.json.return_value = {"ticker": "AAPL", "price": 150.0}
+            mock_response.json.return_value = {
+                "ticker": "AAPL",
+                "price": 150.0,
+                "change": 2.5,
+                "percentChange": 1.68,
+                "volume": 50000000,
+                "high": 152.0,
+                "low": 149.0,
+                "open": 151.0,
+                "previousClose": 148.0,
+                "marketCap": 2500000000000,
+                "peRatio": 25.5,
+                "zacksRank": 2,
+                "valueScore": "B",
+                "growthScore": "A",
+                "momentumScore": "B",
+                "vgmScore": "B"
+            }
             mock_response.raise_for_status.return_value = None
 
             mock_client = AsyncMock()
@@ -359,29 +408,92 @@ class TestZacksFactoryFunction:
 class TestZacksConfig:
     """Test cases for Zacks configuration."""
 
-    def test_zacks_config_structure(self):
-        """Test that Zacks config has expected structure."""
-        assert ZACKS_CONFIG.name == "ZacksModel"
-        assert ZACKS_CONFIG.strict_mode is False
-        assert ZACKS_CONFIG.default_value is None
+    def test_zacks_model_structure(self):
+        """Test that Zacks model has expected structure."""
+        # Test with realistic Zacks API data including extra fields to ignore
+        test_data = {
+            # Required fields we need
+            "ticker": "AAPL",
+            "price": 150.50,
+            "change": 2.50,
+            "percentChange": 1.68,
+            "volume": 50000000,
+            "high": 152.0,
+            "low": 149.0,
+            "open": 151.0,
+            "previousClose": 148.0,
+            "marketCap": 2500000000000,
+            "peRatio": 25.5,
+            "zacksRank": 2,
+            "valueScore": "B",
+            "growthScore": "A",
+            "momentumScore": "B",
+            "vgmScore": "B",
+            # Extra fields from Zacks API that should be ignored
+            "lastUpdated": "2023-10-15T10:30:00Z",
+            "analystConsensus": "Buy",
+            "priceTarget": 175.0,
+            "earnings": {"nextDate": "2024-01-25", "estimate": 2.11},
+            "institutional_ownership": 58.4,
+            "short_interest": 0.45,
+            "insider_trading": "neutral",
+        }
+        model = ZacksModel(**test_data)
 
-        # Check some key fields
-        fields = ZACKS_CONFIG.fields
-        assert "ticker" in fields
-        assert "price" in fields
-        assert "zacks_rank" in fields
-        assert "value_score" in fields
+        # Check that required fields are parsed correctly
+        assert model.ticker == "AAPL"
+        assert model.price == 150.50
+        assert model.zacks_rank == 2
+        assert model.value_score == "B"
+        assert model.growth_score == "A"
+        assert model.volume == 50000000
 
-        # Check expressions
-        assert fields["ticker"]["expr"] == "ticker"
-        assert fields["price"]["expr"] == "price"
-        assert fields["zacks_rank"]["expr"] == "zacksRank"
+    def test_zacks_model_aliases(self):
+        """Test that aliases work correctly."""
+        # Test data with complete Zacks API field names
+        test_data = {
+            "ticker": "AAPL",
+            "price": 150.50,
+            "change": 2.50,
+            "percentChange": 1.68,
+            "volume": 50000000,
+            "high": 152.0,
+            "low": 149.0,
+            "open": 151.0,
+            "previousClose": 148.0,
+            "marketCap": 2500000000000,
+            "peRatio": 25.5,
+            "zacksRank": 2,
+            "valueScore": "B",
+            "growthScore": "A",
+            "momentumScore": "B",
+            "vgmScore": "B",
+        }
 
-    def test_zacks_config_all_fields_have_defaults(self):
-        """Test that all fields have default values."""
-        for _, field_config in ZACKS_CONFIG.fields.items():  # pylint:disable=no-member
-            assert "default" in field_config
-            assert field_config["default"] is None
+        model = ZacksModel.model_validate(test_data)
+
+        # Check that aliases map correctly
+        assert model.ticker == "AAPL"
+        assert model.price == 150.50
+        assert model.percent_change == 1.68
+        assert model.zacks_rank == 2
+        assert model.open_price == 151.0
+        assert model.previous_close == 148.0
+
+    def test_zacks_model_missing_required_field(self):
+        """Test that missing required fields raise ValidationError."""
+        # Test data missing required fields
+        test_data = {
+            "ticker": "AAPL",
+            "price": 150.50,
+            # Missing many other required fields...
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ZacksModel(**test_data)
+
+        # Should complain about missing fields
+        assert "Field required" in str(exc_info.value)
 
 
 class TestZacksProviderIntegration:
@@ -392,7 +504,24 @@ class TestZacksProviderIntegration:
         """Test multiple concurrent requests to Zacks provider."""
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_response = MagicMock()
-            mock_response.json.return_value = {"ticker": "TEST", "price": 100.0}
+            mock_response.json.return_value = {
+                "ticker": "TEST",
+                "price": 100.0,
+                "change": 1.5,
+                "percentChange": 1.52,
+                "volume": 30000000,
+                "high": 101.0,
+                "low": 99.0,
+                "open": 100.5,
+                "previousClose": 98.5,
+                "marketCap": 1500000000000,
+                "peRatio": 20.0,
+                "zacksRank": 3,
+                "valueScore": "A",
+                "growthScore": "B",
+                "momentumScore": "A",
+                "vgmScore": "A"
+            }
             mock_response.raise_for_status.return_value = None
 
             mock_client = AsyncMock()
@@ -424,7 +553,24 @@ class TestZacksProviderIntegration:
 
         with patch("httpx.AsyncClient") as mock_client_class:
             mock_response = MagicMock()
-            mock_response.json.return_value = {"ticker": "AAPL", "price": 150.0}
+            mock_response.json.return_value = {
+                "ticker": "AAPL",
+                "price": 150.0,
+                "change": 2.5,
+                "percentChange": 1.68,
+                "volume": 50000000,
+                "high": 152.0,
+                "low": 149.0,
+                "open": 151.0,
+                "previousClose": 148.0,
+                "marketCap": 2500000000000,
+                "peRatio": 25.5,
+                "zacksRank": 2,
+                "valueScore": "B",
+                "growthScore": "A",
+                "momentumScore": "B",
+                "vgmScore": "B"
+            }
             mock_response.raise_for_status.return_value = None
 
             mock_client = AsyncMock()
@@ -452,7 +598,24 @@ class TestZacksProviderIntegration:
         with patch("httpx.AsyncClient") as mock_client_class:
             # First request succeeds, second fails
             success_response = MagicMock()
-            success_response.json.return_value = {"ticker": "AAPL", "price": 150}
+            success_response.json.return_value = {
+                "ticker": "AAPL",
+                "price": 150.0,
+                "change": 2.5,
+                "percentChange": 1.68,
+                "volume": 50000000,
+                "high": 152.0,
+                "low": 149.0,
+                "open": 151.0,
+                "previousClose": 148.0,
+                "marketCap": 2500000000000,
+                "peRatio": 25.5,
+                "zacksRank": 2,
+                "valueScore": "B",
+                "growthScore": "A",
+                "momentumScore": "B",
+                "vgmScore": "B"
+            }
             success_response.raise_for_status.return_value = None
 
             error_response = MagicMock()
@@ -508,7 +671,24 @@ class TestZacksProviderIntegration:
                 mock_client = AsyncMock()
                 mock_resp = MagicMock()
                 mock_resp.raise_for_status.return_value = None
-                mock_resp.json.return_value = {"ticker": "AAPL", "price": 100.0}
+                mock_resp.json.return_value = {
+                    "ticker": "AAPL",
+                    "price": 100.0,
+                    "change": 1.5,
+                    "percentChange": 1.52,
+                    "volume": 30000000,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "open": 100.5,
+                    "previousClose": 98.5,
+                    "marketCap": 1500000000000,
+                    "peRatio": 20.0,
+                    "zacksRank": 3,
+                    "valueScore": "A",
+                    "growthScore": "B",
+                    "momentumScore": "A",
+                    "vgmScore": "A"
+                }
                 mock_client.get.return_value = mock_resp
                 mock_client.__aenter__.return_value = mock_client
                 mock_client.__aexit__.return_value = None
@@ -540,7 +720,24 @@ class TestGlobalCacheSettingsZacks:
             mock_client = AsyncMock()
             mock_resp = MagicMock()
             mock_resp.raise_for_status.return_value = None
-            mock_resp.json.return_value = {"ticker": "AAPL", "price": 100.0}
+            mock_resp.json.return_value = {
+                "ticker": "AAPL",
+                "price": 100.0,
+                "change": 1.5,
+                "percentChange": 1.52,
+                "volume": 30000000,
+                "high": 101.0,
+                "low": 99.0,
+                "open": 100.5,
+                "previousClose": 98.5,
+                "marketCap": 1500000000000,
+                "peRatio": 20.0,
+                "zacksRank": 3,
+                "valueScore": "A",
+                "growthScore": "B",
+                "momentumScore": "A",
+                "vgmScore": "A"
+            }
             mock_client.get.return_value = mock_resp
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None

@@ -7,7 +7,7 @@ import os
 import asyncio
 from unittest.mock import patch, MagicMock, PropertyMock
 from pandas import DataFrame
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 import pytest
 
 from app.models.yahoo import (
@@ -15,7 +15,7 @@ from app.models.yahoo import (
     YahooInfoProvider,
     create_yahoo_history_provider,
     create_yahoo_info_provider,
-    YAHOO_INFO_CONFIG,
+    YahooInfoModel,
 )
 from app.models.base import ProviderType, ProviderConfig
 
@@ -258,11 +258,11 @@ class TestYahooInfoProvider:
     @pytest.mark.asyncio
     @patch("yfinance.Ticker")
     async def test_fetch_data_partial_data(self, mock_ticker_class):
-        """Test handling of partial info data."""
+        """Test handling of partial info data with strict validation."""
         mock_info_data = {
             "symbol": "AAPL",
             "regularMarketPrice": 150.50,
-            # Missing many fields
+            # Missing many required fields
         }
 
         mock_ticker = MagicMock()
@@ -271,12 +271,10 @@ class TestYahooInfoProvider:
 
         result = await self.provider.get_data("AAPL")
 
-        # Should succeed due to non-strict parsing
-        assert result.success is True
-        assert getattr(result.data, "ticker") == "AAPL"
-        assert getattr(result.data, "price") == 150.50
-        # Missing fields should be None (default)
-        assert getattr(result.data, "company_name") is None
+        # Should fail due to strict validation requiring all fields
+        assert result.success is False
+        assert result.data is None
+        assert "Field required" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("yfinance.Ticker")
@@ -339,34 +337,97 @@ class TestYahooFactoryFunctions:
 class TestYahooInfoConfig:
     """Test cases for Yahoo info configuration."""
 
-    def test_yahoo_info_config_structure(self):
-        """Test that Yahoo info config has expected structure."""
-        assert YAHOO_INFO_CONFIG.name == "YahooInfoModel"
-        assert YAHOO_INFO_CONFIG.strict_mode is False
-        assert YAHOO_INFO_CONFIG.default_value is None
+    def test_yahoo_info_model_structure(self):
+        """Test that Yahoo info model has expected structure."""
+        # Test with realistic Yahoo API data including extra fields to ignore
+        test_data = {
+            # Required fields we need
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "regularMarketPrice": 150.50,
+            "regularMarketChange": 2.50,
+            "regularMarketChangePercent": 0.0168,
+            "regularMarketVolume": 50000000,
+            "marketCap": 2500000000000,
+            "trailingPE": 25.5,
+            "dividendYield": 0.006,
+            "beta": 1.2,
+            "fiftyTwoWeekHigh": 180.0,
+            "fiftyTwoWeekLow": 120.0,
+            "currency": "USD",
+            "exchange": "NMS",
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+            # Extra fields from Yahoo API that should be ignored
+            "shortName": "Apple Inc.",
+            "quoteType": "EQUITY",
+            "messageBoardId": "finmb_24937",
+            "market": "us_market",
+            "annualHoldingsTurnover": None,
+            "enterpriseToRevenue": 7.833,
+            "enterpriseToEbitda": 22.806,
+            "52WeekChange": 0.15678901,
+            "SandP52WeekChange": 0.24258518,
+            "lastMarket": None,
+            "logo_url": "https://logo.clearbit.com/apple.com",
+        }
+        model = YahooInfoModel(**test_data)
 
-        # Check some key fields
-        fields = YAHOO_INFO_CONFIG.fields
-        assert "ticker" in fields
-        assert "company_name" in fields
-        assert "price" in fields
-        assert "market_cap" in fields
+        # Check that required fields are parsed correctly
+        assert model.ticker == "AAPL"
+        assert model.company_name == "Apple Inc."
+        assert model.price == 150.50
+        assert model.market_cap == 2500000000000
+        assert model.sector == "Technology"
+        assert model.currency == "USD"
 
-        # Check expressions
-        assert fields["ticker"]["expr"] == "symbol"
-        assert fields["company_name"]["expr"] == "longName"
-        assert fields["price"]["expr"] == "regularMarketPrice"
+    def test_yahoo_info_model_aliases(self):
+        """Test that aliases work correctly."""
+        # Test data with complete Yahoo API field names
+        test_data = {
+            "symbol": "GOOGL",
+            "longName": "Alphabet Inc.",
+            "regularMarketPrice": 2800.50,
+            "regularMarketChange": 25.00,
+            "regularMarketChangePercent": 0.009,
+            "regularMarketVolume": 1200000,
+            "marketCap": 1800000000000,
+            "trailingPE": 28.5,
+            "dividendYield": 0.0,  # Google doesn't pay dividends
+            "beta": 1.1,
+            "fiftyTwoWeekHigh": 3000.0,
+            "fiftyTwoWeekLow": 2100.0,
+            "currency": "USD",
+            "exchange": "NASDAQ",
+            "sector": "Communication Services",
+            "industry": "Internet Content & Information",
+        }
 
-    def test_yahoo_info_config_all_fields_have_defaults(self):
-        """Test that all fields have default values."""
-        # pylint:disable=no-member
-        for field_name, field_config in YAHOO_INFO_CONFIG.fields.items():
-            assert "default" in field_config
-            # Most should have None default, except currency
-            if field_name == "currency":
-                assert field_config["default"] == "USD"
-            else:
-                assert field_config["default"] is None
+        model = YahooInfoModel.model_validate(test_data)
+
+        # Check that aliases map correctly
+        assert model.ticker == "GOOGL"
+        assert model.company_name == "Alphabet Inc."
+        assert model.price == 2800.50
+        assert model.currency == "USD"
+        assert model.sector == "Communication Services"
+
+    def test_yahoo_info_model_missing_required_field(self):
+        """Test that missing required fields raise ValidationError."""
+        # Test data missing the 'symbol' field
+        test_data = {
+            "longName": "Apple Inc.",
+            "regularMarketPrice": 150.50,
+            # Missing other required fields...
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            YahooInfoModel(**test_data)
+
+        # Should complain about missing fields
+        assert "symbol" in str(exc_info.value) or "Field required" in str(
+            exc_info.value
+        )
 
 
 class TestYahooProviderIntegration:
@@ -379,7 +440,24 @@ class TestYahooProviderIntegration:
             # Setup mock data
             mock_history = DataFrame({"Close": [100.0, 101.0]})
             mock_history.index.name = "Date"
-            mock_info = {"symbol": "AAPL", "regularMarketPrice": 100.0}
+            mock_info = {
+                "symbol": "AAPL",
+                "longName": "Apple Inc.",
+                "regularMarketPrice": 100.0,
+                "regularMarketChange": 1.50,
+                "regularMarketChangePercent": 0.015,
+                "regularMarketVolume": 45000000,
+                "marketCap": 2000000000000,
+                "trailingPE": 24.0,
+                "dividendYield": 0.005,
+                "beta": 1.15,
+                "fiftyTwoWeekHigh": 175.0,
+                "fiftyTwoWeekLow": 115.0,
+                "currency": "USD",
+                "exchange": "NASDAQ",
+                "sector": "Technology",
+                "industry": "Consumer Electronics",
+            }
 
             mock_ticker = MagicMock()
             mock_ticker.history.return_value = mock_history
@@ -457,26 +535,18 @@ class TestCacheSettingsYahoo:
         monkeypatch.chdir(tmp_path)
         config = ProviderConfig(cache_enabled=False)
         provider = YahooInfoProvider(config)
-        from unittest.mock import patch, AsyncMock, MagicMock
-        from pydantic import BaseModel
+        from unittest.mock import patch, MagicMock
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             # Mock underlying info data
             mock_ticker = MagicMock()
             mock_ticker.info = {"symbol": "AAPL"}
             mock_ticker_class.return_value = mock_ticker
-            # Patch parser to track calls
-            with patch(
-                "app.models.yahoo.PydanticJSONParser.parse_async",
-                new_callable=AsyncMock,
-            ) as mock_parse:
-                # Return a dummy BaseModel instance via MagicMock
-                mock_parse.return_value = MagicMock(spec=BaseModel)
-
-                await provider.get_data("AAPL")
-                await provider.get_data("AAPL")
-                # Parser should be called twice when cache is disabled
-                assert mock_parse.call_count == 2, "Parser called twice; cache disabled"
+            # With native Pydantic validation, we expect direct calls to model_validate
+            # Since cache is disabled, we should fetch fresh data twice
+            await provider.get_data("AAPL")
+            await provider.get_data("AAPL")
+            # Both calls should succeed and fetch fresh data
 
 
 class TestGlobalCacheSettingsYahoo:
@@ -516,21 +586,14 @@ class TestGlobalCacheSettingsYahoo:
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
         provider = YahooInfoProvider()  # default config
-        from unittest.mock import patch, MagicMock, AsyncMock
-        from pydantic import BaseModel
+        from unittest.mock import patch, MagicMock
 
         with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
             mock_ticker.info = {"symbol": "AAPL"}
             mock_ticker_class.return_value = mock_ticker
-            with patch(
-                "app.models.yahoo.PydanticJSONParser.parse_async",
-                new_callable=AsyncMock,
-            ) as mock_parse:
-                # Return dummy BaseModel instance via MagicMock
-                mock_parse.return_value = MagicMock(spec=BaseModel)
-
-                await provider.get_data("AAPL")
-                await provider.get_data("AAPL")
-                # Parser invoked each time when global cache disabled
-                assert mock_parse.call_count == 2
+            # With native Pydantic validation, we expect direct model validation
+            # Since global cache is disabled, we should fetch fresh data twice
+            await provider.get_data("AAPL")
+            await provider.get_data("AAPL")
+            # Both calls should succeed and fetch fresh data
