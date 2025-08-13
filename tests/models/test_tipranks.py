@@ -1,0 +1,467 @@
+"""
+Unit tests for the Tipranks provider module.
+Tests TipranksDataProvider for fetching analyst data from Tipranks website.
+"""
+
+import asyncio
+import os
+from unittest.mock import patch, MagicMock
+import httpx
+import pytest
+
+from app.models.tipranks import (
+    TipranksDataProvider,
+    TipranksDataModel,
+    create_tipranks_provider,
+)
+from app.models.base import ProviderType, ProviderConfig
+
+os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
+
+
+@pytest.fixture(autouse=True)
+def isolate_cwd(tmp_path, monkeypatch):
+    # Use a temp cwd to avoid cache pollution
+    monkeypatch.chdir(tmp_path)
+
+
+class TestTipranksDataModel:
+    """Test cases for TipranksDataModel."""
+
+    def test_model_initialization_with_defaults(self):
+        """Test model initialization with minimal data."""
+        data = {"ticker": "AAPL"}
+        model = TipranksDataModel(**data)
+
+        assert model.ticker == "AAPL"
+        assert model.consensus_rating == 0
+        assert model.company_name == ""
+        assert model.analyst_count == 0
+
+    def test_model_initialization_with_aliases(self):
+        """Test model initialization using field aliases."""
+        data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "consensus_rating": 5,
+            "numOfAnalysts": 25,
+            "buy_count": 18,
+            "hold_count": 5,
+            "sell_count": 2,
+            "price_target": 180.50,
+            "price_target_high": 200.0,
+            "price_target_low": 150.0,
+            "smart_score": 8,
+            "marketCap": 3000000000,
+        }
+        model = TipranksDataModel(**data)
+
+        assert model.ticker == "AAPL"
+        assert model.company_name == "Apple Inc"
+        assert model.consensus_rating == 5
+        assert model.analyst_count == 25
+        assert model.buy_count == 18
+        assert model.hold_count == 5
+        assert model.sell_count == 2
+        assert model.price_target == 180.50
+        assert model.price_target_high == 200.0
+        assert model.price_target_low == 150.0
+        assert model.smart_score == 8
+        assert model.market_cap == 3000000000
+
+    def test_model_with_extra_fields(self):
+        """Test that model ignores extra fields."""
+        data = {
+            "ticker": "AAPL",
+            "consensus_rating": 5,
+            "extraField": "ignored",
+            "anotherExtra": 123,
+        }
+        model = TipranksDataModel(**data)
+
+        assert model.ticker == "AAPL"
+        assert model.consensus_rating == 5
+        assert not hasattr(model, "extraField")
+        assert not hasattr(model, "anotherExtra")
+
+
+class TestTipranksDataProvider:
+    """Test cases for TipranksDataProvider."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.provider = TipranksDataProvider()
+
+    def test_provider_type(self):
+        """Test that provider returns correct type."""
+        assert self.provider.provider_type == ProviderType.CUSTOM
+
+    def test_provider_initialization(self):
+        """Test provider initialization."""
+        assert isinstance(self.provider.config, ProviderConfig)
+        assert hasattr(self.provider, "logger")
+
+    def test_provider_initialization_with_custom_config(self):
+        """Test provider initialization with custom config."""
+        config = ProviderConfig(
+            timeout=60.0, retries=5, rate_limit=0.5, user_agent="TestApp/1.0"
+        )
+        provider = TipranksDataProvider(config)
+
+        assert provider.config.timeout == 60.0
+        assert provider.config.retries == 5
+        assert provider.config.rate_limit == 0.5
+        assert provider.config.user_agent == "TestApp/1.0"
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_no_query(self):
+        """Test handling when no query is provided."""
+        result = await self.provider.get_data(None)
+
+        assert result.success is False
+        assert "Query must be provided for TipranksDataProvider" in (
+            result.error_message or ""
+        )
+        assert result.error_code == "NonRetriableProviderException"
+
+    @pytest.mark.asyncio
+    async def test_fetch_data_empty_query(self):
+        """Test handling when empty query is provided."""
+        result = await self.provider.get_data("")
+
+        assert result.success is False
+        assert "Query must be provided for TipranksDataProvider" in (
+            result.error_message or ""
+        )
+        assert result.error_code == "NonRetriableProviderException"
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_fetch_data_http_error(self, mock_client_class):
+        """Test handling of HTTP errors."""
+        # Mock HTTP error
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "Not Found", request=MagicMock(), response=MagicMock(status_code=404)
+        )
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        result = await self.provider.get_data("AAPL")
+
+        assert result.success is False
+        assert result.error_code == "RetriableProviderException"
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_fetch_data_invalid_json(self, mock_client_class):
+        """Test handling when Tipranks returns invalid JSON."""
+        # Mock invalid JSON response
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = None  # Invalid JSON
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        result = await self.provider.get_data("AAPL")
+
+        assert result.success is False
+        assert "No Tipranks data found for query: AAPL" in (result.error_message or "")
+        assert result.error_code == "NonRetriableProviderException"
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_fetch_data_success(self, mock_client_class):
+        """Test successful data fetching and parsing."""
+        # Mock successful Tipranks response
+        mock_tipranks_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "numOfAnalysts": 25,
+            "marketCap": 3000000000,
+            "consensuses": [
+                {
+                    "rating": 5,
+                    "nB": 18,
+                    "nH": 5,
+                    "nS": 2,
+                    "isLatest": 1,
+                }
+            ],
+            "ptConsensus": [
+                {
+                    "priceTarget": 180.50,
+                    "high": 200.0,
+                    "low": 150.0,
+                }
+            ],
+            "tipranksStockScore": {"score": 8},
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_tipranks_data
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        result = await self.provider.get_data("AAPL")
+
+        assert result.success is True
+        assert result.data is not None
+        assert isinstance(result.data, TipranksDataModel)
+        assert result.data.ticker == "AAPL"
+        assert result.data.company_name == "Apple Inc"
+        assert result.data.consensus_rating == 5
+        assert result.data.analyst_count == 25
+        assert result.data.buy_count == 18
+        assert result.data.price_target == 180.50
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_fetch_data_partial_data(self, mock_client_class):
+        """Test handling of partial data from Tipranks."""
+        # Mock Tipranks response with only some fields
+        mock_tipranks_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "numOfAnalysts": 15,
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_tipranks_data
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        result = await self.provider.get_data("AAPL")
+
+        assert result.success is True
+        assert result.data is not None
+        assert isinstance(result.data, TipranksDataModel)
+        assert result.data.ticker == "AAPL"
+        assert result.data.company_name == "Apple Inc"
+        assert result.data.analyst_count == 15
+        # Check default values are used for missing fields
+        assert result.data.consensus_rating == 0
+        assert result.data.buy_count == 0
+        assert result.data.price_target == 0.0
+
+    def test_get_data_sync(self):
+        """Test synchronous wrapper."""
+        with patch("httpx.Client") as mock_client_class:
+            # Mock successful response
+            mock_tipranks_data = {
+                "ticker": "AAPL",
+                "companyName": "Apple Inc",
+                "numOfAnalysts": 15,
+            }
+
+            mock_client = MagicMock()
+            mock_response = MagicMock()
+            mock_response.json.return_value = mock_tipranks_data
+            mock_response.raise_for_status.return_value = None
+            mock_client.get.return_value = mock_response
+            mock_client.__enter__.return_value = mock_client
+            mock_client.__exit__.return_value = None
+            mock_client_class.return_value = mock_client
+
+            result = self.provider.get_data_sync("AAPL")
+
+            assert result.success is True
+
+
+class TestTipranksFactoryFunction:
+    """Test cases for Tipranks provider factory function."""
+
+    def test_create_tipranks_provider_defaults(self):
+        """Test factory function with default parameters."""
+        provider = create_tipranks_provider()
+
+        assert isinstance(provider, TipranksDataProvider)
+        assert provider.config.timeout == 30.0
+        assert provider.config.retries == 3
+
+    def test_create_tipranks_provider_custom(self):
+        """Test factory function with custom parameters."""
+        provider = create_tipranks_provider(timeout=60.0, retries=5)
+
+        assert provider.config.timeout == 60.0
+        assert provider.config.retries == 5
+
+
+class TestTipranksProviderIntegration:
+    """Integration tests for Tipranks provider."""
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_multiple_concurrent_requests(self, mock_client_class):
+        """Test multiple concurrent requests to Tipranks provider."""
+        # Mock successful response for all requests
+        mock_tipranks_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "numOfAnalysts": 15,
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_tipranks_data
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        provider = TipranksDataProvider()
+
+        # Make multiple concurrent requests
+        tasks = [
+            provider.get_data("AAPL"),
+            provider.get_data("MSFT"),
+            provider.get_data("GOOGL"),
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        # All should succeed
+        assert all(result.success for result in results)
+        assert len(results) == 3
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_error_handling_in_concurrent_requests(self, mock_client_class):
+        """Test error handling when some concurrent requests fail."""
+        # Track call count to return different responses
+        call_count = 0
+
+        def get_side_effect(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            response = MagicMock()
+            if call_count == 1:
+                # First request succeeds
+                response.json.return_value = {
+                    "ticker": "AAPL",
+                    "consensusRating": "Buy",
+                    "analystCount": 15,
+                }
+                response.raise_for_status.return_value = None
+                return response
+            else:
+                # Second request fails with HTTP error
+                response.raise_for_status.side_effect = httpx.HTTPStatusError(
+                    "Not Found",
+                    request=MagicMock(),
+                    response=MagicMock(status_code=404),
+                )
+                return response
+
+        mock_client = MagicMock()
+        mock_client.get.side_effect = get_side_effect
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        provider = TipranksDataProvider()
+
+        tasks = [
+            provider.get_data("AAPL"),  # Should succeed
+            provider.get_data("INVALID"),  # Should fail
+        ]
+
+        results = await asyncio.gather(*tasks)
+
+        assert results[0].success is True
+        assert results[1].success is False
+        assert results[1].error_code == "RetriableProviderException"
+
+
+class TestCacheSettingsTipranks:
+    """Test cases for cache setting on Tipranks provider."""
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_cache_disabled_per_provider(
+        self, mock_client_class, tmp_path, monkeypatch
+    ):
+        # Use isolated temp cwd
+        monkeypatch.chdir(tmp_path)
+        # Disable cache in provider config
+        config = ProviderConfig(cache_enabled=False)
+        provider = TipranksDataProvider(config)
+
+        # Mock successful response
+        mock_tipranks_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "numOfAnalysts": 15,
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_tipranks_data
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        # First and second calls should fetch fresh data
+        await provider.get_data("AAPL")
+        await provider.get_data("AAPL")
+
+        # Should call twice due to cache disabled
+        assert mock_client.get.call_count == 2
+
+
+class TestGlobalCacheSettingsTipranks:
+    """Test cases for global cache setting on Tipranks provider."""
+
+    @pytest.mark.asyncio
+    @patch("httpx.Client")
+    async def test_global_cache_disabled(
+        self, mock_client_class, tmp_path, monkeypatch
+    ):
+        # Use isolated temp cwd
+        monkeypatch.chdir(tmp_path)
+        # Disable global cache
+        from app.core.settings import settings
+
+        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
+
+        provider = TipranksDataProvider(ProviderConfig())
+
+        # Mock successful response
+        mock_tipranks_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "numOfAnalysts": 15,
+        }
+
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.json.return_value = mock_tipranks_data
+        mock_response.raise_for_status.return_value = None
+        mock_client.get.return_value = mock_response
+        mock_client.__enter__.return_value = mock_client
+        mock_client.__exit__.return_value = None
+        mock_client_class.return_value = mock_client
+
+        # First and second calls should fetch fresh data
+        await provider.get_data("AAPL")
+        await provider.get_data("AAPL")
+
+        # Should call twice when global cache disabled
+        assert mock_client.get.call_count == 2
