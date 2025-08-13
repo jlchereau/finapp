@@ -3,8 +3,6 @@ Unit tests for the headers module.
 Tests user agent utilities and HTTP headers functionality.
 """
 
-import pytest
-
 from app.models.headers import (
     USER_AGENTS,
     get_random_user_agent,
@@ -102,7 +100,6 @@ class TestDefaultHeaders:
     def test_get_default_headers_immutable(self):
         """Test that modifying returned headers doesn't affect future calls."""
         headers1 = get_default_headers()
-        original_user_agent = headers1["User-Agent"]
 
         # Modify the returned headers
         headers1["User-Agent"] = "Modified"
