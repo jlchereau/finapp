@@ -30,7 +30,9 @@ class TestBlackrockHoldingsProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = BlackrockHoldingsProvider()  # pylint: disable=attribute-defined-outside-init
+        self.provider = (
+            BlackrockHoldingsProvider()
+        )  # pylint: disable=attribute-defined-outside-init
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
@@ -301,7 +303,9 @@ class TestBlackrockHoldingsProvider:
         soup = BeautifulSoup(html, "lxml")
         base_url = "https://blackrock.com/us/products/123/test-etf"
 
-        url = self.provider._extract_download_url(soup, base_url)  # pylint: disable=protected-access
+        url = self.provider._extract_download_url(
+            soup, base_url
+        )  # pylint: disable=protected-access
 
         assert url == "https://blackrock.com/download.ajax?fileType=xls&dataType=fund"
 
@@ -317,7 +321,9 @@ class TestBlackrockHoldingsProvider:
         soup = BeautifulSoup(html, "lxml")
         base_url = "https://blackrock.com/us/products/123/test-etf"
 
-        url = self.provider._extract_download_url(soup, base_url)  # pylint: disable=protected-access
+        url = self.provider._extract_download_url(
+            soup, base_url
+        )  # pylint: disable=protected-access
 
         assert (
             url
@@ -334,7 +340,9 @@ class TestBlackrockHoldingsProvider:
         soup = BeautifulSoup(html, "lxml")
         base_url = "https://blackrock.com/us/products/123/test-etf"
 
-        url = self.provider._extract_download_url(soup, base_url)  # pylint: disable=protected-access
+        url = self.provider._extract_download_url(
+            soup, base_url
+        )  # pylint: disable=protected-access
 
         assert url is None
 
@@ -350,7 +358,9 @@ class TestBlackrockHoldingsProvider:
             }
         )
 
-        cleaned_data = self.provider._clean_holdings_data(raw_data, "TEST")  # pylint: disable=protected-access
+        cleaned_data = self.provider._clean_holdings_data(
+            raw_data, "TEST"
+        )  # pylint: disable=protected-access
 
         assert len(cleaned_data) == 2  # Two holdings
         assert "ticker" in cleaned_data.columns

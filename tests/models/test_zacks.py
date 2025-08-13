@@ -290,7 +290,7 @@ class TestZacksProvider:
             "valueScore": "B",
             "growthScore": "A",
             "momentumScore": "B",
-            "vgmScore": "B"
+            "vgmScore": "B",
         }
 
         mock_client = AsyncMock()
@@ -331,7 +331,7 @@ class TestZacksProvider:
             "valueScore": "B",
             "growthScore": "A",
             "momentumScore": "B",
-            "vgmScore": "B"
+            "vgmScore": "B",
         }
         mock_response.raise_for_status.return_value = None
 
@@ -368,7 +368,7 @@ class TestZacksProvider:
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",
-                "vgmScore": "B"
+                "vgmScore": "B",
             }
             mock_response.raise_for_status.return_value = None
 
@@ -520,7 +520,7 @@ class TestZacksProviderIntegration:
                 "valueScore": "A",
                 "growthScore": "B",
                 "momentumScore": "A",
-                "vgmScore": "A"
+                "vgmScore": "A",
             }
             mock_response.raise_for_status.return_value = None
 
@@ -569,7 +569,7 @@ class TestZacksProviderIntegration:
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",
-                "vgmScore": "B"
+                "vgmScore": "B",
             }
             mock_response.raise_for_status.return_value = None
 
@@ -614,7 +614,7 @@ class TestZacksProviderIntegration:
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",
-                "vgmScore": "B"
+                "vgmScore": "B",
             }
             success_response.raise_for_status.return_value = None
 
@@ -687,7 +687,7 @@ class TestZacksProviderIntegration:
                     "valueScore": "A",
                     "growthScore": "B",
                     "momentumScore": "A",
-                    "vgmScore": "A"
+                    "vgmScore": "A",
                 }
                 mock_client.get.return_value = mock_resp
                 mock_client.__aenter__.return_value = mock_client
@@ -736,7 +736,7 @@ class TestGlobalCacheSettingsZacks:
                 "valueScore": "A",
                 "growthScore": "B",
                 "momentumScore": "A",
-                "vgmScore": "A"
+                "vgmScore": "A",
             }
             mock_client.get.return_value = mock_resp
             mock_client.__aenter__.return_value = mock_client
