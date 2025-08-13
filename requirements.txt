@@ -1,3 +1,4 @@
+beautifulsoup4
 bt
 cvxpy
 duckdb # with https://ducklake.select/
@@ -7,6 +8,8 @@ pydantic
 pydantic-settings
 Jinja2
 llama-index-workflows
+lxml
+# networkx
 numpy
 orjson
 pandas

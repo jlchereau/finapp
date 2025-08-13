@@ -41,6 +41,7 @@ class ProviderType(str, Enum):
     YAHOO_HISTORY = "yahoo_history"
     YAHOO_INFO = "yahoo_info"
     ZACKS = "zacks"
+    BLACKROCK_HOLDINGS = "blackrock_holdings"
     ALPHA_VANTAGE = "alpha_vantage"
     IEX = "iex"
     CUSTOM = "custom"
