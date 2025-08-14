@@ -64,6 +64,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         return fig
 
 
+# pylint: disable=not-callable
 @rx.page(route="/optimize")  # pyright: ignore[reportArgumentType]
 @template
 def page():

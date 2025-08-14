@@ -9,9 +9,8 @@ from ..templates.template import template
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
 
-    pass
 
-
+# pylint: disable=not-callable
 @rx.page(route="/backtest")  # pyright: ignore[reportArgumentType]
 @template
 def page():

@@ -21,6 +21,7 @@ def load_markdown(file_name: str) -> str:
 MD = load_markdown("index")
 
 
+# pylint: disable=not-callable
 @rx.page(route="/")  # pyright: ignore[reportArgumentType]
 @template
 def page():

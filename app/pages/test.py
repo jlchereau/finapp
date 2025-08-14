@@ -193,6 +193,7 @@ class TestState(rx.State):  # pylint: disable=inherit-non-class
         self.multi_status_message = ""
 
 
+# pylint: disable=not-callable
 @rx.page(route="/test")  # pyright: ignore[reportArgumentType]
 @template
 def page():
@@ -240,7 +241,7 @@ def page():
                 TestState.errors,
                 rx.callout(
                     rx.vstack(
-                        rx.foreach(TestState.errors, lambda error: rx.text(error))
+                        rx.foreach(TestState.errors, rx.text)
                     ),
                     icon="triangle-alert",
                     color_scheme="red",
@@ -252,7 +253,7 @@ def page():
                 TestState.warnings,
                 rx.callout(
                     rx.vstack(
-                        rx.foreach(TestState.warnings, lambda warning: rx.text(warning))
+                        rx.foreach(TestState.warnings, rx.text)
                     ),
                     icon="triangle-alert",
                     color_scheme="yellow",
@@ -314,7 +315,7 @@ def page():
                 TestState.multi_errors,
                 rx.callout(
                     rx.vstack(
-                        rx.foreach(TestState.multi_errors, lambda error: rx.text(error))
+                        rx.foreach(TestState.multi_errors, rx.text)
                     ),
                     icon="triangle-alert",
                     color_scheme="red",
@@ -327,7 +328,7 @@ def page():
                 rx.callout(
                     rx.vstack(
                         rx.foreach(
-                            TestState.multi_warnings, lambda warning: rx.text(warning)
+                            TestState.multi_warnings, rx.text
                         )
                     ),
                     icon="triangle-alert",

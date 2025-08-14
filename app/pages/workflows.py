@@ -36,6 +36,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         self.searched = value
 
 
+# pylint: disable=not-callable
 @rx.page(route="/workflows")  # pyright: ignore[reportArgumentType]
 @template
 def page():

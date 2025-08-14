@@ -92,6 +92,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
             self.is_running = False
 
 
+# pylint: disable=not-callable
 @rx.page(route="/markets")  # pyright: ignore[reportArgumentType]
 @template
 def page():

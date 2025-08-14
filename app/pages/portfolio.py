@@ -7,9 +7,8 @@ from ..templates.template import template
 class PortfolioState(rx.State):  # pylint: disable=inherit-non-class
     """The portfolio page state."""
 
-    pass
 
-
+# pylint: disable=not-callable
 @rx.page(route="/portfolio")  # pyright: ignore[reportArgumentType]
 @template
 def page():

@@ -457,6 +457,7 @@ def main_content() -> rx.Component:
     )
 
 
+# pylint: disable=not-callable
 @rx.page(
     route="/compare",
     on_load=CompareState.update_chart,  # pyright: ignore[reportArgumentType]
