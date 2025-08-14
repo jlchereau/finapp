@@ -102,3 +102,4 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - Virtual environment located at `.venv/`
 - All commands should be run with `.venv/bin/` prefix (see Makefile)
 - Linting and formatting covers `app/`, `tests/`, and root-level Python files
+- Do not use python `tempfile`. Use workspace @temp/ (in .gitignore) for unit test storage and experimentations (it is easier to monitor and clear manually of ghost files).
