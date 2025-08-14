@@ -157,6 +157,70 @@ class DateBasedStorage:
 
         return removed_folders
 
+    def delete_date_folder(self, date_str: str) -> bool:
+        """
+        Delete a specific date folder.
+
+        Args:
+            date_str: Date string in YYYYMMDD format.
+
+        Returns:
+            True if deletion was successful, False otherwise.
+        """
+        if not date_str or len(date_str) != 8 or not date_str.isdigit():
+            return False
+
+        folder_path = self.base_path / date_str
+
+        if not folder_path.exists() or not folder_path.is_dir():
+            return False
+
+        try:
+            import shutil
+
+            shutil.rmtree(folder_path)
+            return True
+        except Exception:
+            return False
+
+    def get_log_data(self, date_str: str) -> list[dict]:
+        """
+        Read log data from a specific date folder's log.csv file.
+
+        Args:
+            date_str: Date string in YYYYMMDD format.
+
+        Returns:
+            List of log entries as dictionaries, empty list if file doesn't exist.
+        """
+        if not date_str:
+            return []
+
+        log_file = self.get_file_path("log.csv", date_str, create_folder=False)
+
+        if not log_file.exists():
+            return []
+
+        try:
+            import csv
+
+            log_data = []
+            with open(log_file, "r", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    # Parse timestamp for better display
+                    try:
+                        from datetime import datetime as dt
+
+                        timestamp = dt.fromisoformat(row["timestamp"])
+                        row["timestamp"] = timestamp.strftime("%H:%M:%S")
+                    except (ValueError, KeyError):
+                        pass
+                    log_data.append(row)
+            return log_data
+        except Exception:
+            return []
+
 
 # Convenience functions for backward compatibility and ease of use
 def get_data_folder(date_str: Optional[str] = None, create: bool = True) -> Path:
