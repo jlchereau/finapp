@@ -93,7 +93,7 @@ class DateBasedStorage:
             if folder.is_dir() and len(folder.name) == 8 and folder.name.isdigit():
                 date_folders.append(folder.name)
 
-        return sorted(date_folders)
+        return sorted(date_folders, reverse=True)
 
     def get_cache_paths(
         self, provider_type: str, query: str, date_str: Optional[str] = None
@@ -217,7 +217,7 @@ class DateBasedStorage:
                     except (ValueError, KeyError):
                         pass
                     log_data.append(row)
-            return log_data
+            return list(reversed(log_data))
         except Exception:
             return []
 

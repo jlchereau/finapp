@@ -13,8 +13,11 @@ def template(
     """
     return rx.vstack(
         navbar(),
-        rx.hstack(
-            rx.container(page()),
+        rx.box(
+            page(),
+            padding="1rem",
+            width="100%",
         ),
+        # placeholder for footer
         width="100%",
     )

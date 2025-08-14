@@ -19,7 +19,6 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         "context",
         "file",
         "function",
-        "params",
     ]
     show_delete_dialog: bool = False
     is_loading: bool = False
@@ -33,7 +32,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Load cache directories on page load."""
         self.cache_dirs = self.storage.list_date_folders()
         if self.cache_dirs and not self.selected_cache:
-            self.selected_cache = self.cache_dirs[-1]  # Select most recent by default
+            self.selected_cache = self.cache_dirs[0]  # Select most recent by default
             self.load_log_data()
 
     def select_cache(self, cache_dir: str):
@@ -41,7 +40,6 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         if cache_dir != self.selected_cache:
             self.selected_cache = cache_dir
             self.load_log_data()
-            return rx.toast.info(f"Switched to cache: {cache_dir}")
 
     def load_log_data(self):
         """Load log data for selected cache."""
@@ -54,13 +52,6 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         self.log_data = log_entries
         self.is_loading = False
 
-        if not log_entries:
-            return rx.toast.warning(
-                f"No log data found for cache: {self.selected_cache}"
-            )
-        else:
-            return rx.toast.info(f"Loaded {len(log_entries)} log entries")
-
     def show_delete_confirmation(self):
         """Show delete confirmation dialog."""
         if self.selected_cache:
@@ -70,21 +61,17 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Confirm and execute cache deletion."""
         if not self.selected_cache:
             self.show_delete_dialog = False
-            return rx.toast.error("No cache selected for deletion")
+            return
 
         success = self.storage.delete_date_folder(self.selected_cache)
-        deleted_cache = self.selected_cache
 
         if success:
             # Refresh cache list and clear selection
             self.cache_dirs = self.storage.list_date_folders()
             self.selected_cache = ""
             self.log_data = []
-            self.show_delete_dialog = False
-            return rx.toast.success(f"Successfully deleted cache: {deleted_cache}")
-        else:
-            self.show_delete_dialog = False
-            return rx.toast.error(f"Failed to delete cache: {deleted_cache}")
+
+        self.show_delete_dialog = False
 
     def cancel_delete(self):
         """Cancel delete operation."""
@@ -127,6 +114,7 @@ def page():
                     pagination=True,
                     search=True,
                     sort=True,
+                    width="100%",
                 ),
             ),
         ),

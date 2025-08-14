@@ -118,7 +118,7 @@ class TestDateBasedStorage:
         (storage.base_path / "20231230.txt").touch()
 
         folders = storage.list_date_folders()
-        assert folders == sorted(test_dates)
+        assert folders == sorted(test_dates, reverse=True)
 
     def test_get_cache_paths(self, storage):
         """Test getting cache file paths."""
@@ -230,22 +230,22 @@ class TestDateBasedStorage:
     def test_delete_date_folder_success(self, storage):
         """Test successful deletion of a date folder."""
         test_date = "20231225"
-        
+
         # Create the folder with some content
         file_path = storage.get_file_path("test.txt", test_date)
         file_path.write_text("test content")
         assert file_path.exists()
-        
+
         # Delete the folder
         success = storage.delete_date_folder(test_date)
-        
+
         assert success is True
         assert not (storage.base_path / test_date).exists()
 
     def test_delete_date_folder_invalid_date(self, storage):
         """Test deletion with invalid date string."""
         invalid_dates = ["", "invalid", "12345", "123456789", "20231301"]
-        
+
         for invalid_date in invalid_dates:
             success = storage.delete_date_folder(invalid_date)
             assert success is False
@@ -253,47 +253,53 @@ class TestDateBasedStorage:
     def test_delete_date_folder_nonexistent(self, storage):
         """Test deletion of non-existent folder."""
         test_date = "20231225"
-        
+
         # Ensure folder doesn't exist
         assert not (storage.base_path / test_date).exists()
-        
+
         success = storage.delete_date_folder(test_date)
         assert success is False
 
     def test_delete_date_folder_permission_error(self, storage):
         """Test deletion when permission error occurs."""
         test_date = "20231225"
-        
+
         # Create the folder
-        folder = storage.get_date_folder(test_date)
-        
+        storage.get_date_folder(test_date)
+
         # Mock shutil.rmtree to raise an exception
-        with mock.patch('shutil.rmtree', side_effect=OSError("Permission denied")):
+        with mock.patch("shutil.rmtree", side_effect=OSError("Permission denied")):
             success = storage.delete_date_folder(test_date)
             assert success is False
 
     def test_get_log_data_success(self, storage):
         """Test successful log data retrieval."""
         test_date = "20231225"
-        
+
         # Create log.csv file with test data
         log_file = storage.get_file_path("log.csv", test_date)
-        log_content = """timestamp,level,message,context,file,function,params
-2023-12-25T10:00:00.123456,info,Test message 1,app,test.py,test_func,"{\"param1\": \"value1\"}"
-2023-12-25T10:01:00.654321,error,Test message 2,workflow,other.py,other_func,"{\"param2\": \"value2\"}"
-"""
+        log_content = (
+            "timestamp,level,message,context,file,function,params\n"
+            "2023-12-25T10:00:00.123456,info,Test message 1,app,test.py,test_func,"
+            '"{\\"param1\\": \\"value1\\"}"\n'
+            "2023-12-25T10:01:00.654321,error,Test message 2,workflow,other.py,"
+            'other_func,"{\\"param2\\": \\"value2\\"}"\n'
+        )
         log_file.write_text(log_content)
-        
+
         # Get log data
         log_data = storage.get_log_data(test_date)
-        
+
         assert len(log_data) == 2
-        assert log_data[0]['level'] == 'info'
-        assert log_data[0]['message'] == 'Test message 1'
-        assert log_data[0]['timestamp'] == '10:00:00'  # Should be formatted as time only
-        assert log_data[1]['level'] == 'error'
-        assert log_data[1]['message'] == 'Test message 2'
-        assert log_data[1]['timestamp'] == '10:01:00'
+        # Should be reversed - most recent first
+        assert log_data[0]["level"] == "error"
+        assert log_data[0]["message"] == "Test message 2"
+        assert log_data[0]["timestamp"] == "10:01:00"
+        assert log_data[1]["level"] == "info"
+        assert log_data[1]["message"] == "Test message 1"
+        assert (
+            log_data[1]["timestamp"] == "10:00:00"
+        )  # Should be formatted as time only
 
     def test_get_log_data_empty_date(self, storage):
         """Test log data retrieval with empty date."""
@@ -303,38 +309,40 @@ class TestDateBasedStorage:
     def test_get_log_data_nonexistent_file(self, storage):
         """Test log data retrieval when log file doesn't exist."""
         test_date = "20231225"
-        
+
         log_data = storage.get_log_data(test_date)
         assert log_data == []
 
     def test_get_log_data_invalid_csv(self, storage):
         """Test log data retrieval with invalid CSV content."""
         test_date = "20231225"
-        
+
         # Create CSV file with incorrect headers
         log_file = storage.get_file_path("log.csv", test_date)
         log_file.write_text("wrong,headers\nsome,data")
-        
+
         log_data = storage.get_log_data(test_date)
         # Should still parse but without expected timestamp formatting
         assert len(log_data) == 1
-        assert 'timestamp' not in log_data[0]
+        assert "timestamp" not in log_data[0]
 
     def test_get_log_data_malformed_timestamp(self, storage):
         """Test log data with malformed timestamp."""
         test_date = "20231225"
-        
+
         # Create log.csv with malformed timestamp
         log_file = storage.get_file_path("log.csv", test_date)
         log_content = """timestamp,level,message,context,file,function,params
 invalid-timestamp,info,Test message,app,test.py,test_func,"{}"
 """
         log_file.write_text(log_content)
-        
+
         log_data = storage.get_log_data(test_date)
-        
+
         assert len(log_data) == 1
-        assert log_data[0]['timestamp'] == 'invalid-timestamp'  # Should remain unchanged
+        assert (
+            log_data[0]["timestamp"] == "invalid-timestamp"
+        )  # Should remain unchanged
 
 
 class TestConvenienceFunctions:
