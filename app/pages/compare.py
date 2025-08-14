@@ -10,8 +10,9 @@ from datetime import datetime, timedelta
 import reflex as rx
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from ..templates.template import template
+# from ..components.combobox import combobox
 from ..models.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
+from ..templates.template import template
 
 
 class CompareState(rx.State):  # pylint: disable=inherit-non-class
@@ -19,11 +20,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
     # Ticker input and selection
     ticker_input: str = ""
+    # ticker_input2: str | None = None
     selected_tickers: List[str] = []
     favorites: List[str] = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA"]
 
     # Chart settings
-    active_tab: str = "plot"
+    active_tab: str = "plots"
     base_date_option: str = "1Y"
     base_date_options: List[str] = ["1Y", "2Y", "5Y", "10Y", "YTD", "MAX"]
 
@@ -171,6 +173,11 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         """Select ticker from favorites dropdown."""
         self.ticker_input = ticker
 
+    @rx.event
+    def select_from_favorites2(self, value: str | None) -> None:
+        """Set searched value."""
+        self.ticker_input = value
+
     def toggle_favorite(self, ticker: str):
         """Toggle ticker in favorites list."""
         if ticker in self.favorites:
@@ -309,6 +316,11 @@ def ticker_input_section() -> rx.Component:
                 on_change=CompareState.select_from_favorites,
                 width="120px",
             ),
+            #combobox(
+            #    options=CompareState.favorites,
+            #    value=CompareState.ticker_input2,
+            #    on_change=CompareState.select_from_favorites2,
+            #),
             rx.button(
                 "+",
                 on_click=CompareState.add_ticker,
@@ -381,8 +393,9 @@ def left_sidebar() -> rx.Component:
         width="400px",
         padding="1em",
         border_right="1px solid",
-        border_color=rx.color("gray", 6),
-        height="calc(100vh - 120px)",
+        border_color="var(--accent-3)",
+        height="100%",
+        # height="calc(100vh - 120px)",
         overflow_y="auto",
         spacing="4",
     )
@@ -436,23 +449,23 @@ def main_content() -> rx.Component:
     return rx.vstack(
         rx.tabs.root(
             rx.tabs.list(
+                rx.tabs.trigger("Plots", value="plots"),
                 rx.tabs.trigger("Metrics", value="metrics"),
-                rx.tabs.trigger("Plot", value="plot"),
+            ),
+            rx.tabs.content(
+                plot_tab_content(),
+                value="plots",
             ),
             rx.tabs.content(
                 metrics_tab_content(),
                 value="metrics",
-            ),
-            rx.tabs.content(
-                plot_tab_content(),
-                value="plot",
             ),
             value=CompareState.active_tab,
             on_change=CompareState.set_active_tab,
             width="100%",
         ),
         flex="1",
-        padding="1em",
+        padding="1rem",
         width="100%",
     )
 
@@ -465,10 +478,17 @@ def main_content() -> rx.Component:
 @template
 def page():
     """The compare page."""
-    return rx.hstack(
-        left_sidebar(),
-        main_content(),
-        width="100%",
-        height="calc(100vh - 80px)",
+    return rx.vstack(
+        rx.heading("Compare", size="6", margin_bottom="1rem"),
+        rx.hstack(
+            left_sidebar(),
+            main_content(),
+            border="1px solid",
+            border_color="var(--accent-3)",
+            # height="100%",
+            width="100%",
+            spacing="0",
+        ),
+        # height="100%",
         spacing="0",
     )
