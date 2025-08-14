@@ -25,7 +25,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     # Chart settings
     active_tab: str = "plots"
     base_date_option: str = "1Y"
-    base_date_options: List[str] = ["1Y", "2Y", "5Y", "10Y", "YTD", "MAX"]
+    base_date_options: List[str] = ["1W", "2W", "1M", "2M", "1Q", "2Q", "3Q", "1Y", "2Y", "3Y", "4Y", "5Y", "10Y", "YTD", "MAX"]
 
     # Chart data
     chart_figure: go.Figure = go.Figure()
@@ -88,14 +88,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     close_prices = data["Close"].dropna()
                     if not close_prices.empty:
                         normalized_data[tickers[0]] = (
-                            close_prices / close_prices.iloc[0]
+                            (close_prices / close_prices.iloc[0]) - 1
                         ) * 100
                 elif "Adj Close" in data.columns:
                     # Fallback to Adj Close if Close is not available
                     close_prices = data["Adj Close"].dropna()
                     if not close_prices.empty:
                         normalized_data[tickers[0]] = (
-                            close_prices / close_prices.iloc[0]
+                            (close_prices / close_prices.iloc[0]) - 1
                         ) * 100
             else:
                 # Multiple tickers case
@@ -114,7 +114,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
                         if close_prices is not None and not close_prices.empty:
                             normalized_data[ticker] = (
-                                close_prices / close_prices.iloc[0]
+                                (close_prices / close_prices.iloc[0]) - 1
                             ) * 100
                     except (KeyError, IndexError, AttributeError):
                         continue
@@ -279,10 +279,28 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         """Convert base date option to actual date string."""
         today = datetime.now()
 
-        if self.base_date_option == "1Y":
+        if self.base_date_option == "1W":
+            base_date = today - timedelta(weeks=1)
+        elif self.base_date_option == "2W":
+            base_date = today - timedelta(weeks=2)
+        elif self.base_date_option == "1M":
+            base_date = today - timedelta(days=30)
+        elif self.base_date_option == "2M":
+            base_date = today - timedelta(days=60)
+        elif self.base_date_option == "1Q":
+            base_date = today - timedelta(days=90)
+        elif self.base_date_option == "2Q":
+            base_date = today - timedelta(days=180)
+        elif self.base_date_option == "3Q":
+            base_date = today - timedelta(days=270)
+        elif self.base_date_option == "1Y":
             base_date = today - timedelta(days=365)
         elif self.base_date_option == "2Y":
             base_date = today - timedelta(days=730)
+        elif self.base_date_option == "3Y":
+            base_date = today - timedelta(days=1095)
+        elif self.base_date_option == "4Y":
+            base_date = today - timedelta(days=1460)
         elif self.base_date_option == "5Y":
             base_date = today - timedelta(days=1825)
         elif self.base_date_option == "10Y":
