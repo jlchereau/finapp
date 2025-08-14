@@ -82,8 +82,8 @@ def navbar() -> rx.Component:
                     },
                 ),
                 rx.link(
-                    "Workflows",
-                    href="/workflows",
+                    "Cache",
+                    href="/cache",
                     color=rx.color("gray", 11),
                     text_decoration="none",
                     _hover={
