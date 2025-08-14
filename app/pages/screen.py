@@ -35,6 +35,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Set searched value."""
         self.searched = value
 
+
 # pylint: disable=not-callable
 @rx.page(route="/screen")  # pyright: ignore[reportArgumentType]
 @template

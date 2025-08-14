@@ -240,9 +240,7 @@ def page():
             rx.cond(
                 TestState.errors,
                 rx.callout(
-                    rx.vstack(
-                        rx.foreach(TestState.errors, rx.text)
-                    ),
+                    rx.vstack(rx.foreach(TestState.errors, rx.text)),
                     icon="triangle-alert",
                     color_scheme="red",
                     size="2",
@@ -252,9 +250,7 @@ def page():
             rx.cond(
                 TestState.warnings,
                 rx.callout(
-                    rx.vstack(
-                        rx.foreach(TestState.warnings, rx.text)
-                    ),
+                    rx.vstack(rx.foreach(TestState.warnings, rx.text)),
                     icon="triangle-alert",
                     color_scheme="yellow",
                     size="2",
@@ -314,9 +310,7 @@ def page():
             rx.cond(
                 TestState.multi_errors,
                 rx.callout(
-                    rx.vstack(
-                        rx.foreach(TestState.multi_errors, rx.text)
-                    ),
+                    rx.vstack(rx.foreach(TestState.multi_errors, rx.text)),
                     icon="triangle-alert",
                     color_scheme="red",
                     size="2",
@@ -326,11 +320,7 @@ def page():
             rx.cond(
                 TestState.multi_warnings,
                 rx.callout(
-                    rx.vstack(
-                        rx.foreach(
-                            TestState.multi_warnings, rx.text
-                        )
-                    ),
+                    rx.vstack(rx.foreach(TestState.multi_warnings, rx.text)),
                     icon="triangle-alert",
                     color_scheme="yellow",
                     size="2",

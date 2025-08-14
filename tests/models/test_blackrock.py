@@ -110,9 +110,7 @@ class TestBlackrockHoldingsProvider:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "organic": [
-                {
-                    "link": "https://example.com/not-blackrock"
-                },
+                {"link": "https://example.com/not-blackrock"},
                 {"link": "https://blackrock.com/not-etf-page"},
             ]
         }
@@ -401,8 +399,7 @@ class TestBlackrockHoldingsProvider:
 
             # Mock CSV content
             csv_content = (
-                "Name,Weight (%),Shares,Market Value\n"
-                "Apple Inc,5.2%,1000000,$520M\n"
+                "Name,Weight (%),Shares,Market Value\n" "Apple Inc,5.2%,1000000,$520M\n"
             ).encode("utf-8")
             csv_download_response = MagicMock()
             csv_download_response.content = csv_content
