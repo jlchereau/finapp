@@ -2,6 +2,7 @@ beautifulsoup4
 bt
 cvxpy
 duckdb # with https://ducklake.select/
+factor_analyzer
 httpx
 # jmespath
 pydantic
