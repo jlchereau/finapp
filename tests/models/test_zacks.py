@@ -25,7 +25,7 @@ os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 def isolate_cwd(tmp_path, monkeypatch):
     # Use a temp cwd to avoid cache pollution and disable global cache
     monkeypatch.chdir(tmp_path)
-    # from app.core.settings import settings
+    # from app.lib.settings import settings
     # monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
 
 
@@ -709,7 +709,7 @@ class TestGlobalCacheSettingsZacks:
         # Use isolated temp cwd
         monkeypatch.chdir(tmp_path)
         # Disable global cache
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 

@@ -11,9 +11,6 @@ from app.models.base import BaseProvider, ProviderType, ProviderConfig
 
 
 class DummyDFProvider(BaseProvider[pd.DataFrame]):
-    def __init__(self, config=None):
-        super().__init__(config)
-
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.CUSTOM
 
@@ -28,9 +25,6 @@ class SimpleModel(BaseModel):
 
 
 class DummyModelProvider(BaseProvider[SimpleModel]):
-    def __init__(self, config=None):
-        super().__init__(config)
-
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.CUSTOM
 

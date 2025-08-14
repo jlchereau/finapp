@@ -110,7 +110,9 @@ class TestBlackrockHoldingsProvider:
         mock_response = MagicMock()
         mock_response.json.return_value = {
             "organic": [
-                {"link": "https://example.com/not-blackrock"},
+                {
+                    "link": "https://example.com/not-blackrock"
+                },
                 {"link": "https://blackrock.com/not-etf-page"},
             ]
         }
@@ -210,7 +212,8 @@ class TestBlackrockHoldingsProvider:
         html_content = """
         <html>
             <body>
-                <a class="icon-xls-export" href="/download.ajax?fileType=xls&dataType=fund">
+                <a class="icon-xls-export"
+                   href="/download.ajax?fileType=xls&dataType=fund">
                     Download Holdings
                 </a>
             </body>
@@ -325,10 +328,11 @@ class TestBlackrockHoldingsProvider:
             soup, base_url
         )  # pylint: disable=protected-access
 
-        assert (
-            url
-            == "https://blackrock.com/fund/123.ajax?fileType=xls&fileName=test_fund&dataType=fund"
+        expected_url = (
+            "https://blackrock.com/fund/123.ajax?"
+            "fileType=xls&fileName=test_fund&dataType=fund"
         )
+        assert url == expected_url
 
     def test_extract_download_url_no_match(self):
         """Test extracting download URL when no matching link is found."""
@@ -396,9 +400,10 @@ class TestBlackrockHoldingsProvider:
             etf_page_response.raise_for_status.return_value = None
 
             # Mock CSV content
-            csv_content = "Name,Weight (%),Shares,Market Value\nApple Inc,5.2%,1000000,$520M\n".encode(
-                "utf-8"
-            )
+            csv_content = (
+                "Name,Weight (%),Shares,Market Value\n"
+                "Apple Inc,5.2%,1000000,$520M\n"
+            ).encode("utf-8")
             csv_download_response = MagicMock()
             csv_download_response.content = csv_content
             csv_download_response.raise_for_status.return_value = None
@@ -646,7 +651,7 @@ class TestGlobalCacheSettingsBlackrock:
         # Use isolated temp cwd
         monkeypatch.chdir(tmp_path)
         # Disable global cache
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 

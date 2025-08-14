@@ -511,7 +511,8 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
                 & (df["holding_name"] != "")
                 & (df["holding_name"] != "0")
             ]
-            # Remove rows that look like totals or summaries (only if column contains strings)
+            # Remove rows that look like totals or summaries
+            # (only if column contains strings)
             if df["holding_name"].dtype == "object":
                 df = df[
                     ~df["holding_name"]

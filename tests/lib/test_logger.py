@@ -89,6 +89,7 @@ class TestCSVLogger:
         """Test function parameter extraction."""
 
         def test_function(param1, param2="default", param3=42):
+            # pylint: disable=unused-argument
             # Simulate a frame with local variables
             frame = mock.Mock()
             frame.f_locals = {
@@ -145,7 +146,7 @@ class TestCSVLogger:
         log_file = logger._get_log_file_path()
         assert log_file.exists()
 
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -163,7 +164,7 @@ class TestCSVLogger:
         logger.info("Test info message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -175,7 +176,7 @@ class TestCSVLogger:
         logger.warning("Test warning message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -187,7 +188,7 @@ class TestCSVLogger:
         logger.error("Test error message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -202,7 +203,7 @@ class TestCSVLogger:
             logger.error(e)
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -217,7 +218,7 @@ class TestCSVLogger:
         logger.error("Error message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -232,7 +233,7 @@ class TestCSVLogger:
         logger.info("Test message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.reader(csvfile)
             headers = next(reader)
 
@@ -254,7 +255,7 @@ class TestCSVLogger:
         after_log = datetime.now()
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             row = next(reader)
 
@@ -280,7 +281,7 @@ class TestCSVLogger:
             thread.join()
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 
@@ -309,7 +310,7 @@ class TestCSVLogger:
             logger.info("Test message")
 
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             row = next(reader)
 
@@ -336,6 +337,7 @@ class TestLoggerIntegration:
         from app.lib.logger import logger
 
         def test_function(param1, param2=42, param3="default"):
+            # pylint: disable=unused-argument
             logger.info("Function called")
             return param1 + param2
 
@@ -344,7 +346,7 @@ class TestLoggerIntegration:
 
         # Check the log file for the entry
         log_file = logger._get_log_file_path()
-        with open(log_file, "r", newline="") as csvfile:
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             rows = list(reader)
 

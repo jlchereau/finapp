@@ -349,7 +349,7 @@ class TestTipranksProviderIntegration:
         # Track call count to return different responses
         call_count = 0
 
-        def get_side_effect(*args, **kwargs):
+        def get_side_effect(*args, **kwargs):  # pylint: disable=unused-argument
             nonlocal call_count
             call_count += 1
             response = MagicMock()
@@ -440,7 +440,7 @@ class TestGlobalCacheSettingsTipranks:
         # Use isolated temp cwd
         monkeypatch.chdir(tmp_path)
         # Disable global cache
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 

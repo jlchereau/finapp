@@ -24,7 +24,7 @@ def cache(func):  # decorator for async _fetch_data methods
     @wraps(func)
     async def wrapper(self, query, *args, cache_date: str | None = None, **kwargs):
         # If caching is disabled globally or per-provider, bypass cache entirely
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         # Check if cache is enabled globally and for this provider
         cache_enabled = getattr(self.config, "cache_enabled", True)

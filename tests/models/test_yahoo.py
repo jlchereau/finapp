@@ -26,7 +26,7 @@ os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 def isolate_cwd(tmp_path, monkeypatch):
     # Change cwd to fresh tmp dir for each test to avoid persistent cache files
     monkeypatch.chdir(tmp_path)
-    # from app.core.settings import settings
+    # from app.lib.settings import settings
     # monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
 
 
@@ -514,7 +514,6 @@ class TestCacheSettingsYahoo:
         config = ProviderConfig(cache_enabled=False)
         provider = YahooHistoryProvider(config)
         # Patch yfinance history
-        from unittest.mock import patch, MagicMock
         from pandas import DataFrame
 
         with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
@@ -535,7 +534,6 @@ class TestCacheSettingsYahoo:
         monkeypatch.chdir(tmp_path)
         config = ProviderConfig(cache_enabled=False)
         provider = YahooInfoProvider(config)
-        from unittest.mock import patch, MagicMock
 
         with patch("yfinance.Ticker") as mock_ticker_class:
             # Mock underlying info data
@@ -556,7 +554,7 @@ class TestGlobalCacheSettingsYahoo:
     async def test_global_cache_disabled_history(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         # Disable global cache
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
@@ -564,7 +562,6 @@ class TestGlobalCacheSettingsYahoo:
         provider = YahooHistoryProvider(config)
 
         # Patch yfinance history
-        from unittest.mock import patch, MagicMock
         from pandas import DataFrame
 
         with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
@@ -581,12 +578,11 @@ class TestGlobalCacheSettingsYahoo:
     async def test_global_cache_disabled_info(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
         # Disable global cache
-        from app.core.settings import settings
+        from app.lib.settings import settings
 
         monkeypatch.setattr(settings, "CACHE_ENABLED", False)
 
         provider = YahooInfoProvider()  # default config
-        from unittest.mock import patch, MagicMock
 
         with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
