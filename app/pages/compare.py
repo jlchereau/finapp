@@ -11,7 +11,7 @@ import reflex as rx
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 # from ..components.combobox import combobox
-from ..models.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
+from ..models.yahoo import create_yahoo_history_provider
 from ..templates.template import template
 
 
@@ -42,12 +42,6 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             self._history_provider = create_yahoo_history_provider()
         return self._history_provider
 
-    @property
-    def info_provider(self):
-        """Get Yahoo info provider instance."""
-        if not hasattr(self, "_info_provider"):
-            self._info_provider = create_yahoo_info_provider()
-        return self._info_provider
 
     async def get_price_data(self, tickers: List[str], base_date: datetime):
         """Get normalized price data for tickers from base_date."""
@@ -114,47 +108,6 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             print(f"Error fetching price data: {e}")
             return pd.DataFrame()
 
-    async def calculate_graham_metrics(self, ticker: str):
-        """Calculate Graham metrics using the info provider."""
-        try:
-            result = await self.info_provider.get_data(ticker)
-            if not result.success:
-                return None
-
-            info_data = result.data
-            metrics = {}
-
-            # P/E Ratio (should be < 15)
-            pe_ratio = getattr(info_data, "pe_ratio", 0) or 0
-            metrics["P/E Ratio"] = {
-                "value": pe_ratio,
-                "criterion": "< 15",
-                "passes": pe_ratio and pe_ratio < 15,
-            }
-
-            # Market Cap info
-            market_cap = getattr(info_data, "market_cap", 0) or 0
-            if market_cap:
-                metrics["Market Cap"] = {
-                    "value": market_cap / 1e9,  # Convert to billions
-                    "criterion": "Information",
-                    "passes": True,
-                }
-
-            # Beta
-            beta = getattr(info_data, "beta", 0) or 0
-            if beta:
-                metrics["Beta"] = {
-                    "value": beta,
-                    "criterion": "< 1.5",
-                    "passes": beta < 1.5,
-                }
-
-            return metrics
-
-        except Exception as e:
-            print(f"Error calculating Graham metrics for {ticker}: {e}")
-            return None
 
     def add_ticker(self):
         """Add ticker to selected list."""
@@ -402,9 +355,9 @@ def left_sidebar() -> rx.Component:
 
 
 def metrics_tab_content() -> rx.Component:
-    """Metrics tab placeholder - to be implemented later."""
+    """Metrics tab - cleared for simplification."""
     return rx.center(
-        rx.text("Metrics functionality coming soon...", color="gray"),
+        rx.text("Metrics tab cleared - ready for new implementation", color="gray"),
         height="400px",
     )
 
