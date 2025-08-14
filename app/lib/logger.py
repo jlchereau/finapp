@@ -4,11 +4,12 @@ Custom CSV logger for FinApp that logs to date-based folders.
 Logs are stored in data/YYYYMMDD/log.csv with the following columns:
 - timestamp: Date and time of the log entry
 - level: Log level (debug, info, warning, error)
-- message: Log message or exception details
+- message: Concise message formatted for table display
 - context: Workflow name from stack or 'app'
 - file: File path relative to project root
-- function: Function name that called the logger
+- function: Function name with class context (ClassName:method_name)
 - params: Function parameters as JSON string (when feasible)
+- exception: Full exception details (when applicable)
 """
 
 import csv
@@ -41,6 +42,49 @@ class CSVLogger:
         """Get the path to today's log file."""
         return self.storage.get_file_path("log.csv")
 
+    def _format_message_for_display(self, message: Union[str, Exception]) -> str:
+        """Format message for table display (concise, single-line)."""
+        message_str = str(message)
+
+        # Handle common exception patterns
+        if "ValidationError:" in message_str:
+            # Extract just the first validation error
+            lines = message_str.split("\n")
+            for line in lines:
+                if "Field required" in line or "Input should be" in line:
+                    # Extract field name and error type
+                    if "Field required" in line:
+                        field_match = line.split()[0] if line.strip() else "unknown"
+                        return f"ValidationError: Field required for {field_match}"
+                    else:
+                        return f"ValidationError: {line.strip()}"
+            return "ValidationError: Multiple validation errors"
+
+        # Handle other multi-line exceptions
+        if "\n" in message_str:
+            lines = message_str.split("\n")
+            first_line = lines[0].strip()
+            if len(first_line) > 100:  # Truncate very long first lines
+                return first_line[:100] + "..."
+            return first_line
+
+        # Truncate single-line messages if too long
+        if len(message_str) > 150:
+            return message_str[:150] + "..."
+
+        return message_str
+
+    def _get_class_name_from_frame(self, frame) -> Optional[str]:
+        """Extract class name from frame if called from instance method."""
+        try:
+            # Check if 'self' exists in local variables
+            if "self" in frame.f_locals:
+                self_obj = frame.f_locals["self"]
+                return self_obj.__class__.__name__
+            return None
+        except Exception:
+            return None
+
     def _get_caller_info(self) -> Dict[str, Any]:
         """Extract caller information from the stack."""
         frame = inspect.currentframe()
@@ -66,8 +110,12 @@ class CSVLogger:
             except ValueError:
                 relative_path = file_path
 
-            # Get function name
+            # Get function name with class context if available
             function_name = caller_frame.f_code.co_name
+            class_name = self._get_class_name_from_frame(caller_frame)
+
+            if class_name:
+                function_name = f"{class_name}:{function_name}"
 
             # Determine context from stack
             context = self._determine_context()
@@ -133,11 +181,15 @@ class CSVLogger:
         except Exception:
             return "{}"
 
-    def _write_log_entry(self, level: str, message: str) -> None:
+    def _write_log_entry(self, level: str, message: Union[str, Exception]) -> None:
         """Write a log entry to the CSV file."""
         with self._lock:
             log_file = self._get_log_file_path()
             caller_info = self._get_caller_info()
+
+            # Format messages
+            display_message = self._format_message_for_display(message)
+            exception_details = str(message) if isinstance(message, Exception) else ""
 
             # Check if file exists to determine if we need headers
             file_exists = log_file.exists()
@@ -151,6 +203,7 @@ class CSVLogger:
                     "file",
                     "function",
                     "params",
+                    "exception",
                 ]
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
@@ -163,11 +216,12 @@ class CSVLogger:
                     {
                         "timestamp": datetime.now().isoformat(),
                         "level": level,
-                        "message": message,
+                        "message": display_message,
                         "context": caller_info["context"],
                         "file": caller_info["file"],
                         "function": caller_info["function"],
                         "params": caller_info["params"],
+                        "exception": exception_details,
                     }
                 )
 

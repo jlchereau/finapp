@@ -18,6 +18,7 @@ from .base import (
 )
 from .cache import cache
 from .headers import get_random_user_agent
+from ..lib.logger import logger
 
 
 class TipranksDataModel(BaseModel):
@@ -86,15 +87,20 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
             ValueError: If no data is returned or ticker is invalid
             Exception: For other Tipranks-related errors
         """
+        logger.debug(f"TipranksDataProvider._fetch_data called for query: {query}")
         try:
             # Validate query
             if query is None or query.strip() == "":
+                logger.error("Query cannot be None or empty for TipranksDataProvider")
                 raise ValueError("Query must be provided for TipranksDataProvider")
             ticker = query.upper().strip()
+            logger.debug(f"Normalized ticker: {ticker}")
 
             # Tipranks API configuration
             base_url = "https://www.tipranks.com/api/stocks/"
-            headers = {"User-Agent": get_random_user_agent()}
+            user_agent = get_random_user_agent()
+            headers = {"User-Agent": user_agent}
+            logger.debug(f"Using User-Agent: {user_agent}")
 
             # Run HTTP request in a separate thread to avoid blocking
             def fetch_tipranks_data():
@@ -103,6 +109,7 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
                     f"{base_url}getData/?name={ticker}&benchmark=1&period=3"
                     f"&break={timestamp}"
                 )
+                logger.info(f"Calling TipRanks API for {ticker}: {url}")
 
                 with httpx.Client(timeout=self.config.timeout) as client:
                     response = client.get(url, headers=headers)
@@ -110,11 +117,14 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
                     return response.json()
 
             json_data = await asyncio.to_thread(fetch_tipranks_data)
+            logger.debug(f"Retrieved TipRanks data for {ticker}: {type(json_data)}")
 
             if not json_data or not isinstance(json_data, dict):
+                logger.warning(f"No valid TipRanks data returned for {ticker}")
                 raise ValueError(f"No Tipranks data found for query: {query}")
 
             # Extract and transform the data structure
+            logger.debug(f"Extracting data fields for {ticker}")
             data_dict = {
                 "ticker": ticker,
                 "companyName": json_data.get("companyName", ""),
@@ -124,10 +134,12 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
 
             # Extract consensus data from latest consensus (isLatest=1)
             consensuses = json_data.get("consensuses", [])
+            logger.debug(f"Found {len(consensuses)} consensus records for {ticker}")
             latest_consensus = next(
                 (c for c in consensuses if c.get("isLatest") == 1), {}
             )
             if latest_consensus:
+                logger.debug(f"Found latest consensus data for {ticker}")
                 data_dict.update(
                     {
                         "consensus_rating": latest_consensus.get("rating", 0),
@@ -136,6 +148,8 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
                         "sell_count": latest_consensus.get("nS", 0),
                     }
                 )
+            else:
+                logger.debug(f"No latest consensus data found for {ticker}")
 
             # Extract price target data
             pt_consensus = json_data.get("ptConsensus", [])
@@ -156,18 +170,24 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
 
             # Parse the JSON data using the Pydantic model
             result = TipranksDataModel(**data_dict)
+            logger.debug(f"Successfully parsed TipRanks data for {ticker}")
             return result
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
             # HTTP errors are generally retriable
+            logger.warning(f"HTTP error fetching TipRanks data for {ticker}: {e}")
             raise RetriableProviderException(
                 f"HTTP error fetching Tipranks data: {e}"
             ) from e
         except ValueError as e:
             # Non-retriable errors (e.g., empty data, invalid ticker)
+            logger.error(
+                f"Non-retriable error in TipranksDataProvider for {ticker}: {e}"
+            )
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
             # Other errors retriable
+            logger.warning(f"Retriable error in TipranksDataProvider for {ticker}: {e}")
             raise RetriableProviderException(str(e)) from e
 
 
@@ -199,22 +219,32 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
             ValueError: If no data is returned or ticker is invalid
             Exception: For other Tipranks-related errors
         """
+        logger.debug(
+            f"TipranksNewsSentimentProvider._fetch_data called for query: {query}"
+        )
         try:
             # Validate query
             if query is None or query.strip() == "":
+                logger.error(
+                    "Query cannot be None or empty for TipranksNewsSentimentProvider"
+                )
                 raise ValueError(
                     "Query must be provided for TipranksNewsSentimentProvider"
                 )
             ticker = query.upper().strip()
+            logger.debug(f"Normalized ticker: {ticker}")
 
             # Tipranks API configuration
             base_url = "https://www.tipranks.com/api/stocks/"
-            headers = {"User-Agent": get_random_user_agent()}
+            user_agent = get_random_user_agent()
+            headers = {"User-Agent": user_agent}
+            logger.debug(f"Using User-Agent: {user_agent}")
 
             # Run HTTP request in a separate thread to avoid blocking
             def fetch_news_sentiment_data():
                 timestamp = int(time.time())  # Unix epoch in seconds
                 url = f"{base_url}getNewsSentiments/?ticker={ticker}&break={timestamp}"
+                logger.info(f"Calling TipRanks News Sentiment API for {ticker}: {url}")
 
                 with httpx.Client(timeout=self.config.timeout) as client:
                     response = client.get(url, headers=headers)
@@ -222,8 +252,15 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
                     return response.json()
 
             json_data = await asyncio.to_thread(fetch_news_sentiment_data)
+            logger.debug(
+                f"Retrieved TipRanks news sentiment data for {ticker}: "
+                f"{type(json_data)}"
+            )
 
             if not json_data or not isinstance(json_data, dict):
+                logger.warning(
+                    f"No valid TipRanks news sentiment data returned for {ticker}"
+                )
                 raise ValueError(
                     f"No Tipranks news sentiment data found for query: {query}"
                 )
@@ -263,18 +300,31 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
 
             # Parse the JSON data using the Pydantic model
             result = TipranksNewsSentimentModel(**data_dict)
+            logger.debug(
+                f"Successfully parsed TipRanks news sentiment data for {ticker}"
+            )
             return result
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
             # HTTP errors are generally retriable
+            logger.warning(
+                f"HTTP error fetching TipRanks news sentiment data for {ticker}: {e}"
+            )
             raise RetriableProviderException(
                 f"HTTP error fetching Tipranks news sentiment data: {e}"
             ) from e
         except ValueError as e:
             # Non-retriable errors (e.g., empty data, invalid ticker)
+            logger.error(
+                f"Non-retriable error in TipranksNewsSentimentProvider for {ticker}: "
+                f"{e}"
+            )
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
             # Other errors retriable
+            logger.warning(
+                f"Retriable error in TipranksNewsSentimentProvider for {ticker}: {e}"
+            )
             raise RetriableProviderException(str(e)) from e
 
 
@@ -293,6 +343,9 @@ def create_tipranks_data_provider(
     Returns:
         Configured TipranksDataProvider instance
     """
+    logger.debug(
+        f"Creating TipranksDataProvider: timeout={timeout}s, retries={retries}"
+    )
     config = ProviderConfig(timeout=timeout, retries=retries)
     return TipranksDataProvider(config)
 
@@ -311,5 +364,8 @@ def create_tipranks_news_sentiment_provider(
     Returns:
         Configured TipranksNewsSentimentProvider instance
     """
+    logger.debug(
+        f"Creating TipranksNewsSentimentProvider: timeout={timeout}s, retries={retries}"
+    )
     config = ProviderConfig(timeout=timeout, retries=retries)
     return TipranksNewsSentimentProvider(config)

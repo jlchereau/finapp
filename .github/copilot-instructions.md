@@ -148,6 +148,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Most Recent First**: Both directories and log entries sorted by recency
 
 ## Key Notes
+- Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between coverage and maintainability.
 - Virtual environment is located at `.venv/`. Accordingly the environment should be activated using `source .venv/bin/activate` or commands should be run with the `.venv/bin/` prefix (see Makefile).
 - Always format, lint (and fix), build (and fix) and test (and fix) your code. Iterate with commands limited to the scope of your changes (except for format and build which are fast). Once done, run `make format`, `make lint`, `make build` and `make test` to check for regressions across the entire application.
 - Ask me to run `make run` to start the application, as this is a blocking command that is hard to kill properly.

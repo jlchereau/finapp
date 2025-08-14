@@ -22,6 +22,7 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
+from ..lib.logger import logger
 
 
 class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
@@ -544,6 +545,10 @@ def create_blackrock_holdings_provider(
     Returns:
         Configured BlackrockHoldingsProvider instance
     """
+    logger.debug(
+        f"Creating BlackrockHoldingsProvider: timeout={timeout}s, "
+        f"retries={retries}, rate_limit={rate_limit}"
+    )
     config = ProviderConfig(
         timeout=timeout,
         retries=retries,

@@ -16,6 +16,7 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
+from ..lib.logger import logger
 
 
 class YahooInfoModel(BaseModel):
@@ -75,6 +76,7 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             ValueError: If no data is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
+        logger.debug(f"YahooHistoryProvider._fetch_data called for query: {query}")
         try:
             # Extract parameters with defaults
             period = kwargs.get("period", self.config.extra_config.get("period", "1y"))
@@ -84,33 +86,60 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             start = kwargs.get("start", self.config.extra_config.get("start"))
             end = kwargs.get("end", self.config.extra_config.get("end"))
 
+            logger.debug(
+                f"Using parameters: period={period}, interval={interval}, "
+                f"start={start}, end={end}"
+            )
+
             # Validate query
             if query is None:
+                logger.error("Query cannot be None for YahooHistoryProvider")
                 raise ValueError("Query must be provided for YahooHistoryProvider")
             ticker = query.upper().strip()
+            logger.debug(f"Normalized ticker: {ticker}")
 
             # Run yfinance call in a separate thread to avoid blocking
             def fetch_history():
                 yf_ticker = yf.Ticker(ticker)
                 if start and end:
+                    logger.info(
+                        f"Calling yfinance.history for {ticker} from {start} to "
+                        f"{end} with interval {interval}"
+                    )
                     return yf_ticker.history(start=start, end=end, interval=interval)
+                logger.info(
+                    f"Calling yfinance.history for {ticker} with period "
+                    f"{period} and interval {interval}"
+                )
                 return yf_ticker.history(period=period, interval=interval)
 
             data = await asyncio.to_thread(fetch_history)
 
             if data.empty:
+                logger.warning(
+                    f"No historical data returned from yfinance for ticker: {ticker}"
+                )
                 raise ValueError(f"No historical data found for query: {query}")
 
+            logger.debug(f"Retrieved {len(data)} rows of data for {ticker}")
             # Clean up the data
             data.index.name = "Date"
             data = data.round(2)  # Round to 2 decimal places
+            logger.debug(f"Data cleaned and rounded for {ticker}")
 
             return data
         except ValueError as e:
             # Non-retriable errors (e.g., empty data)
+            logger.error(
+                f"Non-retriable error in YahooHistoryProvider for {query}: {e}"
+            )
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
             # Other errors retriable
+            logger.warning(
+                f"Retriable error in YahooHistoryProvider for {query}: "
+                f"{type(e).__name__}: {e}"
+            )
             raise RetriableProviderException(str(e)) from e
 
 
@@ -142,28 +171,46 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             ValueError: If no info is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
+        logger.debug(f"YahooInfoProvider._fetch_data called for query: {query}")
         try:
             # Validate query
             if query is None:
+                logger.error("Query cannot be None for YahooInfoProvider")
                 raise ValueError("Query must be provided for YahooInfoProvider")
             ticker = query.upper().strip()
+            logger.debug(f"Normalized ticker: {ticker}")
             # Run yfinance call in a separate thread to avoid blocking
 
             def fetch_info():
+                logger.info(f"Calling yfinance.info for {ticker}")
                 yf_ticker = yf.Ticker(ticker)
                 return yf_ticker.info
 
             json_data = await asyncio.to_thread(fetch_info)
 
             if not json_data or not isinstance(json_data, dict):
+                logger.warning(
+                    f"No info data returned from yfinance for ticker: {ticker}"
+                )
                 raise ValueError(f"No info data found for query: {query}")
 
+            logger.debug(
+                f"Retrieved info data with {len(json_data)} fields for {ticker}"
+            )
             # Parse the JSON data using the Pydantic model (strict validation)
             result = YahooInfoModel(**json_data)
+            logger.debug(
+                f"Successfully parsed info data into YahooInfoModel for {ticker}"
+            )
             return result
         except ValueError as e:
+            logger.error(f"Non-retriable error in YahooInfoProvider for {query}: {e}")
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
+            logger.warning(
+                f"Retriable error in YahooInfoProvider for {query}: "
+                f"{type(e).__name__}: {e}"
+            )
             raise RetriableProviderException(str(e)) from e
 
 
@@ -186,6 +233,10 @@ def create_yahoo_history_provider(
     Returns:
         Configured YahooHistoryProvider instance
     """
+    logger.debug(
+        f"Creating YahooHistoryProvider: period={period}, "
+        f"interval={interval}, timeout={timeout}s, retries={retries}"
+    )
     config = ProviderConfig(
         timeout=timeout,
         retries=retries,
@@ -208,5 +259,6 @@ def create_yahoo_info_provider(
     Returns:
         Configured YahooInfoProvider instance
     """
+    logger.debug(f"Creating YahooInfoProvider: timeout={timeout}, retries={retries}")
     config = ProviderConfig(timeout=timeout, retries=retries)
     return YahooInfoProvider(config)

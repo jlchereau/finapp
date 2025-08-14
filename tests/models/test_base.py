@@ -275,8 +275,8 @@ class TestBaseProvider:
     @pytest.mark.asyncio
     async def test_logger_usage(self):
         """Test that logger is used properly."""
-        with patch.object(self.provider.logger, "info") as mock_info, patch.object(
-            self.provider.logger, "warning"
+        with patch("app.models.base.logger.info") as mock_info, patch(
+            "app.models.base.logger.warning"
         ) as mock_warning:
 
             # Test successful case

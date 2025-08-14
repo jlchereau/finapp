@@ -14,13 +14,14 @@ Such sources are Yahoo Finance, Zacks, Interactive Brokers, etc.:
 """
 
 import asyncio
-import logging
 from abc import ABC, abstractmethod
 from typing import Any, TypeVar, Generic
 from datetime import datetime
 from enum import Enum
 from pandas import DataFrame
 from pydantic import BaseModel, Field
+
+from ..lib.logger import logger
 
 
 class NonRetriableProviderException(Exception):
@@ -152,10 +153,13 @@ class BaseProvider(ABC, Generic[T]):
             config: Provider configuration. Uses defaults if not provided.
         """
         self.config = config or ProviderConfig()
-        logger_name = f"{self.__class__.__module__}.{self.__class__.__name__}"
-        self.logger = logging.getLogger(logger_name)
         self.provider_type = self._get_provider_type()
         self._semaphore = asyncio.Semaphore(10)  # Limit concurrent operations
+
+        logger.debug(
+            f"Initialized {self.__class__.__name__} provider: "
+            f"timeout={self.config.timeout}s, retries={self.config.retries}"
+        )
 
     @abstractmethod
     def _get_provider_type(self) -> ProviderType:
@@ -194,6 +198,10 @@ class BaseProvider(ABC, Generic[T]):
         """
         # Basic type validation
         if query is not None and not isinstance(query, str):
+            logger.error(
+                f"Invalid query type for {self.provider_type}: "
+                f"expected string/None, got {type(query).__name__}"
+            )
             return ProviderResult(
                 success=False,
                 error_message="Query must be a string or None",
@@ -206,13 +214,17 @@ class BaseProvider(ABC, Generic[T]):
 
         async with self._semaphore:  # Limit concurrent operations
             try:
-                self.logger.info("Fetching data for query: %s", query)
+                logger.info(
+                    f"Starting data fetch for {self.provider_type} with query: {query}"
+                )
 
                 # Cache check placeholder (caching not yet implemented)
 
                 # Apply rate limiting if configured
                 if self.config.rate_limit:
-                    await asyncio.sleep(1.0 / self.config.rate_limit)
+                    delay = 1.0 / self.config.rate_limit
+                    logger.debug(f"Applying rate limit: sleeping {delay:.3f}s")
+                    await asyncio.sleep(delay)
 
                 last_exception = None
                 for attempt in range(self.config.retries + 1):
@@ -224,10 +236,9 @@ class BaseProvider(ABC, Generic[T]):
                         )
                         # Success
                         execution_time = asyncio.get_event_loop().time() - start_time
-                        self.logger.info(
-                            "Successfully fetched data for %s in %.2f",
-                            query,
-                            execution_time,
+                        logger.info(
+                            f"Successfully fetched data for {query} in "
+                            f"{execution_time:.2f}s (attempt {attempt + 1})"
                         )
                         return ProviderResult(
                             success=True,
@@ -240,16 +251,17 @@ class BaseProvider(ABC, Generic[T]):
                     except asyncio.TimeoutError as e:
                         # retry on timeout
                         last_exception = e
-                        self.logger.warning(
-                            "Timeout for %s (attempt %d)", query, attempt + 1
+                        logger.warning(
+                            f"Timeout for {query} after {self.config.timeout}s "
+                            f"(attempt {attempt + 1}/{self.config.retries + 1})"
                         )
                         if attempt < self.config.retries:
-                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                            retry_delay = self.config.retry_delay * (attempt + 1)
+                            logger.debug(f"Retrying in {retry_delay}s...")
+                            await asyncio.sleep(retry_delay)
                     except NonRetriableProviderException as e:
                         # fail fast on non-retriable
-                        self.logger.error(
-                            "Non-retriable error fetching %s: %s", query, e
-                        )
+                        logger.error(f"Non-retriable error fetching {query}: {e}")
                         return ProviderResult(
                             success=False,
                             error_message=str(e),
@@ -261,26 +273,27 @@ class BaseProvider(ABC, Generic[T]):
                     except RetriableProviderException as e:
                         # backoff and retry
                         last_exception = e
-                        self.logger.warning(
-                            "Retryable error fetching %s (attempt %d): %s",
-                            query,
-                            attempt + 1,
-                            e,
+                        logger.warning(
+                            f"Retriable error fetching {query} "
+                            f"(attempt {attempt + 1}/{self.config.retries + 1}): {e}"
                         )
                         if attempt < self.config.retries:
-                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                            retry_delay = self.config.retry_delay * (attempt + 1)
+                            logger.debug(f"Retrying in {retry_delay}s...")
+                            await asyncio.sleep(retry_delay)
                         continue
                     except Exception as e:  # pylint: disable=broad-exception-caught
                         # retry on unexpected errors
                         last_exception = e
-                        self.logger.warning(
-                            "Error fetching %s (attempt %d): %s",
-                            query,
-                            attempt + 1,
-                            e,
+                        logger.warning(
+                            f"Unexpected error fetching {query} "
+                            f"(attempt {attempt + 1}/{self.config.retries + 1}): "
+                            f"{type(e).__name__}: {e}"
                         )
                         if attempt < self.config.retries:
-                            await asyncio.sleep(self.config.retry_delay * (attempt + 1))
+                            retry_delay = self.config.retry_delay * (attempt + 1)
+                            logger.debug(f"Retrying in {retry_delay}s...")
+                            await asyncio.sleep(retry_delay)
                         continue
                 # All retries exhausted without success
                 attempts = self.config.retries + 1
@@ -288,6 +301,10 @@ class BaseProvider(ABC, Generic[T]):
                 if last_exception:
                     msg += f": {last_exception}"
                 execution_time = asyncio.get_event_loop().time() - start_time
+                logger.error(
+                    f"All retries exhausted for {query} after "
+                    f"{execution_time:.2f}s: {msg}"
+                )
                 # Prepare final error code
                 error_code = type(last_exception).__name__ if last_exception else None
                 return ProviderResult(
@@ -302,7 +319,10 @@ class BaseProvider(ABC, Generic[T]):
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 execution_time = asyncio.get_event_loop().time() - start_time
-                self.logger.error("Unexpected error for %s: %s", query, e)
+                logger.error(
+                    f"Unexpected outer exception for {query}: "
+                    f"{type(e).__name__}: {e}"
+                )
 
                 return ProviderResult[T](
                     success=False,

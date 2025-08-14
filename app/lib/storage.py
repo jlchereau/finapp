@@ -216,6 +216,19 @@ class DateBasedStorage:
                         row["timestamp"] = timestamp.strftime("%H:%M:%S")
                     except (ValueError, KeyError):
                         pass
+
+                    # Backward compatibility for old log format
+                    # Old format had verbose messages, new format has concise messages
+                    # If long message (>200 chars), it's old format - truncate it
+                    if "message" in row and len(row["message"]) > 200:
+                        # This looks like an old verbose message, truncate it
+                        if "ValidationError:" in row["message"]:
+                            row["message"] = (
+                                "ValidationError: Multiple validation errors"
+                            )
+                        else:
+                            row["message"] = row["message"][:150] + "..."
+
                     log_data.append(row)
             return list(reversed(log_data))
         except Exception:
