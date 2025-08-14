@@ -439,6 +439,7 @@ def plot_tab_content() -> rx.Component:
                 ),
             ),
         ),
+        padding="1rem",
         spacing="4",
         width="100%",
     )
