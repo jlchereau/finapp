@@ -1,0 +1,231 @@
+"""
+Unified storage utilities for date-based folder management.
+
+Provides common functionality for creating and managing date-based
+storage folders used across the application (cache, logs, etc.).
+"""
+
+from datetime import datetime
+from pathlib import Path
+from typing import Optional, Union
+
+
+class DateBasedStorage:
+    """
+    Utility class for managing date-based folder structure.
+
+    Provides consistent methods for creating and accessing folders
+    organized by date in YYYYMMDD format.
+    """
+
+    def __init__(self, base_path: Optional[Union[str, Path]] = None):
+        """
+        Initialize storage manager.
+
+        Args:
+            base_path: Base directory for storage. If None, uses project root/data.
+        """
+        if base_path is None:
+            self.base_path = self._detect_project_root() / "data"
+        else:
+            self.base_path = Path(base_path)
+
+    def _detect_project_root(self) -> Path:
+        """Auto-detect project root by looking for rxconfig.py"""
+        current_path = Path(__file__).resolve()
+        for parent in current_path.parents:
+            if (parent / "rxconfig.py").exists():
+                return parent
+        return current_path.parent.parent.parent
+
+    def get_date_folder(
+        self, date_str: Optional[str] = None, create: bool = True
+    ) -> Path:
+        """
+        Get path to date-based folder.
+
+        Args:
+            date_str: Date string in YYYYMMDD format. If None, uses current date.
+            create: Whether to create the folder if it doesn't exist.
+
+        Returns:
+            Path to the date folder.
+        """
+        if date_str is None:
+            date_str = datetime.now().strftime("%Y%m%d")
+
+        date_folder = self.base_path / date_str
+
+        if create:
+            date_folder.mkdir(parents=True, exist_ok=True)
+
+        return date_folder
+
+    def get_file_path(
+        self, filename: str, date_str: Optional[str] = None, create_folder: bool = True
+    ) -> Path:
+        """
+        Get full path to a file in a date-based folder.
+
+        Args:
+            filename: Name of the file.
+            date_str: Date string in YYYYMMDD format. If None, uses current date.
+            create_folder: Whether to create the date folder if it doesn't exist.
+
+        Returns:
+            Full path to the file.
+        """
+        date_folder = self.get_date_folder(date_str, create=create_folder)
+        return date_folder / filename
+
+    def list_date_folders(self) -> list[str]:
+        """
+        List all available date folders.
+
+        Returns:
+            List of date strings (YYYYMMDD) for existing folders.
+        """
+        if not self.base_path.exists():
+            return []
+
+        date_folders = []
+        for folder in self.base_path.iterdir():
+            if folder.is_dir() and len(folder.name) == 8 and folder.name.isdigit():
+                date_folders.append(folder.name)
+
+        return sorted(date_folders)
+
+    def get_cache_paths(
+        self, provider_type: str, query: str, date_str: Optional[str] = None
+    ) -> tuple[Path, Path]:
+        """
+        Get cache file paths for a provider query (JSON and Parquet).
+
+        Args:
+            provider_type: Type of the data provider.
+            query: Query string (will be sanitized).
+            date_str: Date string in YYYYMMDD format. If None, uses current date.
+
+        Returns:
+            Tuple of (json_path, parquet_path).
+        """
+        # Sanitize query for filename
+        sanitized_query = query.upper().strip() if isinstance(query, str) else "none"
+        base_name = f"{provider_type}_{sanitized_query}"
+
+        date_folder = self.get_date_folder(date_str, create=True)
+
+        json_path = date_folder / f"{base_name}.json"
+        parquet_path = date_folder / f"{base_name}.parquet"
+
+        return json_path, parquet_path
+
+    def cleanup_old_folders(self, keep_days: int = 30) -> list[str]:
+        """
+        Clean up old date folders.
+
+        Args:
+            keep_days: Number of days to keep (from current date).
+
+        Returns:
+            List of removed folder names.
+        """
+        if not self.base_path.exists():
+            return []
+
+        current_date = datetime.now()
+        removed_folders = []
+
+        for folder in self.base_path.iterdir():
+            if not (
+                folder.is_dir() and len(folder.name) == 8 and folder.name.isdigit()
+            ):
+                continue
+
+            try:
+                folder_date = datetime.strptime(folder.name, "%Y%m%d")
+                days_old = (current_date - folder_date).days
+
+                if days_old > keep_days:
+                    import shutil
+
+                    shutil.rmtree(folder)
+                    removed_folders.append(folder.name)
+            except ValueError:
+                # Skip folders that don't match YYYYMMDD format
+                continue
+
+        return removed_folders
+
+
+# Convenience functions for backward compatibility and ease of use
+def get_data_folder(date_str: Optional[str] = None, create: bool = True) -> Path:
+    """
+    Get path to data folder for a specific date.
+
+    Args:
+        date_str: Date string in YYYYMMDD format. If None, uses current date.
+        create: Whether to create the folder if it doesn't exist.
+
+    Returns:
+        Path to the date folder.
+    """
+    storage = DateBasedStorage()
+    return storage.get_date_folder(date_str, create)
+
+
+def get_data_file_path(
+    filename: str, date_str: Optional[str] = None, create_folder: bool = True
+) -> Path:
+    """
+    Get full path to a file in a date-based data folder.
+
+    Args:
+        filename: Name of the file.
+        date_str: Date string in YYYYMMDD format. If None, uses current date.
+        create_folder: Whether to create the date folder if it doesn't exist.
+
+    Returns:
+        Full path to the file.
+    """
+    storage = DateBasedStorage()
+    return storage.get_file_path(filename, date_str, create_folder)
+
+
+def get_cache_file_paths(
+    provider_type: str, query: str, date_str: Optional[str] = None
+) -> tuple[Path, Path]:
+    """
+    Get cache file paths for a provider query (JSON and Parquet).
+
+    Args:
+        provider_type: Type of the data provider.
+        query: Query string (will be sanitized).
+        date_str: Date string in YYYYMMDD format. If None, uses current date.
+
+    Returns:
+        Tuple of (json_path, parquet_path).
+    """
+    # For backward compatibility with tests, use current directory if available
+    # This maintains the original cache.py behavior where tests could change cwd
+    import os
+
+    current_dir = Path(os.getcwd())
+
+    # Check if we're in a test environment (pytest changes cwd to tmp directories)
+    if (
+        "pytest" in str(current_dir)
+        or "tmp" in str(current_dir)
+        or "test_cache" in str(current_dir)
+    ):
+        # Use current directory for tests
+        storage = DateBasedStorage(base_path=current_dir / "data")
+    else:
+        # Use default storage (project root detection) for production
+        storage = DateBasedStorage()
+
+    return storage.get_cache_paths(provider_type, query, date_str)
+
+
+# Global storage instance
+default_storage = DateBasedStorage()

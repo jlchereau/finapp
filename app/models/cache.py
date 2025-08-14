@@ -2,12 +2,12 @@
 Cache decorator for provider _fetch_data methods.
 """
 
-import os
 import asyncio
 from functools import wraps
-from datetime import datetime
 import pandas as pd
 import orjson
+
+from app.lib.storage import get_cache_file_paths
 
 # In-memory locks for cache files to ensure safe concurrent access
 _CACHE_LOCKS: dict[str, asyncio.Lock] = {}
@@ -31,31 +31,26 @@ def cache(func):  # decorator for async _fetch_data methods
         if not settings.CACHE_ENABLED or not cache_enabled:
             # Directly fetch without caching
             return await func(self, query, *args, **kwargs)
-        # Determine cache directory based on date
-        date_str = cache_date or datetime.now().strftime("%Y%m%d")
-        base_dir = os.path.join(os.getcwd(), "data", date_str)
-        os.makedirs(base_dir, exist_ok=True)
-        # Sanitize query for filename
-        q = query.upper().strip() if isinstance(query, str) else "none"
-        base_name = f"{self.provider_type.value}_{q}"
-        json_path = os.path.join(base_dir, base_name + ".json")
-        parquet_path = os.path.join(base_dir, base_name + ".parquet")
+        # Get cache file paths using unified storage utility
+        json_path, parquet_path = get_cache_file_paths(
+            self.provider_type.value, query, cache_date
+        )
         # Choose a lock per cache file
         # Determine lock key based on existing cache file or target path
-        if os.path.exists(json_path) or not os.path.exists(parquet_path):
-            lock_key = json_path
+        if json_path.exists() or not parquet_path.exists():
+            lock_key = str(json_path)
         else:
-            lock_key = parquet_path
+            lock_key = str(parquet_path)
         lock = _CACHE_LOCKS.setdefault(lock_key, asyncio.Lock())
         async with lock:
             # Attempt to load DataFrame cache
-            if os.path.exists(parquet_path):
+            if parquet_path.exists():
                 try:
                     return pd.read_parquet(parquet_path)
                 except Exception:
                     pass
             # Attempt to load BaseModel cache
-            if os.path.exists(json_path):
+            if json_path.exists():
                 try:
                     raw = open(json_path, "rb").read()
                     obj = orjson.loads(raw)
@@ -79,7 +74,7 @@ def cache(func):  # decorator for async _fetch_data methods
             # Write DataFrame cache
             if isinstance(result, pd.DataFrame):
                 try:
-                    result.to_parquet(parquet_path)
+                    result.to_parquet(str(parquet_path))
                 except Exception:
                     pass
             # Write BaseModel cache
@@ -90,7 +85,8 @@ def cache(func):  # decorator for async _fetch_data methods
                         "data": result.model_dump(),
                     }
                     data_bytes = orjson.dumps(payload)
-                    open(json_path, "wb").write(data_bytes)
+                    with open(json_path, "wb") as f:
+                        f.write(data_bytes)
                 except Exception:
                     pass
             return result
