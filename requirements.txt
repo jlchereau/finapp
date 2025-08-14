@@ -1,6 +1,7 @@
 beautifulsoup4
 bt
 cvxpy
+dataclasses_json # for app/components/querybuilder
 duckdb # with https://ducklake.select/
 factor_analyzer
 httpx

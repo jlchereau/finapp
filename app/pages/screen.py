@@ -3,6 +3,8 @@
 import reflex as rx
 from ..templates.template import template
 from ..components.combobox import combobox_wrapper as combobox
+from ..components.gaugechart import gaugechart
+from ..components.querybuilder import querybuilder, Field
 
 
 class State(rx.State):  # pylint: disable=inherit-non-class
@@ -82,6 +84,23 @@ def page():
                     on_change=State.set_searched,
                 ),
                 rx.text(State.searched, class_name="text-blue-500", size="1"),
+                class_name="mb-6 max-w-xs",
+            ),
+            rx.box(
+                rx.text("Sample Gauge Chart"),
+                gaugechart(
+                    percent=0.4
+                ),
+                class_name="mb-6 max-w-xs",
+            ),
+            rx.box(
+                rx.text("Sample Query Builder"),
+                querybuilder(
+                    fields=[
+                        Field(name="field1", label="Field 1"),
+                        Field(name="field2", label="Field 2"),
+                    ]
+                ),
                 class_name="mb-6 max-w-xs",
             ),
             class_name="mt-8",
