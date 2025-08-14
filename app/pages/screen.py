@@ -88,9 +88,7 @@ def page():
             ),
             rx.box(
                 rx.text("Sample Gauge Chart"),
-                gaugechart(
-                    percent=0.4
-                ),
+                gaugechart(percent=0.4),
                 class_name="mb-6 max-w-xs",
             ),
             rx.box(

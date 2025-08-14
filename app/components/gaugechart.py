@@ -21,9 +21,7 @@ class Gaugechart(rx.NoSSRComponent):
     alias = "ReflexGrauge"
     is_default = True
 
-    className: Optional[
-        rx.Var[str]
-    ]  # Add className to the div container
+    className: Optional[rx.Var[str]]  # Add className to the div container
     marginInPercent: Optional[
         rx.Var[float]
     ]  # Margin for the chart inside the containing SVG element	0.05

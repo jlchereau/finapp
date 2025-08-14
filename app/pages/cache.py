@@ -95,7 +95,7 @@ def cache_selector() -> rx.Component:
                 disabled=State.selected_cache == "",
                 variant="soft",
                 color="red",
-                size="2"
+                size="2",
             ),
             rx.spacer(),
         )
