@@ -1,0 +1,10 @@
+"""
+OECD provider module
+This module provides functionality to fetch data from the OECD API. 
+
+See:
+- https://data-explorer.oecd.org/
+- https://data.oecd.org/api/
+- https://www.oecd.org/en/data/insights/data-explainers/2024/09/api.html
+"""
+

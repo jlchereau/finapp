@@ -1,0 +1,8 @@
+"""
+ECB provider module
+This module provides functionality to fetch data from the European Central Bank (ECB) API. 
+
+See https://data.ecb.europa.eu/help/api/overview
+"""
+
+https://github.com/LucaMingarelli/ecbdata/blob/master/ecbdata/api.py
