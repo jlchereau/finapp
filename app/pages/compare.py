@@ -40,6 +40,19 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             self._history_provider = create_yahoo_history_provider()
         return self._history_provider
 
+    def get_theme_colors(self):
+        """Get neutral colors that work well in both themes."""
+        # Use transparent backgrounds and neutral colors that adapt to theme
+        return {
+            "plot_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
+            "paper_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
+            "grid_color": "rgba(128,128,128,0.3)",  # Semi-transparent gray
+            "line_color": "rgba(128,128,128,0.6)",  # Semi-transparent gray
+            "text_color": None,  # Let Plotly use default which respects theme
+            "hover_bgcolor": "rgba(0,0,0,0.8)",  # Semi-transparent dark background
+            "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
+        }
+
     async def get_price_data(self, tickers: List[str], base_date: datetime):
         """Get normalized price data for tickers from base_date."""
         if not tickers:
@@ -204,36 +217,51 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     )
                 )
 
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+            
             # Update layout
             title = f"Price Comparison ({', '.join(self.selected_tickers)})"
-            fig.update_layout(
-                title=title,
-                xaxis_title="Date",
-                yaxis_title="Return (%)",
-                hovermode="x unified",
-                showlegend=True,
-                height=600,
-                margin=dict(l=50, r=50, t=80, b=50),
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-            )
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Date",
+                "yaxis_title": "Return (%)",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 600,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",  # White text on dark semi-transparent background
+                ),
+            }
+            
+            # Only add font_color if it's not None
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+                
+            fig.update_layout(**layout_props)
 
             # Update axes
             fig.update_xaxes(
                 showgrid=True,
                 gridwidth=1,
-                gridcolor="lightgray",
+                gridcolor=theme_colors["grid_color"],
                 showline=True,
                 linewidth=1,
-                linecolor="black",
+                linecolor=theme_colors["line_color"],
             )
             fig.update_yaxes(
                 showgrid=True,
                 gridwidth=1,
-                gridcolor="lightgray",
+                gridcolor=theme_colors["grid_color"],
                 showline=True,
                 linewidth=1,
-                linecolor="black",
+                linecolor=theme_colors["line_color"],
             )
 
             async with self:
@@ -322,7 +350,7 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 on_click=CompareState.toggle_favorite(ticker),
             ),
             rx.button(
-                "-",
+                rx.icon("minus", size=16),
                 size="2",
                 variant="solid",
                 color_scheme="red",
@@ -348,7 +376,7 @@ def left_sidebar() -> rx.Component:
         width="400px",
         padding="1em",
         border_right="1px solid",
-        border_color="var(--accent-3)",
+        border_color="var(--gray-6)",
         height="100%",
         # height="calc(100vh - 120px)",
         overflow_y="auto",
@@ -438,7 +466,8 @@ def page():
             left_sidebar(),
             main_content(),
             border="1px solid",
-            border_color="var(--accent-3)",
+            border_color="var(--gray-6)",
+            border_radius="10px",
             # height="100%",
             width="100%",
             spacing="0",
