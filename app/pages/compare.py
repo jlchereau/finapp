@@ -5,11 +5,12 @@ Compare page - Stock comparison and analysis
 from typing import List, Optional
 from datetime import datetime, timedelta
 
+import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
 from ..components.combobox import combobox_wrapper as combobox
-from ..models.yahoo import create_yahoo_history_provider
+from ..flows.compare import fetch_compare_data
 from ..templates.template import template
 
 
@@ -25,20 +26,29 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     # Chart settings
     active_tab: str = "plots"
     base_date_option: str = "1Y"
-    base_date_options: List[str] = ["1W", "2W", "1M", "2M", "1Q", "2Q", "3Q", "1Y", "2Y", "3Y", "4Y", "5Y", "10Y", "YTD", "MAX"]
+    base_date_options: List[str] = [
+        "1W",
+        "2W",
+        "1M",
+        "2M",
+        "1Q",
+        "2Q",
+        "3Q",
+        "1Y",
+        "2Y",
+        "3Y",
+        "4Y",
+        "5Y",
+        "10Y",
+        "YTD",
+        "MAX",
+    ]
 
     # Chart data
     chart_figure: go.Figure = go.Figure()
 
     # Loading states
     loading_chart: bool = False
-
-    @property
-    def history_provider(self):
-        """Get Yahoo history provider instance."""
-        if not hasattr(self, "_history_provider"):
-            self._history_provider = create_yahoo_history_provider()
-        return self._history_provider
 
     def get_theme_colors(self):
         """Get neutral colors that work well in both themes."""
@@ -54,75 +64,33 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         }
 
     async def get_price_data(self, tickers: List[str], base_date: datetime):
-        """Get normalized price data for tickers from base_date."""
+        """Get normalized price data for tickers from base_date using workflow."""
         if not tickers:
             return None
 
-        import pandas as pd
-        import yfinance as yf
-
         try:
-            # Calculate period from base_date to now
-            end_date = datetime.now()
+            # Use the compare workflow to fetch and normalize data
+            result = await fetch_compare_data(tickers, base_date)
 
-            # Download data for all tickers
-            data = yf.download(
-                tickers,
-                start=base_date,
-                end=end_date,
-                group_by="ticker" if len(tickers) > 1 else None,
-                auto_adjust=True,
-                prepost=True,
-                threads=True,
-            )
+            # Extract the normalized DataFrame
+            normalized_data = result.get("data")
 
-            if data.empty:
+            if normalized_data is None or normalized_data.empty:
                 return pd.DataFrame()
 
-            # Normalize the data for comparison (set first value as 100)
-            normalized_data = pd.DataFrame()
+            # Log successful and failed tickers
+            successful = result.get("successful_tickers", [])
+            failed = result.get("failed_tickers", [])
 
-            if len(tickers) == 1:
-                # Single ticker case - yfinance returns different structure for single ticker
-                if "Close" in data.columns:
-                    close_prices = data["Close"].dropna()
-                    if not close_prices.empty:
-                        normalized_data[tickers[0]] = (
-                            (close_prices / close_prices.iloc[0]) - 1
-                        ) * 100
-                elif "Adj Close" in data.columns:
-                    # Fallback to Adj Close if Close is not available
-                    close_prices = data["Adj Close"].dropna()
-                    if not close_prices.empty:
-                        normalized_data[tickers[0]] = (
-                            (close_prices / close_prices.iloc[0]) - 1
-                        ) * 100
-            else:
-                # Multiple tickers case
-                for ticker in tickers:
-                    try:
-                        close_prices = None
-                        if hasattr(data, "columns"):
-                            if (ticker, "Close") in data.columns:
-                                close_prices = data[(ticker, "Close")].dropna()
-                            elif (
-                                ticker in data.columns
-                                and hasattr(data[ticker], "columns")
-                                and "Close" in data[ticker].columns
-                            ):
-                                close_prices = data[ticker]["Close"].dropna()
-
-                        if close_prices is not None and not close_prices.empty:
-                            normalized_data[ticker] = (
-                                (close_prices / close_prices.iloc[0]) - 1
-                            ) * 100
-                    except (KeyError, IndexError, AttributeError):
-                        continue
+            if successful:
+                print(f"Successfully fetched data for: {', '.join(successful)}")
+            if failed:
+                print(f"Failed to fetch data for: {', '.join(failed)}")
 
             return normalized_data
 
         except Exception as e:
-            print(f"Error fetching price data: {e}")
+            print(f"Error fetching price data via workflow: {e}")
             return pd.DataFrame()
 
     def add_ticker(self):
@@ -141,7 +109,6 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     def set_ticker_input(self, value: str | None):
         """Set ticker input value."""
         self.ticker_input = value or ""
-
 
     def toggle_favorite(self, ticker: str):
         """Toggle ticker in favorites list."""
@@ -219,7 +186,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
             # Get theme-appropriate colors
             theme_colors = self.get_theme_colors()
-            
+
             # Update layout
             title = f"Price Comparison ({', '.join(self.selected_tickers)})"
             layout_props = {
@@ -236,14 +203,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     bgcolor=theme_colors["hover_bgcolor"],
                     bordercolor=theme_colors["hover_bordercolor"],
                     font_size=14,
-                    font_color="white",  # White text on dark semi-transparent background
+                    font_color="white",  # White text on dark background
                 ),
             }
-            
+
             # Only add font_color if it's not None
             if theme_colors["text_color"] is not None:
                 layout_props["font_color"] = theme_colors["text_color"]
-                
+
             fig.update_layout(**layout_props)
 
             # Update axes
