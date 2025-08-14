@@ -18,6 +18,7 @@ pandas
 pybind11
 matplotlib
 # mosek
+plotly
 pyarrow
 riskfolio-lib
 yfinance

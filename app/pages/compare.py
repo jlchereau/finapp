@@ -3,14 +3,12 @@ Compare page - Stock comparison and analysis
 """
 
 from typing import List, Optional
-import io
-import base64
 from datetime import datetime, timedelta
 
 import reflex as rx
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-# from ..components.combobox import combobox
+import plotly.graph_objects as go
+
+from ..components.combobox import combobox_wrapper as combobox
 from ..models.yahoo import create_yahoo_history_provider
 from ..templates.template import template
 
@@ -30,7 +28,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     base_date_options: List[str] = ["1Y", "2Y", "5Y", "10Y", "YTD", "MAX"]
 
     # Chart data
-    chart_image: str = ""
+    chart_figure: go.Figure = go.Figure()
 
     # Loading states
     loading_chart: bool = False
@@ -41,7 +39,6 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not hasattr(self, "_history_provider"):
             self._history_provider = create_yahoo_history_provider()
         return self._history_provider
-
 
     async def get_price_data(self, tickers: List[str], base_date: datetime):
         """Get normalized price data for tickers from base_date."""
@@ -73,9 +70,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             normalized_data = pd.DataFrame()
 
             if len(tickers) == 1:
-                # Single ticker case
+                # Single ticker case - yfinance returns different structure for single ticker
                 if "Close" in data.columns:
                     close_prices = data["Close"].dropna()
+                    if not close_prices.empty:
+                        normalized_data[tickers[0]] = (
+                            close_prices / close_prices.iloc[0]
+                        ) * 100
+                elif "Adj Close" in data.columns:
+                    # Fallback to Adj Close if Close is not available
+                    close_prices = data["Adj Close"].dropna()
                     if not close_prices.empty:
                         normalized_data[tickers[0]] = (
                             close_prices / close_prices.iloc[0]
@@ -108,28 +112,23 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             print(f"Error fetching price data: {e}")
             return pd.DataFrame()
 
-
     def add_ticker(self):
         """Add ticker to selected list."""
         if self.ticker_input and self.ticker_input.upper() not in self.selected_tickers:
             self.selected_tickers.append(self.ticker_input.upper())
             self.ticker_input = ""
-            self.update_chart()
+            yield CompareState.update_chart
 
     def remove_ticker(self, ticker: str):
         """Remove ticker from selected list."""
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
-            self.update_chart()
+            yield CompareState.update_chart
 
-    def select_from_favorites(self, ticker: str):
-        """Select ticker from favorites dropdown."""
-        self.ticker_input = ticker
+    def set_ticker_input(self, value: str | None):
+        """Set ticker input value."""
+        self.ticker_input = value or ""
 
-    @rx.event
-    def select_from_favorites2(self, value: str | None) -> None:
-        """Set searched value."""
-        self.ticker_input = value
 
     def toggle_favorite(self, ticker: str):
         """Toggle ticker in favorites list."""
@@ -145,14 +144,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     def set_base_date(self, option: str):
         """Set base date option and update chart."""
         self.base_date_option = option
-        self.update_chart()
+        yield CompareState.update_chart
 
     @rx.event(background=True)
     async def update_chart(self):
-        """Update the matplotlib chart using background processing."""
+        """Update the plotly chart using background processing."""
         if not self.selected_tickers:
             async with self:
-                self.chart_image = ""
+                self.chart_figure = go.Figure()
             return
 
         async with self:
@@ -172,12 +171,11 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
             if price_data is None or price_data.empty:
                 async with self:
-                    self.chart_image = ""
+                    self.chart_figure = go.Figure()
                 return
 
-            # Create matplotlib chart
-            plt.style.use("default")
-            _, ax = plt.subplots(figsize=(12, 8))
+            # Create plotly chart
+            fig = go.Figure()
 
             # Plot each ticker
             colors = [
@@ -189,45 +187,62 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "#8c564b",
                 "#e377c2",
             ]
+
             for i, ticker in enumerate(price_data.columns):
                 color = colors[i % len(colors)]
-                ax.plot(
-                    price_data.index,
-                    price_data[ticker],
-                    label=ticker,
-                    linewidth=2,
-                    color=color,
+                fig.add_trace(
+                    go.Scatter(
+                        x=price_data.index,
+                        y=price_data[ticker],
+                        mode="lines",
+                        name=ticker,
+                        line=dict(color=color, width=2),
+                        hovertemplate=f"<b>{ticker}</b><br>"
+                        + "Date: %{x}<br>"
+                        + "Return: %{y:.2f}%<br>"
+                        + "<extra></extra>",
+                    )
                 )
 
-            # Formatting
-            ax.set_xlabel("Date")
-            ax.set_ylabel("Return")
+            # Update layout
             title = f"Price Comparison ({', '.join(self.selected_tickers)})"
-            ax.set_title(title)
-            ax.legend()
-            ax.grid(True, alpha=0.3)
+            fig.update_layout(
+                title=title,
+                xaxis_title="Date",
+                yaxis_title="Return (%)",
+                hovermode="x unified",
+                showlegend=True,
+                height=600,
+                margin=dict(l=50, r=50, t=80, b=50),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+            )
 
-            # Format x-axis dates
-            ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
-            ax.xaxis.set_major_locator(mdates.YearLocator())
-            plt.xticks(rotation=45)
-
-            plt.tight_layout()
-
-            # Convert to base64 image
-            buffer = io.BytesIO()
-            plt.savefig(buffer, format="png", dpi=100, bbox_inches="tight")
-            buffer.seek(0)
-            image_base64 = base64.b64encode(buffer.getvalue()).decode()
-            plt.close()
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor="lightgray",
+                showline=True,
+                linewidth=1,
+                linecolor="black",
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor="lightgray",
+                showline=True,
+                linewidth=1,
+                linecolor="black",
+            )
 
             async with self:
-                self.chart_image = f"data:image/png;base64,{image_base64}"
+                self.chart_figure = fig
 
         except Exception as e:
             print(f"Chart update error: {e}")
             async with self:
-                self.chart_image = ""
+                self.chart_figure = go.Figure()
         finally:
             async with self:
                 self.loading_chart = False
@@ -257,23 +272,11 @@ def ticker_input_section() -> rx.Component:
     return rx.vstack(
         rx.text("Ticker:", font_weight="bold"),
         rx.hstack(
-            rx.input(
-                placeholder="Enter ticker (e.g., MSFT)",
+            combobox(
+                options=CompareState.favorites,
                 value=CompareState.ticker_input,
                 on_change=CompareState.set_ticker_input,
-                width="150px",
             ),
-            rx.select(
-                CompareState.favorites,
-                placeholder="Favorites",
-                on_change=CompareState.select_from_favorites,
-                width="120px",
-            ),
-            #combobox(
-            #    options=CompareState.favorites,
-            #    value=CompareState.ticker_input2,
-            #    on_change=CompareState.select_from_favorites2,
-            #),
             rx.button(
                 "+",
                 on_click=CompareState.add_ticker,
@@ -314,17 +317,16 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
         rx.hstack(
             rx.button(
                 rx.icon("heart", size=16),
-                size="1",
-                variant="ghost",
-                color_scheme="red",
-                on_click=lambda: CompareState.toggle_favorite(ticker),
+                size="2",
+                variant="solid",
+                on_click=CompareState.toggle_favorite(ticker),
             ),
             rx.button(
                 "-",
-                size="1",
-                variant="ghost",
+                size="2",
+                variant="solid",
                 color_scheme="red",
-                on_click=lambda: CompareState.remove_ticker(ticker),
+                on_click=CompareState.remove_ticker(ticker),
             ),
             spacing="1",
         ),
@@ -379,12 +381,11 @@ def plot_tab_content() -> rx.Component:
             CompareState.loading_chart,
             rx.center(rx.spinner(), height="400px"),
             rx.cond(
-                CompareState.chart_image,
-                rx.image(
-                    src=CompareState.chart_image,
+                CompareState.selected_tickers.length(),
+                rx.plotly(
+                    data=CompareState.chart_figure,
                     width="100%",
-                    height="auto",
-                    border_radius="md",
+                    height="600px",
                 ),
                 rx.center(
                     rx.text("Select tickers to view comparison chart", color="gray"),
