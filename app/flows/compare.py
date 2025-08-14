@@ -40,9 +40,9 @@ class CompareDataWorkflow(Workflow):
     def __init__(self):
         """Initialize workflow with Yahoo history provider."""
         super().__init__()
-        # Create provider with settings optimized for compare page
+        # Create provider with max period for comprehensive caching
         self.yahoo_history = create_yahoo_history_provider(
-            period="1y", timeout=30.0, retries=2
+            period="max", timeout=30.0, retries=2
         )
 
     @step
@@ -66,13 +66,14 @@ class CompareDataWorkflow(Workflow):
         )
 
         # Create tasks for parallel execution
+        # Use period="max" to get comprehensive cached data, then filter in normalize step
         tasks = {}
-        for ticker in tickers:
-            # Convert datetime to string for yfinance
-            start_date = base_date.strftime("%Y-%m-%d")
-            end_date = datetime.now().strftime("%Y-%m-%d")
 
-            task = self.yahoo_history.get_data(ticker, start=start_date, end=end_date)
+        logger.debug(f"Fetching max period data, will filter from {base_date}")
+
+        for ticker in tickers:
+            # Fetch max period data for better caching
+            task = self.yahoo_history.get_data(ticker)
             tasks[ticker] = task
 
         # Execute all tasks in parallel
@@ -152,11 +153,33 @@ class CompareDataWorkflow(Workflow):
                     failed_tickers.append(ticker)
                     continue
 
+                # Filter data to start from base_date
+                logger.debug(f"Raw data for {ticker}: {len(data)} rows, index range: {data.index.min()} to {data.index.max()}")
+                logger.debug(f"Base date for filtering: {base_date}")
+                
+                # Convert base_date to pandas datetime for comparison
+                # Handle timezone-aware indexes by making base_date timezone-naive
+                base_date_pd = pd.to_datetime(base_date.date())
+                
+                # Make sure both dates are timezone-naive for comparison
+                if data.index.tz is not None:
+                    data_index = data.index.tz_localize(None)
+                    filtered_data = data[data_index >= base_date_pd]
+                else:
+                    filtered_data = data[data.index >= base_date_pd]
+                
+                logger.debug(f"Filtered data for {ticker}: {len(filtered_data)} rows")
+
+                if filtered_data.empty:
+                    logger.warning(f"No data after {base_date} for {ticker}, skipping")
+                    failed_tickers.append(ticker)
+                    continue
+
                 # Get close prices and normalize to percentage returns
-                if "Close" in data.columns:
-                    close_prices = data["Close"].dropna()
-                elif "Adj Close" in data.columns:
-                    close_prices = data["Adj Close"].dropna()
+                if "Close" in filtered_data.columns:
+                    close_prices = filtered_data["Close"].dropna()
+                elif "Adj Close" in filtered_data.columns:
+                    close_prices = filtered_data["Adj Close"].dropna()
                 else:
                     logger.warning(f"No Close price data for {ticker}, skipping")
                     failed_tickers.append(ticker)
@@ -167,7 +190,7 @@ class CompareDataWorkflow(Workflow):
                     failed_tickers.append(ticker)
                     continue
 
-                # Calculate percentage returns from first value
+                # Calculate percentage returns from first value (after filtering)
                 # Formula: ((current_price / first_price) - 1) * 100
                 first_price = close_prices.iloc[0]
                 percentage_returns = ((close_prices / first_price) - 1) * 100

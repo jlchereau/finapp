@@ -216,7 +216,7 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
 
 # Factory functions for easy provider creation
 def create_yahoo_history_provider(
-    period: str = "1y",
+    period: str = "max",
     interval: str = "1d",
     timeout: float = 30.0,
     retries: int = 3,

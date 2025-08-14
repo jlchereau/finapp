@@ -76,6 +76,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             normalized_data = result.get("data")
 
             if normalized_data is None or normalized_data.empty:
+                print(f"Workflow returned empty data: {result}")
                 return pd.DataFrame()
 
             # Log successful and failed tickers
@@ -86,6 +87,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 print(f"Successfully fetched data for: {', '.join(successful)}")
             if failed:
                 print(f"Failed to fetch data for: {', '.join(failed)}")
+
+            # Debug the returned data
+            print(f"Normalized data shape: {normalized_data.shape}")
+            print(f"Normalized data columns: {list(normalized_data.columns)}")
+            print(f"Normalized data index range: {normalized_data.index.min()} to {normalized_data.index.max()}")
+            print(f"First few rows:\n{normalized_data.head()}")
 
             return normalized_data
 
