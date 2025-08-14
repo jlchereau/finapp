@@ -21,6 +21,9 @@ pyarrow
 riskfolio-lib
 yfinance
 reflex
-# reflex-echarts # https://echarts.apache.org/
-# reflex-highchart # https://www.highcharts.com/
+# https://pypi.org/org/Reflex/ for other components
+# reflex-global-hotkey
+# reflex-monaco
+# reflex-motion
 reflex-pyplot
+# reflex-resizable-panels

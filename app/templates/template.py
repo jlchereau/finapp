@@ -19,5 +19,6 @@ def template(
             width="100%",
         ),
         # placeholder for footer
+        spacing="0",
         width="100%",
     )

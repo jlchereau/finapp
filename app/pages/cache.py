@@ -78,47 +78,51 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         self.show_delete_dialog = False
 
 
-# pylint: disable=not-callable
-@rx.page(route="/cache", on_load=State.on_load)  # pyright: ignore[reportArgumentType]
-@template
-def page():
-    """The cache management page."""
-    return rx.vstack(
-        rx.heading("Cache Management", size="5"),
+def cache_selector() -> rx.Component:
+    """Cache selector component."""
+    return rx.box(
+        rx.hstack(
+            rx.text("Cache: "),
+            rx.select(
+                items=State.cache_dirs,
+                value=State.selected_cache,
+                placeholder="Select cache date...",
+                on_change=State.select_cache,
+            ),
+            rx.button(
+                rx.icon("trash"),
+                on_click=State.show_delete_confirmation,
+                disabled=State.selected_cache == "",
+                variant="soft",
+                color="red",
+                size="2"
+            ),
+            rx.spacer(),
+        )
+    )
+
+
+def log_grid() -> rx.Component:
+    """Log grid component."""
+    return rx.cond(
+        State.is_loading,
+        rx.spinner(loading=True),
         rx.box(
-            rx.hstack(
-                rx.text("Cache: "),
-                rx.select(
-                    items=State.cache_dirs,
-                    value=State.selected_cache,
-                    placeholder="Select cache date...",
-                    on_change=State.select_cache,
-                ),
-                rx.button(
-                    rx.icon("trash"),
-                    on_click=State.show_delete_confirmation,
-                    disabled=State.selected_cache == "",
-                    variant="soft",
-                    color="red",
-                ),
-                rx.spacer(),
-            )
-        ),
-        rx.cond(
-            State.is_loading,
-            rx.spinner(loading=True),
-            rx.box(
-                rx.data_table(
-                    data=State.log_data,
-                    columns=State.log_columns,
-                    pagination=True,
-                    search=True,
-                    sort=True,
-                    width="100%",
-                ),
+            rx.data_table(
+                data=State.log_data,
+                columns=State.log_columns,
+                pagination=True,
+                search=True,
+                sort=True,
+                width="100%",
             ),
         ),
-        # Delete confirmation dialog
+    )
+
+
+def confirm_delete_dialog() -> rx.Component:
+    """Delete confirmation dialog."""
+    return (
         rx.alert_dialog.root(
             rx.alert_dialog.content(
                 rx.alert_dialog.title("Delete Cache"),
@@ -148,5 +152,18 @@ def page():
             ),
             open=State.show_delete_dialog,
         ),
-        spacing="5",
+    )
+
+
+# pylint: disable=not-callable
+@rx.page(route="/cache", on_load=State.on_load)  # pyright: ignore[reportArgumentType]
+@template
+def page():
+    """The cache management page."""
+    return rx.vstack(
+        rx.heading("Cache Management", size="6", margin_bottom="1rem"),
+        cache_selector(),
+        log_grid(),
+        confirm_delete_dialog(),
+        spacing="0",
     )
