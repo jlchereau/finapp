@@ -36,6 +36,7 @@ The application currently has the following pages:
 - [Compare](../../app/pages/compare.py): The page triggers a workflow that fetches data from various sources to compare different assets.
 - [Optimize](../../app/pages/optimize.py): The page allows the creation of asset lists which are used to build optimized portfolios using various algorithms available in RiskFolio-Lib.
 - [Backtest](../../app/pages/backtest.py): The page allows the user to backtest a portfolio against historical data.
+- [Cache](../../app/pages/cache.py): The page allows the user to manage the cache and view logs.
 
 ## State Management
 
