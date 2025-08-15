@@ -556,7 +556,7 @@ class TestGlobalCacheSettingsYahoo:
         # Disable global cache
         from app.lib.settings import settings
 
-        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
+        monkeypatch.setattr(settings, "PROVIDER_CACHE_ENABLED", False)
 
         config = ProviderConfig()  # default cache_enabled True
         provider = YahooHistoryProvider(config)
@@ -580,7 +580,7 @@ class TestGlobalCacheSettingsYahoo:
         # Disable global cache
         from app.lib.settings import settings
 
-        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
+        monkeypatch.setattr(settings, "PROVIDER_CACHE_ENABLED", False)
 
         provider = YahooInfoProvider()  # default config
 

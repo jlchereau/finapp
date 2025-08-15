@@ -650,7 +650,7 @@ class TestGlobalCacheSettingsBlackrock:
         # Disable global cache
         from app.lib.settings import settings
 
-        monkeypatch.setattr(settings, "CACHE_ENABLED", False)
+        monkeypatch.setattr(settings, "PROVIDER_CACHE_ENABLED", False)
 
         provider = BlackrockHoldingsProvider(ProviderConfig())
 

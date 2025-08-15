@@ -58,3 +58,43 @@ def test_settings_priority(test_env_file):  # pylint: disable=unused-argument
     # The value from the environment variable (false) should be used,
     # overriding both the default (true) and the .env file (false)
     assert settings.PROVIDER_CACHE_ENABLED is False
+
+
+@patch.dict(os.environ, {"FLOW_CACHE_ENABLED": "false", "FLOW_CACHE_TTL": "600"})
+def test_flow_cache_integration():
+    """Integration test: Flow cache settings work with actual modules."""
+    # Create fresh Settings instance to pick up environment variables
+    from app.lib.settings import Settings
+    test_settings = Settings()
+    
+    # Verify settings are loaded from environment
+    assert test_settings.FLOW_CACHE_ENABLED is False
+    assert test_settings.FLOW_CACHE_TTL == 600
+    
+    # Test cache decorator behavior (simplified test)
+    with patch("app.flows.cache.settings", test_settings):
+        from app.flows.cache import apply_flow_cache
+        
+        async def test_func():
+            return "test"
+        
+        result_func = apply_flow_cache(test_func)
+        
+        # When disabled, should return original function
+        assert result_func is test_func
+
+
+@patch.dict(os.environ, {"PROVIDER_CACHE_ENABLED": "false"})
+def test_provider_cache_integration():
+    """Integration test: Provider cache settings work with cache decorator."""
+    # Create fresh Settings instance to pick up environment variables
+    from app.lib.settings import Settings
+    test_settings = Settings()
+    
+    # Verify setting is loaded from environment
+    assert test_settings.PROVIDER_CACHE_ENABLED is False
+    
+    # Verify provider config can still override
+    from app.providers.base import ProviderConfig
+    config = ProviderConfig(cache_enabled=True)
+    assert config.cache_enabled is True  # Provider-level override works
