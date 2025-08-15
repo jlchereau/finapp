@@ -28,7 +28,7 @@ def cache(func):  # decorator for async _fetch_data methods
 
         # Check if cache is enabled globally and for this provider
         cache_enabled = getattr(self.config, "cache_enabled", True)
-        if not settings.CACHE_ENABLED or not cache_enabled:
+        if not settings.PROVIDER_CACHE_ENABLED or not cache_enabled:
             # Directly fetch without caching
             return await func(self, query, *args, **kwargs)
         # Get cache file paths using unified storage utility

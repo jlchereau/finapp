@@ -12,11 +12,10 @@ from datetime import datetime
 import pandas as pd
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
-from aiocache import cached
-
 from ..providers.yahoo import create_yahoo_history_provider
 from ..lib.logger import logger
 from ..lib.finance import calculate_volatility, calculate_rsi
+from .cache import apply_flow_cache
 
 
 class DataFetchedEvent(Event):
@@ -231,7 +230,7 @@ class CompareDataWorkflow(Workflow):
         )
 
 
-@cached(ttl=300)  # 5 minutes cache
+@apply_flow_cache
 async def fetch_raw_ticker_data(
     tickers: List[str], base_date: datetime
 ) -> Dict[str, pd.DataFrame]:

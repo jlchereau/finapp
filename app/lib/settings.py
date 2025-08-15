@@ -24,8 +24,12 @@ class Settings(BaseSettings):
     # This can be overridden by setting the variable in a .env file
     # or as an environment variable.
     # PROVIDER_CONCURRENCY_LIMIT: int = (multiprocessing.cpu_count() or 1) * 2
-    # Enable or disable caching for providers (_fetch_data methods)
-    CACHE_ENABLED: bool = True
+    # Flow Cache Settings (aiocache in-memory)
+    FLOW_CACHE_ENABLED: bool = True
+    FLOW_CACHE_TTL: int = 300  # 5 minutes default
+
+    # Provider Cache Settings (file-based)
+    PROVIDER_CACHE_ENABLED: bool = True
 
     # This tells Pydantic to look for a .env file.
     model_config = SettingsConfigDict(
