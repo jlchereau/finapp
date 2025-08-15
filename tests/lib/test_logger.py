@@ -245,6 +245,7 @@ class TestCSVLogger:
             "file",
             "function",
             "params",
+            "exception",
         ]
         assert headers == expected_headers
 

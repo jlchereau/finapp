@@ -88,6 +88,7 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
             Exception: For other Tipranks-related errors
         """
         logger.debug(f"TipranksDataProvider._fetch_data called for query: {query}")
+        ticker = None  # Initialize ticker to avoid UnboundLocalError
         try:
             # Validate query
             if query is None or query.strip() == "":
@@ -175,19 +176,22 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
             # HTTP errors are generally retriable
-            logger.warning(f"HTTP error fetching TipRanks data for {ticker}: {e}")
+            query_info = ticker or query or "unknown"
+            logger.warning(f"HTTP error fetching TipRanks data for {query_info}: {e}")
             raise RetriableProviderException(
                 f"HTTP error fetching Tipranks data: {e}"
             ) from e
         except ValueError as e:
             # Non-retriable errors (e.g., empty data, invalid ticker)
+            query_info = ticker or query or "unknown"
             logger.error(
-                f"Non-retriable error in TipranksDataProvider for {ticker}: {e}"
+                f"Non-retriable error in TipranksDataProvider for {query_info}: {e}"
             )
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
             # Other errors retriable
-            logger.warning(f"Retriable error in TipranksDataProvider for {ticker}: {e}")
+            query_info = ticker or query or "unknown"
+            logger.warning(f"Retriable error in TipranksDataProvider for {query_info}: {e}")
             raise RetriableProviderException(str(e)) from e
 
 
@@ -222,6 +226,7 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
         logger.debug(
             f"TipranksNewsSentimentProvider._fetch_data called for query: {query}"
         )
+        ticker = None  # Initialize ticker to avoid UnboundLocalError
         try:
             # Validate query
             if query is None or query.strip() == "":
@@ -307,23 +312,26 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
             # HTTP errors are generally retriable
+            query_info = ticker or query or "unknown"
             logger.warning(
-                f"HTTP error fetching TipRanks news sentiment data for {ticker}: {e}"
+                f"HTTP error fetching TipRanks news sentiment data for {query_info}: {e}"
             )
             raise RetriableProviderException(
                 f"HTTP error fetching Tipranks news sentiment data: {e}"
             ) from e
         except ValueError as e:
             # Non-retriable errors (e.g., empty data, invalid ticker)
+            query_info = ticker or query or "unknown"
             logger.error(
-                f"Non-retriable error in TipranksNewsSentimentProvider for {ticker}: "
+                f"Non-retriable error in TipranksNewsSentimentProvider for {query_info}: "
                 f"{e}"
             )
             raise NonRetriableProviderException(str(e)) from e
         except Exception as e:
             # Other errors retriable
+            query_info = ticker or query or "unknown"
             logger.warning(
-                f"Retriable error in TipranksNewsSentimentProvider for {ticker}: {e}"
+                f"Retriable error in TipranksNewsSentimentProvider for {query_info}: {e}"
             )
             raise RetriableProviderException(str(e)) from e
 

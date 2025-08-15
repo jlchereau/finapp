@@ -3,7 +3,7 @@ Unit tests for the headers module.
 Tests user agent utilities and HTTP headers functionality.
 """
 
-from app.models.headers import (
+from app.providers.headers import (
     USER_AGENTS,
     get_random_user_agent,
     get_default_headers,

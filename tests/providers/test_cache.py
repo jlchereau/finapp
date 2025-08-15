@@ -6,8 +6,8 @@ import pandas as pd
 from pydantic import BaseModel
 import pytest
 
-from app.models.cache import cache
-from app.models.base import BaseProvider, ProviderType, ProviderConfig
+from app.providers.cache import cache
+from app.providers.base import BaseProvider, ProviderType, ProviderConfig
 
 
 class DummyDFProvider(BaseProvider[pd.DataFrame]):

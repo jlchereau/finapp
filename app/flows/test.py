@@ -10,9 +10,9 @@ from typing import Dict, Any, List, Optional
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from app.models.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
-from app.models.zacks import create_zacks_provider
-from app.models.base import ProviderResult
+from app.providers.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
+from app.providers.zacks import create_zacks_provider
+from app.providers.base import ProviderResult
 
 
 class DataFetchedEvent(Event):
@@ -77,7 +77,7 @@ class FinancialDataWorkflow(Workflow):
         for key, result in result_dict.items():
             if isinstance(result, Exception):
                 # Create a failed ProviderResult for consistency
-                from app.models.base import ProviderType
+                from app.providers.base import ProviderType
 
                 result_dict[key] = ProviderResult(
                     success=False,

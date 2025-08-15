@@ -10,14 +10,14 @@ from pandas import DataFrame
 from pydantic import BaseModel, ValidationError
 import pytest
 
-from app.models.yahoo import (
+from app.providers.yahoo import (
     YahooHistoryProvider,
     YahooInfoProvider,
     create_yahoo_history_provider,
     create_yahoo_info_provider,
     YahooInfoModel,
 )
-from app.models.base import ProviderType, ProviderConfig
+from app.providers.base import ProviderType, ProviderConfig
 
 os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 
@@ -60,7 +60,7 @@ class TestYahooHistoryProvider:
         assert provider.config.extra_config["interval"] == "1h"
 
     @pytest.mark.asyncio
-    @patch("app.models.yahoo.yf.Ticker")
+    @patch("app.providers.yahoo.yf.Ticker")
     async def test_fetch_data_success(self, mock_ticker_class):
         """Test successful data fetching."""
         # Mock the yfinance response
@@ -94,7 +94,7 @@ class TestYahooHistoryProvider:
         mock_ticker.history.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("app.models.yahoo.yf.Ticker")
+    @patch("app.providers.yahoo.yf.Ticker")
     async def test_fetch_data_with_custom_parameters(self, mock_ticker_class):
         """Test data fetching with custom period and interval."""
         mock_data = DataFrame({"Close": [100.0]})
@@ -112,7 +112,7 @@ class TestYahooHistoryProvider:
         mock_ticker.history.assert_called_once_with(period="6mo", interval="1h")
 
     @pytest.mark.asyncio
-    @patch("app.models.yahoo.yf.Ticker")
+    @patch("app.providers.yahoo.yf.Ticker")
     async def test_fetch_data_with_date_range(self, mock_ticker_class):
         """Test data fetching with start/end dates."""
         mock_data = DataFrame({"Close": [100.0]})
@@ -134,7 +134,7 @@ class TestYahooHistoryProvider:
         )
 
     @pytest.mark.asyncio
-    @patch("app.models.yahoo.yf.Ticker")
+    @patch("app.providers.yahoo.yf.Ticker")
     async def test_fetch_data_empty_response(self, mock_ticker_class):
         """Test handling of empty data response."""
         mock_ticker = MagicMock()
@@ -516,7 +516,7 @@ class TestCacheSettingsYahoo:
         # Patch yfinance history
         from pandas import DataFrame
 
-        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+        with patch("app.providers.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
             mock_ticker.history.return_value = DataFrame({"Close": [123]})
             mock_ticker_class.return_value = mock_ticker
@@ -564,7 +564,7 @@ class TestGlobalCacheSettingsYahoo:
         # Patch yfinance history
         from pandas import DataFrame
 
-        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+        with patch("app.providers.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
             mock_ticker.history.return_value = DataFrame({"Close": [1]})
             mock_ticker_class.return_value = mock_ticker
@@ -584,7 +584,7 @@ class TestGlobalCacheSettingsYahoo:
 
         provider = YahooInfoProvider()  # default config
 
-        with patch("app.models.yahoo.yf.Ticker") as mock_ticker_class:
+        with patch("app.providers.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
             mock_ticker.info = {"symbol": "AAPL"}
             mock_ticker_class.return_value = mock_ticker

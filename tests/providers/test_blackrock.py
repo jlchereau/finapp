@@ -10,11 +10,11 @@ import httpx
 import pandas as pd
 import pytest
 
-from app.models.blackrock import (
+from app.providers.blackrock import (
     BlackrockHoldingsProvider,
     create_blackrock_holdings_provider,
 )
-from app.models.base import ProviderType, ProviderConfig
+from app.providers.base import ProviderType, ProviderConfig
 
 os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 
@@ -74,7 +74,7 @@ class TestBlackrockHoldingsProvider:
         assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     @patch("httpx.AsyncClient")
     async def test_fetch_data_no_search_results(self, mock_client_class, mock_getenv):
         """Test handling when Serper API returns no results."""
@@ -99,7 +99,7 @@ class TestBlackrockHoldingsProvider:
         assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     @patch("httpx.AsyncClient")
     async def test_fetch_data_no_valid_etf_url(self, mock_client_class, mock_getenv):
         """Test handling when search results don't contain valid ETF URLs."""
@@ -129,7 +129,7 @@ class TestBlackrockHoldingsProvider:
         assert result.error_code == "NonRetriableProviderException"
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     @patch("httpx.AsyncClient")
     async def test_fetch_data_http_error(self, mock_client_class, mock_getenv):
         """Test handling of HTTP errors when fetching ETF page."""
@@ -159,7 +159,7 @@ class TestBlackrockHoldingsProvider:
         assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     @patch("httpx.AsyncClient")
     async def test_fetch_data_no_download_link(self, mock_client_class, mock_getenv):
         """Test handling when no Excel download link is found."""
@@ -192,7 +192,7 @@ class TestBlackrockHoldingsProvider:
         assert result.error_code == "RetriableProviderException"
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     @patch("httpx.AsyncClient")
     async def test_fetch_data_success(self, mock_client_class, mock_getenv):
         """Test successful data fetching and parsing."""
@@ -372,7 +372,7 @@ class TestBlackrockHoldingsProvider:
         assert cleaned_data["holding_name"].iloc[0] == "Apple Inc"
         assert cleaned_data["weight"].iloc[0] == 5.2  # Converted to float
 
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     def test_get_data_sync(self, mock_getenv):
         """Test synchronous wrapper."""
         # Mock Serper API key
@@ -448,7 +448,7 @@ class TestBlackrockProviderIntegration:
     """Integration tests for BlackRock provider."""
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     async def test_multiple_concurrent_requests(self, mock_getenv):
         """Test multiple concurrent requests to BlackRock provider."""
         # Mock Serper API key
@@ -505,7 +505,7 @@ class TestBlackrockProviderIntegration:
             assert len(results) == 3
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     async def test_error_handling_in_concurrent_requests(self, mock_getenv):
         """Test error handling when some concurrent requests fail."""
         # Mock Serper API key
@@ -580,7 +580,7 @@ class TestCacheSettingsBlackrock:
     """Test cases for cache setting on BlackRock provider."""
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     async def test_cache_disabled_per_provider(
         self, mock_getenv, tmp_path, monkeypatch
     ):
@@ -640,7 +640,7 @@ class TestGlobalCacheSettingsBlackrock:
     """Test cases for global cache setting on BlackRock provider."""
 
     @pytest.mark.asyncio
-    @patch("app.models.blackrock.os.getenv")
+    @patch("app.providers.blackrock.os.getenv")
     async def test_global_cache_disabled(self, mock_getenv, tmp_path, monkeypatch):
         # Mock Serper API key
         mock_getenv.return_value = "test_api_key"

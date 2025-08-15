@@ -1,0 +1,282 @@
+"""
+Reddit provider template for financial sentiment analysis.
+This module provides functionality to fetch financial discussions from Reddit.
+"""
+
+import asyncio
+import httpx
+from pydantic import BaseModel, Field
+from typing import List, Optional
+
+from .base import (
+    BaseProvider,
+    ProviderType,
+    ProviderConfig,
+    NonRetriableProviderException,
+    RetriableProviderException,
+)
+from .cache import cache
+from .headers import get_random_user_agent
+from ..lib.logger import logger
+
+
+class RedditPostModel(BaseModel):
+    """Pydantic model for Reddit post data."""
+    
+    id: str = Field(alias="id")
+    title: str = Field(alias="title", default="")
+    content: str = Field(alias="selftext", default="")
+    author: str = Field(alias="author", default="")
+    score: int = Field(alias="score", default=0)
+    upvote_ratio: float = Field(alias="upvote_ratio", default=0.0)
+    num_comments: int = Field(alias="num_comments", default=0)
+    created_utc: float = Field(alias="created_utc", default=0.0)
+    subreddit: str = Field(alias="subreddit", default="")
+    url: str = Field(alias="url", default="")
+    
+    # Derived fields for sentiment analysis
+    ticker_mentions: List[str] = Field(default_factory=list)
+    sentiment_score: Optional[float] = Field(default=None)
+    
+    model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class RedditSentimentModel(BaseModel):
+    """Aggregated sentiment data for a ticker from Reddit."""
+    
+    ticker: str
+    total_posts: int = Field(default=0)
+    total_mentions: int = Field(default=0)
+    average_score: float = Field(default=0.0)
+    average_upvote_ratio: float = Field(default=0.0)
+    sentiment_score: float = Field(default=0.0)
+    top_posts: List[RedditPostModel] = Field(default_factory=list)
+    subreddits: List[str] = Field(default_factory=list)
+    
+    model_config = {"populate_by_name": True, "extra": "ignore"}
+
+
+class RedditProvider(BaseProvider[BaseModel]):
+    """
+    Provider for fetching financial sentiment data from Reddit.
+    
+    This provider searches Reddit for posts mentioning specific tickers
+    and provides sentiment analysis of the discussions.
+    """
+    
+    def _get_provider_type(self) -> ProviderType:
+        """Return the provider type."""
+        return ProviderType.CUSTOM
+    
+    @cache
+    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
+        """
+        Fetch Reddit posts mentioning a ticker and analyze sentiment.
+        
+        Args:
+            query: Stock ticker symbol to search for
+            **kwargs: Additional parameters:
+                - subreddits: List of subreddits to search (default: financial subs)
+                - limit: Number of posts to fetch (default: 100)
+                - time_filter: Time period (hour, day, week, month, year, all)
+        
+        Returns:
+            RedditSentimentModel with aggregated sentiment data
+            
+        Raises:
+            NonRetriableProviderException: For invalid tickers or API errors
+            RetriableProviderException: For network issues
+        """
+        logger.debug(f"RedditProvider._fetch_data called for query: {query}")
+        
+        # Validate query
+        if query is None or query.strip() == "":
+            logger.error("Query cannot be None or empty for RedditProvider")
+            raise NonRetriableProviderException(
+                "Query must be provided for RedditProvider"
+            )
+        
+        ticker = query.upper().strip()
+        logger.debug(f"Normalized ticker: {ticker}")
+        
+        # Configuration
+        subreddits = kwargs.get("subreddits", [
+            "stocks", "investing", "SecurityAnalysis", "ValueInvesting",
+            "StockMarket", "financialindependence", "dividends"
+        ])
+        limit = kwargs.get("limit", 100)
+        time_filter = kwargs.get("time_filter", "week")
+        
+        user_agent = get_random_user_agent()
+        headers = {"User-Agent": user_agent}
+        
+        try:
+            # Fetch posts from multiple subreddits
+            all_posts = []
+            
+            async with httpx.AsyncClient(timeout=self.config.timeout) as client:
+                for subreddit in subreddits:
+                    posts = await self._fetch_subreddit_posts(
+                        client, subreddit, ticker, limit, time_filter, headers
+                    )
+                    all_posts.extend(posts)
+            
+            # Analyze sentiment and aggregate results
+            sentiment_data = self._analyze_sentiment(ticker, all_posts)
+            
+            logger.debug(f"Successfully analyzed {len(all_posts)} Reddit posts for {ticker}")
+            return sentiment_data
+            
+        except httpx.HTTPStatusError as e:
+            logger.warning(f"HTTP error fetching Reddit data for {ticker}: {e}")
+            raise RetriableProviderException(
+                f"HTTP error fetching Reddit data: {e}"
+            ) from e
+        except httpx.RequestError as e:
+            logger.warning(f"Network error fetching Reddit data for {ticker}: {e}")
+            raise RetriableProviderException(
+                f"Network error connecting to Reddit: {e}"
+            ) from e
+        except Exception as e:
+            logger.error(f"Unexpected error in RedditProvider for {ticker}: {e}")
+            raise RetriableProviderException(str(e)) from e
+    
+    async def _fetch_subreddit_posts(
+        self, 
+        client: httpx.AsyncClient,
+        subreddit: str,
+        ticker: str,
+        limit: int,
+        time_filter: str,
+        headers: dict
+    ) -> List[RedditPostModel]:
+        """Fetch posts from a specific subreddit mentioning the ticker."""
+        
+        # Use Reddit's JSON API (no authentication required for public posts)
+        url = f"https://www.reddit.com/r/{subreddit}/search.json"
+        params = {
+            "q": ticker,
+            "limit": limit,
+            "t": time_filter,
+            "sort": "relevance",
+            "restrict_sr": "true"
+        }
+        
+        logger.info(f"Searching r/{subreddit} for {ticker} posts")
+        
+        response = await client.get(url, headers=headers, params=params)
+        response.raise_for_status()
+        
+        data = response.json()
+        posts = []
+        
+        if "data" in data and "children" in data["data"]:
+            for post_data in data["data"]["children"]:
+                post = post_data.get("data", {})
+                
+                # Filter posts that actually mention the ticker
+                if self._mentions_ticker(post, ticker):
+                    reddit_post = RedditPostModel(**post)
+                    reddit_post.ticker_mentions = [ticker]
+                    posts.append(reddit_post)
+        
+        return posts
+    
+    def _mentions_ticker(self, post: dict, ticker: str) -> bool:
+        """Check if a post actually mentions the ticker symbol."""
+        title = post.get("title", "").upper()
+        content = post.get("selftext", "").upper()
+        
+        # Look for ticker mentions (with some context to avoid false positives)
+        ticker_patterns = [
+            f"${ticker}",  # $AAPL format
+            f" {ticker} ",  # Standalone ticker
+            f"({ticker})",  # Ticker in parentheses
+        ]
+        
+        text = f"{title} {content}"
+        return any(pattern in text for pattern in ticker_patterns)
+    
+    def _analyze_sentiment(self, ticker: str, posts: List[RedditPostModel]) -> RedditSentimentModel:
+        """Analyze sentiment from collected posts."""
+        
+        if not posts:
+            return RedditSentimentModel(ticker=ticker)
+        
+        # Simple sentiment analysis based on scores and keywords
+        total_score = sum(post.score for post in posts)
+        total_upvote_ratio = sum(post.upvote_ratio for post in posts)
+        
+        # Basic keyword-based sentiment scoring
+        sentiment_scores = []
+        for post in posts:
+            text = f"{post.title} {post.content}".lower()
+            score = self._calculate_text_sentiment(text)
+            post.sentiment_score = score
+            sentiment_scores.append(score)
+        
+        # Get top posts by score
+        top_posts = sorted(posts, key=lambda p: p.score, reverse=True)[:10]
+        
+        # Get unique subreddits
+        subreddits = list(set(post.subreddit for post in posts))
+        
+        return RedditSentimentModel(
+            ticker=ticker,
+            total_posts=len(posts),
+            total_mentions=len(posts),  # Each post is a mention
+            average_score=total_score / len(posts) if posts else 0,
+            average_upvote_ratio=total_upvote_ratio / len(posts) if posts else 0,
+            sentiment_score=sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0,
+            top_posts=top_posts,
+            subreddits=subreddits
+        )
+    
+    def _calculate_text_sentiment(self, text: str) -> float:
+        """Simple keyword-based sentiment analysis."""
+        positive_keywords = [
+            "bullish", "buy", "moon", "rocket", "gains", "profit", "green",
+            "bull", "strong", "growth", "rise", "up", "positive", "good"
+        ]
+        negative_keywords = [
+            "bearish", "sell", "crash", "loss", "red", "bear", "weak",
+            "decline", "down", "fall", "negative", "bad", "drop"
+        ]
+        
+        positive_count = sum(1 for word in positive_keywords if word in text)
+        negative_count = sum(1 for word in negative_keywords if word in text)
+        
+        if positive_count + negative_count == 0:
+            return 0.0  # Neutral
+        
+        # Return sentiment score between -1 (negative) and 1 (positive)
+        return (positive_count - negative_count) / (positive_count + negative_count)
+
+
+# Factory function for easy provider creation
+def create_reddit_provider(
+    timeout: float = 30.0,
+    retries: int = 3,
+    rate_limit: float = 2.0,  # Be polite to Reddit's API
+) -> RedditProvider:
+    """
+    Factory function to create a Reddit provider with custom settings.
+    
+    Args:
+        timeout: Request timeout in seconds
+        retries: Number of retry attempts
+        rate_limit: Requests per second limit
+        
+    Returns:
+        Configured RedditProvider instance
+    """
+    logger.debug(
+        f"Creating RedditProvider: timeout={timeout}s, retries={retries}, "
+        f"rate_limit={rate_limit} req/s"
+    )
+    config = ProviderConfig(
+        timeout=timeout, 
+        retries=retries, 
+        rate_limit=rate_limit
+    )
+    return RedditProvider(config)

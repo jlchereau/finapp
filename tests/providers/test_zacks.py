@@ -10,12 +10,12 @@ import httpx
 from pydantic import BaseModel, ValidationError
 import pytest
 
-from app.models.zacks import (
+from app.providers.zacks import (
     ZacksProvider,
     create_zacks_provider,
     ZacksModel,
 )
-from app.models.base import ProviderType, ProviderConfig
+from app.providers.base import ProviderType, ProviderConfig
 
 
 os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
@@ -61,20 +61,24 @@ class TestZacksProvider:
     @patch("httpx.AsyncClient")
     async def test_fetch_data_success(self, mock_client_class):
         """Test successful data fetching from Zacks API."""
-        # Mock the httpx response
+        # Mock the httpx response with correct API field names
         mock_response_data = {
             "ticker": "AAPL",
-            "price": 150.50,
-            "change": 2.50,
-            "percentChange": 1.68,
+            "last": 150.50,  # price field alias
+            "net_change": 2.50,  # change field alias
+            "percent_net_change": 1.68,  # percent_change field alias
             "volume": 50000000,
             "high": 152.0,
             "low": 149.0,
             "open": 151.0,
-            "previousClose": 148.0,
+            "previous_close": 148.0,  # previous_close field alias
             "marketCap": 2500000000000,
-            "peRatio": 25.5,
-            "zacksRank": 2,
+            "pe_f1": 25.5,  # pe_ratio field alias
+            "zacks_rank": 2,
+            "zacks_rank_text": "Buy",
+            "dividend_yield": 2.1,
+            "market_status": "OPEN",
+            "name": "Apple Inc.",  # company_name field alias
             "valueScore": "B",
             "growthScore": "A",
             "momentumScore": "B",
@@ -243,8 +247,8 @@ class TestZacksProvider:
         """Test handling of partial data response with strict validation."""
         mock_response_data = {
             "ticker": "AAPL",
-            "price": 150.50,
-            # Missing many required fields
+            "last": 150.50,  # price field alias
+            # Missing many required fields to test validation
         }
 
         mock_response = MagicMock()
@@ -262,7 +266,7 @@ class TestZacksProvider:
         # Should fail due to strict validation requiring all fields
         assert result.success is False
         assert result.data is None
-        assert "Field required" in (result.error_message or "")
+        assert "Zacks model validation failed" in (result.error_message or "")
 
     @pytest.mark.asyncio
     @patch("httpx.AsyncClient")
@@ -354,17 +358,21 @@ class TestZacksProvider:
             mock_response = MagicMock()
             mock_response.json.return_value = {
                 "ticker": "AAPL",
-                "price": 150.0,
-                "change": 2.5,
-                "percentChange": 1.68,
+                "last": 150.0,  # price field alias
+                "net_change": 2.5,  # change field alias
+                "percent_net_change": 1.68,  # percent_change field alias
                 "volume": 50000000,
                 "high": 152.0,
                 "low": 149.0,
                 "open": 151.0,
-                "previousClose": 148.0,
+                "previous_close": 148.0,  # previous_close field alias
                 "marketCap": 2500000000000,
-                "peRatio": 25.5,
-                "zacksRank": 2,
+                "pe_f1": 25.5,  # pe_ratio field alias
+                "zacks_rank": 2,
+                "zacks_rank_text": "Buy",
+                "dividend_yield": 2.1,
+                "market_status": "OPEN",
+                "name": "Apple Inc.",  # company_name field alias
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",
@@ -412,19 +420,23 @@ class TestZacksConfig:
         """Test that Zacks model has expected structure."""
         # Test with realistic Zacks API data including extra fields to ignore
         test_data = {
-            # Required fields we need
+            # Required fields we need (using API field names/aliases)
             "ticker": "AAPL",
-            "price": 150.50,
-            "change": 2.50,
-            "percentChange": 1.68,
+            "last": 150.50,  # price field alias
+            "net_change": 2.50,  # change field alias
+            "percent_net_change": 1.68,  # percent_change field alias
             "volume": 50000000,
             "high": 152.0,
             "low": 149.0,
             "open": 151.0,
-            "previousClose": 148.0,
+            "previous_close": 148.0,  # previous_close field alias
             "marketCap": 2500000000000,
-            "peRatio": 25.5,
-            "zacksRank": 2,
+            "pe_f1": 25.5,  # pe_ratio field alias
+            "zacks_rank": 2,
+            "zacks_rank_text": "Buy",
+            "dividend_yield": 2.1,
+            "market_status": "OPEN",
+            "name": "Apple Inc.",  # company_name field alias
             "valueScore": "B",
             "growthScore": "A",
             "momentumScore": "B",
@@ -450,20 +462,24 @@ class TestZacksConfig:
 
     def test_zacks_model_aliases(self):
         """Test that aliases work correctly."""
-        # Test data with complete Zacks API field names
+        # Test data with complete Zacks API field names using aliases
         test_data = {
             "ticker": "AAPL",
-            "price": 150.50,
-            "change": 2.50,
-            "percentChange": 1.68,
+            "last": 150.50,  # price field alias
+            "net_change": 2.50,  # change field alias
+            "percent_net_change": 1.68,  # percent_change field alias
             "volume": 50000000,
             "high": 152.0,
             "low": 149.0,
             "open": 151.0,
-            "previousClose": 148.0,
+            "previous_close": 148.0,  # previous_close field alias
             "marketCap": 2500000000000,
-            "peRatio": 25.5,
-            "zacksRank": 2,
+            "pe_f1": 25.5,  # pe_ratio field alias
+            "zacks_rank": 2,
+            "zacks_rank_text": "Buy",
+            "dividend_yield": 2.1,
+            "market_status": "OPEN",
+            "name": "Apple Inc.",  # company_name field alias
             "valueScore": "B",
             "growthScore": "A",
             "momentumScore": "B",
@@ -506,17 +522,21 @@ class TestZacksProviderIntegration:
             mock_response = MagicMock()
             mock_response.json.return_value = {
                 "ticker": "TEST",
-                "price": 100.0,
-                "change": 1.5,
-                "percentChange": 1.52,
+                "last": 100.0,  # price field alias
+                "net_change": 1.5,  # change field alias
+                "percent_net_change": 1.52,  # percent_change field alias
                 "volume": 30000000,
                 "high": 101.0,
                 "low": 99.0,
                 "open": 100.5,
-                "previousClose": 98.5,
+                "previous_close": 98.5,  # previous_close field alias
                 "marketCap": 1500000000000,
-                "peRatio": 20.0,
-                "zacksRank": 3,
+                "pe_f1": 20.0,  # pe_ratio field alias
+                "zacks_rank": 3,
+                "zacks_rank_text": "Hold",
+                "dividend_yield": 1.5,
+                "market_status": "OPEN",
+                "name": "Test Corp.",  # company_name field alias
                 "valueScore": "A",
                 "growthScore": "B",
                 "momentumScore": "A",
@@ -555,17 +575,21 @@ class TestZacksProviderIntegration:
             mock_response = MagicMock()
             mock_response.json.return_value = {
                 "ticker": "AAPL",
-                "price": 150.0,
-                "change": 2.5,
-                "percentChange": 1.68,
+                "last": 150.0,  # price field alias
+                "net_change": 2.5,  # change field alias
+                "percent_net_change": 1.68,  # percent_change field alias
                 "volume": 50000000,
                 "high": 152.0,
                 "low": 149.0,
                 "open": 151.0,
-                "previousClose": 148.0,
+                "previous_close": 148.0,  # previous_close field alias
                 "marketCap": 2500000000000,
-                "peRatio": 25.5,
-                "zacksRank": 2,
+                "pe_f1": 25.5,  # pe_ratio field alias
+                "zacks_rank": 2,
+                "zacks_rank_text": "Buy",
+                "dividend_yield": 2.1,
+                "market_status": "OPEN",
+                "name": "Apple Inc.",  # company_name field alias
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",
@@ -600,17 +624,21 @@ class TestZacksProviderIntegration:
             success_response = MagicMock()
             success_response.json.return_value = {
                 "ticker": "AAPL",
-                "price": 150.0,
-                "change": 2.5,
-                "percentChange": 1.68,
+                "last": 150.0,  # price field alias
+                "net_change": 2.5,  # change field alias
+                "percent_net_change": 1.68,  # percent_change field alias
                 "volume": 50000000,
                 "high": 152.0,
                 "low": 149.0,
                 "open": 151.0,
-                "previousClose": 148.0,
+                "previous_close": 148.0,  # previous_close field alias
                 "marketCap": 2500000000000,
-                "peRatio": 25.5,
-                "zacksRank": 2,
+                "pe_f1": 25.5,  # pe_ratio field alias
+                "zacks_rank": 2,
+                "zacks_rank_text": "Buy",
+                "dividend_yield": 2.1,
+                "market_status": "OPEN",
+                "name": "Apple Inc.",  # company_name field alias
                 "valueScore": "B",
                 "growthScore": "A",
                 "momentumScore": "B",

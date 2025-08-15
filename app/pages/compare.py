@@ -63,10 +63,10 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
         }
 
-    async def get_price_data(self, tickers: List[str], base_date: datetime):
+    async def get_price_data(self, tickers: List[str], base_date: datetime) -> pd.DataFrame:
         """Get normalized price data for tickers from base_date using workflow."""
         if not tickers:
-            return None
+            return pd.DataFrame()
 
         try:
             # Use the compare workflow to fetch and normalize data
@@ -76,42 +76,41 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             normalized_data = result.get("data")
 
             if normalized_data is None or normalized_data.empty:
-                print(f"Workflow returned empty data: {result}")
                 return pd.DataFrame()
 
             # Log successful and failed tickers
             successful = result.get("successful_tickers", [])
             failed = result.get("failed_tickers", [])
 
-            if successful:
-                print(f"Successfully fetched data for: {', '.join(successful)}")
-            if failed:
-                print(f"Failed to fetch data for: {', '.join(failed)}")
-
-            # Debug the returned data
-            print(f"Normalized data shape: {normalized_data.shape}")
-            print(f"Normalized data columns: {list(normalized_data.columns)}")
-            print(f"Normalized data index range: {normalized_data.index.min()} to {normalized_data.index.max()}")
-            print(f"First few rows:\n{normalized_data.head()}")
-
             return normalized_data
 
         except Exception as e:
-            print(f"Error fetching price data via workflow: {e}")
             return pd.DataFrame()
 
     def add_ticker(self):
         """Add ticker to selected list."""
-        if self.ticker_input and self.ticker_input.upper() not in self.selected_tickers:
-            self.selected_tickers.append(self.ticker_input.upper())
-            self.ticker_input = ""
-            yield CompareState.update_chart
+        if not self.ticker_input:
+            yield rx.toast.warning("Please enter a ticker symbol")
+            return
+        
+        ticker = self.ticker_input.upper()
+        if ticker in self.selected_tickers:
+            yield rx.toast.warning(f"{ticker} is already in the comparison")
+            return
+            
+        self.selected_tickers.append(ticker)
+        self.ticker_input = ""
+        yield rx.toast.info(f"Added {ticker} to comparison")
+        yield CompareState.update_chart
 
     def remove_ticker(self, ticker: str):
         """Remove ticker from selected list."""
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
+            yield rx.toast.info(f"Removed {ticker} from comparison")
             yield CompareState.update_chart
+        else:
+            yield rx.toast.warning(f"{ticker} not found in comparison list")
 
     def set_ticker_input(self, value: str | None):
         """Set ticker input value."""
@@ -131,6 +130,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     def set_base_date(self, option: str):
         """Set base date option and update chart."""
         self.base_date_option = option
+        yield rx.toast.info(f"Changed time period to {option}")
         yield CompareState.update_chart
 
     @rx.event(background=True)
@@ -150,8 +150,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             if base_date is None:
                 # For MAX option, use a very old date
                 base_date = datetime(2000, 1, 1)
+                async with self:
+                    yield rx.toast.info("Loading maximum available data...")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
+                async with self:
+                    yield rx.toast.info(f"Loading data from {self.base_date_option} ({base_date.strftime('%Y-%m-%d')})")
 
             # Get price data
             price_data = await self.get_price_data(self.selected_tickers, base_date)
@@ -159,7 +163,13 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             if price_data is None or price_data.empty:
                 async with self:
                     self.chart_figure = go.Figure()
+                    yield rx.toast.warning("No data available for selected tickers and date range")
                 return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(f"Loaded data for {', '.join(price_data.columns)}")
+                yield rx.toast.info(f"Data: {price_data.shape[0]} days, {price_data.shape[1]} tickers")
 
             # Create plotly chart
             fig = go.Figure()
@@ -240,11 +250,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
             async with self:
                 self.chart_figure = fig
+                yield rx.toast.success(f"Chart updated with {len(price_data.columns)} tickers")
 
         except Exception as e:
-            print(f"Chart update error: {e}")
             async with self:
                 self.chart_figure = go.Figure()
+                yield rx.toast.error(f"Chart update failed: {str(e)}")
         finally:
             async with self:
                 self.loading_chart = False

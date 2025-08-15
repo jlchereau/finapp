@@ -9,7 +9,7 @@ from unittest.mock import patch, MagicMock
 import httpx
 import pytest
 
-from app.models.tipranks import (
+from app.providers.tipranks import (
     TipranksDataProvider,
     TipranksDataModel,
     TipranksNewsSentimentProvider,
@@ -17,7 +17,7 @@ from app.models.tipranks import (
     create_tipranks_data_provider,
     create_tipranks_news_sentiment_provider,
 )
-from app.models.base import ProviderType, ProviderConfig
+from app.providers.base import ProviderType, ProviderConfig
 
 os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 

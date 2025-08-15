@@ -13,7 +13,7 @@ import pandas as pd
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from ..models.yahoo import create_yahoo_history_provider
+from ..providers.yahoo import create_yahoo_history_provider
 from ..lib.logger import logger
 
 

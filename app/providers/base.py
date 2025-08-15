@@ -161,6 +161,11 @@ class BaseProvider(ABC, Generic[T]):
             f"timeout={self.config.timeout}s, retries={self.config.retries}"
         )
 
+    @property
+    def logger(self):
+        """Provide access to the global logger instance."""
+        return logger
+
     @abstractmethod
     def _get_provider_type(self) -> ProviderType:
         """Return the provider type. Must be implemented by subclasses."""

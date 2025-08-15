@@ -9,7 +9,7 @@ from datetime import datetime
 import pytest
 from pandas import DataFrame
 
-from app.models.base import (
+from app.providers.base import (
     BaseProvider,
     ProviderType,
     ProviderStatus,
@@ -275,8 +275,8 @@ class TestBaseProvider:
     @pytest.mark.asyncio
     async def test_logger_usage(self):
         """Test that logger is used properly."""
-        with patch("app.models.base.logger.info") as mock_info, patch(
-            "app.models.base.logger.warning"
+        with patch("app.providers.base.logger.info") as mock_info, patch(
+            "app.providers.base.logger.warning"
         ) as mock_warning:
 
             # Test successful case

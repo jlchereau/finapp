@@ -75,7 +75,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
   - **storage.py**: Unified date-based storage utilities for cache and data management
   - **settings.py**: Application configuration management
   - **finance.py**: Financial calculation utilities
-- **app/models/**: Data provider models and caching system
+- **app/providers/**: Data provider system for external APIs
   - **base.py**: Base provider class with rate limiting and error handling
   - **cache.py**: Decorator for caching provider responses (JSON/Parquet)
   - **yahoo.py, blackrock.py, tipranks.py, zacks.py**: Active data providers
@@ -134,10 +134,11 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Context Detection**: Automatically identifies workflow vs app context
 - **Thread-Safe**: Concurrent logging support with file locking
 
-### Data Provider System (`app/models/`)
+### Data Provider System (`app/providers/`)
 - **Base Provider** (`base.py`): Abstract base with rate limiting, retries, error handling
 - **Cache Decorator** (`cache.py`): Automatic caching of API responses (JSON/Parquet)
 - **Active Providers**: Yahoo Finance, BlackRock, TipRanks, Zacks
+- **Pydantic Models**: Type-safe data validation with field aliases for API mapping
 - **HTTP Management**: Custom headers, user agents, timeout handling
 
 ### Cache Management Interface (`app/pages/cache.py`)
