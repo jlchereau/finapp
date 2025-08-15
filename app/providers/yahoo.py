@@ -68,7 +68,7 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
                   1h, 1d, 5d, 1wk, 1mo, 3mo)
                 - start: Start date (YYYY-MM-DD)
                 - end: End date (YYYY-MM-DD)
-                  
+
         Note:
             Defaults to "max" period to ensure maximum historical data is cached.
             Workflows can filter to shorter periods without re-fetching.
@@ -237,7 +237,7 @@ def create_yahoo_history_provider(
 
     Returns:
         Configured YahooHistoryProvider instance
-        
+
     Note:
         The default period is "max" to ensure maximum historical data is cached.
         Workflows can filter to shorter durations, but cannot bypass cache for longer periods.

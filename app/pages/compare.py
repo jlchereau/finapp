@@ -10,7 +10,12 @@ import reflex as rx
 import plotly.graph_objects as go
 
 from ..components.combobox import combobox_wrapper as combobox
-from ..flows.compare import fetch_compare_data
+from ..flows.compare import (
+    fetch_returns_data,
+    fetch_volatility_data,
+    fetch_volume_data,
+    fetch_rsi_data,
+)
 from ..templates.template import template
 
 
@@ -45,10 +50,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     ]
 
     # Chart data
-    chart_figure: go.Figure = go.Figure()
+    chart_figure_returns: go.Figure = go.Figure()
+    chart_figure_volatility: go.Figure = go.Figure()
+    chart_figure_volume: go.Figure = go.Figure()
+    chart_figure_rsi: go.Figure = go.Figure()
 
     # Loading states
-    loading_chart: bool = False
+    loading_returns: bool = False
+    loading_volatility: bool = False
+    loading_volume: bool = False
+    loading_rsi: bool = False
 
     def get_theme_colors(self):
         """Get neutral colors that work well in both themes."""
@@ -63,14 +74,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
         }
 
-    async def get_price_data(self, tickers: List[str], base_date: datetime) -> pd.DataFrame:
-        """Get normalized price data for tickers from base_date using workflow."""
+    async def get_returns_data(
+        self, tickers: List[str], base_date: datetime
+    ) -> pd.DataFrame:
+        """Get normalized returns data for tickers from base_date using workflow."""
         if not tickers:
             return pd.DataFrame()
 
         try:
             # Use the compare workflow to fetch and normalize data
-            result = await fetch_compare_data(tickers, base_date)
+            result = await fetch_returns_data(tickers, base_date)
 
             # Extract the normalized DataFrame
             normalized_data = result.get("data")
@@ -78,13 +91,66 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             if normalized_data is None or normalized_data.empty:
                 return pd.DataFrame()
 
-            # Log successful and failed tickers
-            successful = result.get("successful_tickers", [])
-            failed = result.get("failed_tickers", [])
-
             return normalized_data
 
-        except Exception as e:
+        except Exception:
+            return pd.DataFrame()
+
+    async def get_volatility_data(
+        self, tickers: List[str], base_date: datetime
+    ) -> pd.DataFrame:
+        """Get volatility data for tickers from base_date using workflow."""
+        if not tickers:
+            return pd.DataFrame()
+
+        try:
+            result = await fetch_volatility_data(tickers, base_date)
+            volatility_data = result.get("data")
+
+            if volatility_data is None or volatility_data.empty:
+                return pd.DataFrame()
+
+            return volatility_data
+
+        except Exception:
+            return pd.DataFrame()
+
+    async def get_volume_data(
+        self, tickers: List[str], base_date: datetime
+    ) -> pd.DataFrame:
+        """Get volume data for tickers from base_date using workflow."""
+        if not tickers:
+            return pd.DataFrame()
+
+        try:
+            result = await fetch_volume_data(tickers, base_date)
+            volume_data = result.get("data")
+
+            if volume_data is None or volume_data.empty:
+                return pd.DataFrame()
+
+            return volume_data
+
+        except Exception:
+            return pd.DataFrame()
+
+    async def get_rsi_data(
+        self, tickers: List[str], base_date: datetime
+    ) -> pd.DataFrame:
+        """Get RSI data for tickers from base_date using workflow."""
+        if not tickers:
+            return pd.DataFrame()
+
+        try:
+            result = await fetch_rsi_data(tickers, base_date)
+            rsi_data = result.get("data")
+
+            if rsi_data is None or rsi_data.empty:
+                return pd.DataFrame()
+
+            return rsi_data
+
+        except Exception:
             return pd.DataFrame()
 
     def add_ticker(self):
@@ -92,23 +158,29 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not self.ticker_input:
             yield rx.toast.warning("Please enter a ticker symbol")
             return
-        
+
         ticker = self.ticker_input.upper()
         if ticker in self.selected_tickers:
             yield rx.toast.warning(f"{ticker} is already in the comparison")
             return
-            
+
         self.selected_tickers.append(ticker)
         self.ticker_input = ""
         yield rx.toast.info(f"Added {ticker} to comparison")
-        yield CompareState.update_chart
+        yield CompareState.update_returns_chart
+        yield CompareState.update_volatility_chart
+        yield CompareState.update_volume_chart
+        yield CompareState.update_rsi_chart
 
     def remove_ticker(self, ticker: str):
         """Remove ticker from selected list."""
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
             yield rx.toast.info(f"Removed {ticker} from comparison")
-            yield CompareState.update_chart
+            yield CompareState.update_returns_chart
+            yield CompareState.update_volatility_chart
+            yield CompareState.update_volume_chart
+            yield CompareState.update_rsi_chart
         else:
             yield rx.toast.warning(f"{ticker} not found in comparison list")
 
@@ -128,21 +200,24 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         self.active_tab = tab
 
     def set_base_date(self, option: str):
-        """Set base date option and update chart."""
+        """Set base date option and update all charts."""
         self.base_date_option = option
         yield rx.toast.info(f"Changed time period to {option}")
-        yield CompareState.update_chart
+        yield CompareState.update_returns_chart
+        yield CompareState.update_volatility_chart
+        yield CompareState.update_volume_chart
+        yield CompareState.update_rsi_chart
 
     @rx.event(background=True)
-    async def update_chart(self):
-        """Update the plotly chart using background processing."""
+    async def update_returns_chart(self):
+        """Update the returns chart using background processing."""
         if not self.selected_tickers:
             async with self:
-                self.chart_figure = go.Figure()
+                self.chart_figure_returns = go.Figure()
             return
 
         async with self:
-            self.loading_chart = True
+            self.loading_returns = True
 
         try:
             # Calculate base date
@@ -155,21 +230,29 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
                 async with self:
-                    yield rx.toast.info(f"Loading data from {self.base_date_option} ({base_date.strftime('%Y-%m-%d')})")
+                    yield rx.toast.info(
+                        f"Loading data from {self.base_date_option} ({base_date.strftime('%Y-%m-%d')})"
+                    )
 
-            # Get price data
-            price_data = await self.get_price_data(self.selected_tickers, base_date)
+            # Get returns data
+            returns_data = await self.get_returns_data(self.selected_tickers, base_date)
 
-            if price_data is None or price_data.empty:
+            if returns_data is None or returns_data.empty:
                 async with self:
-                    self.chart_figure = go.Figure()
-                    yield rx.toast.warning("No data available for selected tickers and date range")
+                    self.chart_figure_returns = go.Figure()
+                    yield rx.toast.warning(
+                        "No data available for selected tickers and date range"
+                    )
                 return
 
             # Log successful data fetch
             async with self:
-                yield rx.toast.success(f"Loaded data for {', '.join(price_data.columns)}")
-                yield rx.toast.info(f"Data: {price_data.shape[0]} days, {price_data.shape[1]} tickers")
+                yield rx.toast.success(
+                    f"Loaded data for {', '.join(returns_data.columns)}"
+                )
+                yield rx.toast.info(
+                    f"Data: {returns_data.shape[0]} days, {returns_data.shape[1]} tickers"
+                )
 
             # Create plotly chart
             fig = go.Figure()
@@ -185,12 +268,12 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "#e377c2",
             ]
 
-            for i, ticker in enumerate(price_data.columns):
+            for i, ticker in enumerate(returns_data.columns):
                 color = colors[i % len(colors)]
                 fig.add_trace(
                     go.Scatter(
-                        x=price_data.index,
-                        y=price_data[ticker],
+                        x=returns_data.index,
+                        y=returns_data[ticker],
                         mode="lines",
                         name=ticker,
                         line=dict(color=color, width=2),
@@ -205,7 +288,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             theme_colors = self.get_theme_colors()
 
             # Update layout
-            title = f"Price Comparison ({', '.join(self.selected_tickers)})"
+            title = f"Returns Comparison ({', '.join(self.selected_tickers)})"
             layout_props = {
                 "title": title,
                 "xaxis_title": "Date",
@@ -249,16 +332,383 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             )
 
             async with self:
-                self.chart_figure = fig
-                yield rx.toast.success(f"Chart updated with {len(price_data.columns)} tickers")
+                self.chart_figure_returns = fig
+                yield rx.toast.success(
+                    f"Returns chart updated with {len(returns_data.columns)} tickers"
+                )
 
-        except Exception as e:
+        except Exception:
             async with self:
-                self.chart_figure = go.Figure()
-                yield rx.toast.error(f"Chart update failed: {str(e)}")
+                self.chart_figure_returns = go.Figure()
+                yield rx.toast.error("Returns chart update failed")
         finally:
             async with self:
-                self.loading_chart = False
+                self.loading_returns = False
+
+    @rx.event(background=True)
+    async def update_volatility_chart(self):
+        """Update the volatility chart using background processing."""
+        if not self.selected_tickers:
+            async with self:
+                self.chart_figure_volatility = go.Figure()
+            return
+
+        async with self:
+            self.loading_volatility = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                base_date = datetime(2000, 1, 1)
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            # Get volatility data
+            volatility_data = await self.get_volatility_data(
+                self.selected_tickers, base_date
+            )
+
+            if volatility_data is None or volatility_data.empty:
+                async with self:
+                    self.chart_figure_volatility = go.Figure()
+                return
+
+            # Create plotly chart
+            fig = go.Figure()
+
+            # Plot each ticker
+            colors = [
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+                "#e377c2",
+            ]
+
+            for i, ticker in enumerate(volatility_data.columns):
+                color = colors[i % len(colors)]
+                fig.add_trace(
+                    go.Scatter(
+                        x=volatility_data.index,
+                        y=volatility_data[ticker],
+                        mode="lines",
+                        name=ticker,
+                        line=dict(color=color, width=2),
+                        hovertemplate=f"<b>{ticker}</b><br>"
+                        + "Date: %{x}<br>"
+                        + "Volatility: %{y:.2f}%<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+
+            # Update layout
+            title = f"Volatility Comparison ({', '.join(self.selected_tickers)})"
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Date",
+                "yaxis_title": "Volatility (%)",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 600,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",
+                ),
+            }
+
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+
+            fig.update_layout(**layout_props)
+
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+
+            async with self:
+                self.chart_figure_volatility = fig
+
+        except Exception:
+            async with self:
+                self.chart_figure_volatility = go.Figure()
+        finally:
+            async with self:
+                self.loading_volatility = False
+
+    @rx.event(background=True)
+    async def update_volume_chart(self):
+        """Update the volume chart using background processing."""
+        if not self.selected_tickers:
+            async with self:
+                self.chart_figure_volume = go.Figure()
+            return
+
+        async with self:
+            self.loading_volume = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                base_date = datetime(2000, 1, 1)
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            # Get volume data
+            volume_data = await self.get_volume_data(self.selected_tickers, base_date)
+
+            if volume_data is None or volume_data.empty:
+                async with self:
+                    self.chart_figure_volume = go.Figure()
+                return
+
+            # Create plotly chart
+            fig = go.Figure()
+
+            # Plot each ticker
+            colors = [
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+                "#e377c2",
+            ]
+
+            for i, ticker in enumerate(volume_data.columns):
+                color = colors[i % len(colors)]
+                fig.add_trace(
+                    go.Scatter(
+                        x=volume_data.index,
+                        y=volume_data[ticker],
+                        mode="lines",
+                        name=ticker,
+                        line=dict(color=color, width=2),
+                        hovertemplate=f"<b>{ticker}</b><br>"
+                        + "Date: %{x}<br>"
+                        + "Volume: %{y:,.0f}<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+
+            # Update layout
+            title = f"Volume Comparison ({', '.join(self.selected_tickers)})"
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Date",
+                "yaxis_title": "Volume",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 600,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",
+                ),
+            }
+
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+
+            fig.update_layout(**layout_props)
+
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+
+            async with self:
+                self.chart_figure_volume = fig
+
+        except Exception:
+            async with self:
+                self.chart_figure_volume = go.Figure()
+        finally:
+            async with self:
+                self.loading_volume = False
+
+    @rx.event(background=True)
+    async def update_rsi_chart(self):
+        """Update the RSI chart using background processing."""
+        if not self.selected_tickers:
+            async with self:
+                self.chart_figure_rsi = go.Figure()
+            return
+
+        async with self:
+            self.loading_rsi = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                base_date = datetime(2000, 1, 1)
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            # Get RSI data
+            rsi_data = await self.get_rsi_data(self.selected_tickers, base_date)
+
+            if rsi_data is None or rsi_data.empty:
+                async with self:
+                    self.chart_figure_rsi = go.Figure()
+                return
+
+            # Create plotly chart
+            fig = go.Figure()
+
+            # Plot each ticker
+            colors = [
+                "#1f77b4",
+                "#ff7f0e",
+                "#2ca02c",
+                "#d62728",
+                "#9467bd",
+                "#8c564b",
+                "#e377c2",
+            ]
+
+            for i, ticker in enumerate(rsi_data.columns):
+                color = colors[i % len(colors)]
+                fig.add_trace(
+                    go.Scatter(
+                        x=rsi_data.index,
+                        y=rsi_data[ticker],
+                        mode="lines",
+                        name=ticker,
+                        line=dict(color=color, width=2),
+                        hovertemplate=f"<b>{ticker}</b><br>"
+                        + "Date: %{x}<br>"
+                        + "RSI: %{y:.1f}<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Add reference lines for RSI
+            fig.add_hline(
+                y=70,
+                line_dash="dash",
+                line_color="red",
+                opacity=0.7,
+                annotation_text="Overbought (70)",
+            )
+            fig.add_hline(
+                y=30,
+                line_dash="dash",
+                line_color="green",
+                opacity=0.7,
+                annotation_text="Oversold (30)",
+            )
+
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+
+            # Update layout
+            title = f"RSI Comparison ({', '.join(self.selected_tickers)})"
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Date",
+                "yaxis_title": "RSI",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 600,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",
+                ),
+                "yaxis": dict(range=[0, 100]),  # RSI is always 0-100
+            }
+
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+
+            fig.update_layout(**layout_props)
+
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+
+            async with self:
+                self.chart_figure_rsi = fig
+
+        except Exception:
+            async with self:
+                self.chart_figure_rsi = go.Figure()
+        finally:
+            async with self:
+                self.loading_rsi = False
+
+    def update_all_charts(self):
+        """Update all charts."""
+        yield CompareState.update_returns_chart
+        yield CompareState.update_volatility_chart
+        yield CompareState.update_volume_chart
+        yield CompareState.update_rsi_chart
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
@@ -395,8 +845,88 @@ def metrics_tab_content() -> rx.Component:
     )
 
 
-def plot_tab_content() -> rx.Component:
-    """Plot tab showing price comparison chart."""
+def plots_asset_returns() -> rx.Component:
+    """Plotly chart for asset returns."""
+    return rx.cond(
+        CompareState.loading_returns,
+        rx.center(rx.spinner(), height="300px"),
+        rx.cond(
+            CompareState.selected_tickers.length(),
+            rx.plotly(
+                data=CompareState.chart_figure_returns,
+                width="100%",
+                height="300px",
+            ),
+            rx.center(
+                rx.text("Select tickers...", color="gray"),
+                height="300px",
+            ),
+        ),
+    )
+
+
+def plots_asset_volumes() -> rx.Component:
+    """Plotly chart for asset volumes."""
+    return rx.cond(
+        CompareState.loading_volume,
+        rx.center(rx.spinner(), height="300px"),
+        rx.cond(
+            CompareState.selected_tickers.length(),
+            rx.plotly(
+                data=CompareState.chart_figure_volume,
+                width="100%",
+                height="300px",
+            ),
+            rx.center(
+                rx.text("Select tickers...", color="gray"),
+                height="300px",
+            ),
+        ),
+    )
+
+
+def plots_asset_relative_strength() -> rx.Component:
+    """Plotly chart for asset relative strength (RSI)."""
+    return rx.cond(
+        CompareState.loading_rsi,
+        rx.center(rx.spinner(), height="300px"),
+        rx.cond(
+            CompareState.selected_tickers.length(),
+            rx.plotly(
+                data=CompareState.chart_figure_rsi,
+                width="100%",
+                height="300px",
+            ),
+            rx.center(
+                rx.text("Select tickers...", color="gray"),
+                height="300px",
+            ),
+        ),
+    )
+
+
+def plots_asset_volatility() -> rx.Component:
+    """Plotly chart for asset volatility."""
+    return rx.cond(
+        CompareState.loading_volatility,
+        rx.center(rx.spinner(), height="300px"),
+        rx.cond(
+            CompareState.selected_tickers.length(),
+            rx.plotly(
+                data=CompareState.chart_figure_volatility,
+                width="100%",
+                height="300px",
+            ),
+            rx.center(
+                rx.text("Select tickers...", color="gray"),
+                height="300px",
+            ),
+        ),
+    )
+
+
+def plots_tab_content() -> rx.Component:
+    """Plot tab showing several asset comparison charts."""
     return rx.vstack(
         rx.hstack(
             rx.text("Base:", font_weight="bold"),
@@ -408,21 +938,20 @@ def plot_tab_content() -> rx.Component:
             spacing="2",
             align="center",
         ),
-        rx.cond(
-            CompareState.loading_chart,
-            rx.center(rx.spinner(), height="400px"),
-            rx.cond(
-                CompareState.selected_tickers.length(),
-                rx.plotly(
-                    data=CompareState.chart_figure,
-                    width="100%",
-                    height="600px",
-                ),
-                rx.center(
-                    rx.text("Select tickers to view comparison chart", color="gray"),
-                    height="400px",
-                ),
+        rx.grid(
+            rx.card(
+                plots_asset_returns(),
             ),
+            rx.card(plots_asset_relative_strength()),
+            rx.card(
+                plots_asset_volatility(),
+            ),
+            rx.card(
+                plots_asset_volumes(),
+            ),
+            columns="2",
+            spacing="4",
+            width="100%",
         ),
         padding="1rem",
         spacing="4",
@@ -439,7 +968,7 @@ def main_content() -> rx.Component:
                 rx.tabs.trigger("Metrics", value="metrics"),
             ),
             rx.tabs.content(
-                plot_tab_content(),
+                plots_tab_content(),
                 value="plots",
             ),
             rx.tabs.content(
@@ -459,7 +988,7 @@ def main_content() -> rx.Component:
 # pylint: disable=not-callable
 @rx.page(
     route="/compare",
-    on_load=CompareState.update_chart,  # pyright: ignore[reportArgumentType]
+    on_load=CompareState.update_all_charts,  # pyright: ignore[reportArgumentType]
 )
 @template
 def page():

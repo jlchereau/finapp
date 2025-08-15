@@ -32,13 +32,13 @@ class ZacksModel(BaseModel):
     dividend_yield: float = Field(alias="dividend_yield")
     market_status: str = Field(alias="market_status")
     company_name: str = Field(alias="name")
-    
+
     # Score fields
     value_score: str = Field(alias="valueScore")
     growth_score: str = Field(alias="growthScore")
     momentum_score: str = Field(alias="momentumScore")
     vgm_score: str = Field(alias="vgmScore")
-    
+
     # Price fields
     high: float = Field(alias="high")
     low: float = Field(alias="low")

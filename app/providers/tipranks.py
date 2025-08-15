@@ -191,7 +191,9 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
         except Exception as e:
             # Other errors retriable
             query_info = ticker or query or "unknown"
-            logger.warning(f"Retriable error in TipranksDataProvider for {query_info}: {e}")
+            logger.warning(
+                f"Retriable error in TipranksDataProvider for {query_info}: {e}"
+            )
             raise RetriableProviderException(str(e)) from e
 
 

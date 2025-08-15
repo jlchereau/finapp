@@ -10,7 +10,10 @@ from typing import Dict, Any, List, Optional
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from app.providers.yahoo import create_yahoo_history_provider, create_yahoo_info_provider
+from app.providers.yahoo import (
+    create_yahoo_history_provider,
+    create_yahoo_info_provider,
+)
 from app.providers.zacks import create_zacks_provider
 from app.providers.base import ProviderResult
 
