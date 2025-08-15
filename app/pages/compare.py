@@ -278,7 +278,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         name=ticker,
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
-                        + "Date: %{x}<br>"
+                        # + "Date: %{x}<br>"
                         + "Return: %{y:.2f}%<br>"
                         + "<extra></extra>",
                     )
@@ -295,7 +295,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "yaxis_title": "Return (%)",
                 "hovermode": "x unified",
                 "showlegend": True,
-                "height": 600,
+                "height": 300,
                 "margin": dict(l=50, r=50, t=80, b=50),
                 "plot_bgcolor": theme_colors["plot_bgcolor"],
                 "paper_bgcolor": theme_colors["paper_bgcolor"],
@@ -398,7 +398,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         name=ticker,
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
-                        + "Date: %{x}<br>"
+                        # + "Date: %{x}<br>"
                         + "Volatility: %{y:.2f}%<br>"
                         + "<extra></extra>",
                     )
@@ -415,7 +415,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "yaxis_title": "Volatility (%)",
                 "hovermode": "x unified",
                 "showlegend": True,
-                "height": 600,
+                "height": 300,
                 "margin": dict(l=50, r=50, t=80, b=50),
                 "plot_bgcolor": theme_colors["plot_bgcolor"],
                 "paper_bgcolor": theme_colors["paper_bgcolor"],
@@ -511,7 +511,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         name=ticker,
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
-                        + "Date: %{x}<br>"
+                        # + "Date: %{x}<br>"
                         + "Volume: %{y:,.0f}<br>"
                         + "<extra></extra>",
                     )
@@ -528,7 +528,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "yaxis_title": "Volume",
                 "hovermode": "x unified",
                 "showlegend": True,
-                "height": 600,
+                "height": 300,
                 "margin": dict(l=50, r=50, t=80, b=50),
                 "plot_bgcolor": theme_colors["plot_bgcolor"],
                 "paper_bgcolor": theme_colors["paper_bgcolor"],
@@ -624,7 +624,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         name=ticker,
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
-                        + "Date: %{x}<br>"
+                        # + "Date: %{x}<br>"
                         + "RSI: %{y:.1f}<br>"
                         + "<extra></extra>",
                     )
@@ -657,7 +657,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 "yaxis_title": "RSI",
                 "hovermode": "x unified",
                 "showlegend": True,
-                "height": 600,
+                "height": 300,
                 "margin": dict(l=50, r=50, t=80, b=50),
                 "plot_bgcolor": theme_colors["plot_bgcolor"],
                 "paper_bgcolor": theme_colors["paper_bgcolor"],
