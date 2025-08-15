@@ -304,7 +304,7 @@ class TestYahooFactoryFunctions:
         assert isinstance(provider, YahooHistoryProvider)
         assert provider.config.timeout == 30.0
         assert provider.config.retries == 3
-        assert provider.config.extra_config["period"] == "1y"
+        assert provider.config.extra_config["period"] == "max"
         assert provider.config.extra_config["interval"] == "1d"
 
     def test_create_yahoo_history_provider_custom(self):

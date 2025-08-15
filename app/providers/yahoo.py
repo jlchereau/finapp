@@ -63,11 +63,15 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             query: Stock ticker symbol to fetch (must be non-null)
             **kwargs: Additional parameters:
                 - period: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y,
-                  10y, ytd, max)
+                  10y, ytd, max). Default: "max" for optimal caching.
                 - interval: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m,
                   1h, 1d, 5d, 1wk, 1mo, 3mo)
                 - start: Start date (YYYY-MM-DD)
                 - end: End date (YYYY-MM-DD)
+                  
+        Note:
+            Defaults to "max" period to ensure maximum historical data is cached.
+            Workflows can filter to shorter periods without re-fetching.
 
         Returns:
             DataFrame with OHLCV data
@@ -79,7 +83,8 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
         logger.debug(f"YahooHistoryProvider._fetch_data called for query: {query}")
         try:
             # Extract parameters with defaults
-            period = kwargs.get("period", self.config.extra_config.get("period", "1y"))
+            # Default to "max" period for optimal caching - workflows can filter to shorter periods
+            period = kwargs.get("period", self.config.extra_config.get("period", "max"))
             interval = kwargs.get(
                 "interval", self.config.extra_config.get("interval", "1d")
             )
@@ -216,7 +221,7 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
 
 # Factory functions for easy provider creation
 def create_yahoo_history_provider(
-    period: str = "1y",
+    period: str = "max",  # Default to max duration for caching - workflows can filter down
     interval: str = "1d",
     timeout: float = 30.0,
     retries: int = 3,
@@ -225,13 +230,17 @@ def create_yahoo_history_provider(
     Factory function to create a Yahoo History provider with custom settings.
 
     Args:
-        period: Default period for data fetching
+        period: Default period for data fetching (default: "max" to maximize cached data)
         interval: Default interval for data fetching
         timeout: Request timeout in seconds
         retries: Number of retry attempts
 
     Returns:
         Configured YahooHistoryProvider instance
+        
+    Note:
+        The default period is "max" to ensure maximum historical data is cached.
+        Workflows can filter to shorter durations, but cannot bypass cache for longer periods.
     """
     logger.debug(
         f"Creating YahooHistoryProvider: period={period}, "

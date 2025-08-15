@@ -61,6 +61,8 @@ This document outlines the design for data providers in the FinApp project, focu
   or JSON (for Pydantic BaseModel)
 - Supports optional `cache_date` parameter for read-only historical reads
 - Ensures thread safety with per-file `asyncio.Lock`
+- **Caching Strategy**: Providers default to maximum data periods (e.g., "max" for Yahoo)
+  to ensure comprehensive caching. Workflows can filter to shorter periods without re-fetching.
 
 ## Architecture Overview
 
