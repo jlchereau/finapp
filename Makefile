@@ -35,3 +35,7 @@ flake8:
 lint: flake8 pylint
 
 all: install format lint test
+
+# update code agents
+agents:
+	npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
