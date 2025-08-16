@@ -279,8 +279,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Return: %{y:.2f}%<br>"
-                        + "<extra></extra>",
+                        + "Return: %{y:.2f}%<br>" + "<extra></extra>",
                     )
                 )
 
@@ -399,8 +398,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Volatility: %{y:.2f}%<br>"
-                        + "<extra></extra>",
+                        + "Volatility: %{y:.2f}%<br>" + "<extra></extra>",
                     )
                 )
 
@@ -512,8 +510,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Volume: %{y:,.0f}<br>"
-                        + "<extra></extra>",
+                        + "Volume: %{y:,.0f}<br>" + "<extra></extra>",
                     )
                 )
 
@@ -625,8 +622,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                         line=dict(color=color, width=2),
                         hovertemplate=f"<b>{ticker}</b><br>"
                         # + "Date: %{x}<br>"
-                        + "RSI: %{y:.1f}<br>"
-                        + "<extra></extra>",
+                        + "RSI: %{y:.1f}<br>" + "<extra></extra>",
                     )
                 )
 

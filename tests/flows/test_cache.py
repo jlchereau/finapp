@@ -21,11 +21,11 @@ async def test_apply_flow_cache_enabled():
             return "test_result"
 
         cached_func = apply_flow_cache(test_func)
-        
+
         # Function should be wrapped by aiocache
         assert hasattr(cached_func, "__wrapped__")
         assert cached_func.__name__ == "test_func"
-        
+
         # Should return expected result
         result = await cached_func()
         assert result == "test_result"
@@ -41,11 +41,11 @@ async def test_apply_flow_cache_disabled():
             return "test_result"
 
         result_func = apply_flow_cache(test_func)
-        
+
         # Function should be unchanged (not wrapped)
         assert not hasattr(result_func, "__wrapped__")
         assert result_func is test_func
-        
+
         # Should return expected result
         result = await result_func()
         assert result == "test_result"
@@ -61,7 +61,7 @@ def test_apply_flow_cache_ttl_setting():
             return "test_result"
 
         cached_func = apply_flow_cache(test_func)
-        
+
         # Verify function is wrapped (indicates caching applied)
         assert hasattr(cached_func, "__wrapped__")
         # Note: We don't test TTL value directly since it's internal to aiocache
@@ -78,7 +78,7 @@ def test_apply_flow_cache_preserves_function_metadata():
             return "test_result"
 
         cached_func = apply_flow_cache(test_func_with_metadata)
-        
+
         # Function name should be preserved
         assert cached_func.__name__ == "test_func_with_metadata"
 
@@ -92,7 +92,7 @@ def test_apply_flow_cache_with_sync_function():
             return "sync_result"
 
         result_func = apply_flow_cache(sync_func)
-        
+
         # When disabled, should return original function
         assert result_func is sync_func
         assert result_func() == "sync_result"
