@@ -24,10 +24,10 @@ os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 
 @pytest.fixture(autouse=True)
 def isolate_cwd(tmp_path, monkeypatch):
-    # Change cwd to fresh tmp dir for each test to avoid persistent cache files
+    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid persistent cache files
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
+    # Also change cwd for backward compatibility
     monkeypatch.chdir(tmp_path)
-    # from app.lib.settings import settings
-    # monkeypatch.setattr(settings, 'CACHE_ENABLED', False)
 
 
 class TestYahooHistoryProvider:
@@ -36,7 +36,9 @@ class TestYahooHistoryProvider:
     def setup_method(self):
         """Set up test fixtures."""
         # pylint:disable=attribute-defined-outside-init
-        self.provider = YahooHistoryProvider()
+        # Disable caching to ensure we test the actual provider logic
+        config = ProviderConfig(cache_enabled=False)
+        self.provider = YahooHistoryProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
@@ -182,7 +184,9 @@ class TestYahooInfoProvider:
     def setup_method(self):
         """Set up test fixtures."""
         # pylint:disable=attribute-defined-outside-init
-        self.provider = YahooInfoProvider()
+        # Disable caching to ensure we test the actual provider logic
+        config = ProviderConfig(cache_enabled=False)
+        self.provider = YahooInfoProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
@@ -508,8 +512,8 @@ class TestCacheSettingsYahoo:
 
     @pytest.mark.asyncio
     async def test_history_cache_disabled_per_provider(self, tmp_path, monkeypatch):
-        # Redirect cwd to isolated temp directory
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable caching for this provider
         config = ProviderConfig(cache_enabled=False)
         provider = YahooHistoryProvider(config)
@@ -531,7 +535,8 @@ class TestCacheSettingsYahoo:
 
     @pytest.mark.asyncio
     async def test_info_cache_disabled_per_provider(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         config = ProviderConfig(cache_enabled=False)
         provider = YahooInfoProvider(config)
 
@@ -552,7 +557,8 @@ class TestGlobalCacheSettingsYahoo:
 
     @pytest.mark.asyncio
     async def test_global_cache_disabled_history(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable global cache
         from app.lib.settings import settings
 
@@ -576,7 +582,8 @@ class TestGlobalCacheSettingsYahoo:
 
     @pytest.mark.asyncio
     async def test_global_cache_disabled_info(self, tmp_path, monkeypatch):
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable global cache
         from app.lib.settings import settings
 

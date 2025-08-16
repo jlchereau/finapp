@@ -32,12 +32,17 @@ def test_env_file():
 
 def test_settings_default_value():
     """Test that the default values for cache settings are correct."""
-    from app.lib.settings import settings
+    # Test with a fresh Settings instance to avoid environment variable interference
+    from app.lib.settings import Settings
 
-    assert settings.PROVIDER_CACHE_ENABLED is True
-    assert settings.FLOW_CACHE_ENABLED is True
-    assert settings.FLOW_CACHE_TTL == 300
-    assert settings.DEBUG_LEVEL == "debug"
+    # Create settings instance without any environment variables affecting defaults
+    with patch.dict(os.environ, {}, clear=True):
+        settings = Settings()
+        assert settings.PROVIDER_CACHE_ENABLED is True
+        assert settings.FLOW_CACHE_ENABLED is True
+        assert settings.FLOW_CACHE_TTL == 300
+        assert settings.DEBUG_LEVEL == "debug"
+        assert settings.PROVIDER_CACHE_ROOT  # Should have a default value
 
 
 def test_settings_from_env_file(test_env_file):  # pylint: disable=unused-argument

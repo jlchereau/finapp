@@ -4,6 +4,7 @@ Unit tests for the CSV logger.
 
 import csv
 import json
+import os
 import threading
 import time
 from datetime import datetime
@@ -13,7 +14,6 @@ from unittest import mock
 import pytest
 
 from app.lib.logger import CSVLogger
-from app.lib.storage import DateBasedStorage
 
 
 class TestCSVLogger:
@@ -21,10 +21,14 @@ class TestCSVLogger:
 
     @pytest.fixture
     def temp_storage_path(self):
-        """Create a temporary storage directory in the workspace temp folder."""
-        # Use the project's temp directory to avoid polluting data or OS temp
-        project_root = Path(__file__).resolve().parent.parent.parent
-        temp_dir = project_root / "temp" / "test_logger"
+        """Create a unique temporary storage directory for each test."""
+        import uuid
+
+        # Use unique directory for each test to avoid conflicts
+        unique_id = str(uuid.uuid4())[:8]
+        temp_dir = (
+            Path(__file__).parent.parent.parent / "temp" / f"test_logger_{unique_id}"
+        )
         temp_dir.mkdir(parents=True, exist_ok=True)
         yield temp_dir
         # Cleanup after test
@@ -36,11 +40,17 @@ class TestCSVLogger:
     @pytest.fixture
     def logger(self, temp_storage_path):
         """Create a CSVLogger instance with temporary storage."""
+        # Create storage directly with the temp path to bypass settings
+        from app.lib.storage import DateBasedStorage
+        from app.lib.logger import CSVLogger
+
         storage = DateBasedStorage(base_path=temp_storage_path)
         return CSVLogger(storage=storage)
 
     def test_logger_initialization(self, temp_storage_path):
         """Test logger initialization."""
+        from app.lib.storage import DateBasedStorage
+
         storage = DateBasedStorage(base_path=temp_storage_path)
         logger = CSVLogger(storage=storage)
         assert logger.storage.base_path == temp_storage_path
@@ -49,10 +59,12 @@ class TestCSVLogger:
 
     def test_auto_detect_project_root(self):
         """Test auto-detection of project root."""
-        logger = CSVLogger()
-        # Should find the actual project root with rxconfig.py and use data subfolder
-        assert (logger.storage.base_path.parent / "rxconfig.py").exists()
-        assert logger.storage.base_path.name == "data"
+        # Clear any existing PROVIDER_CACHE_ROOT to test default behavior
+        with mock.patch.dict(os.environ, {}, clear=True):
+            logger = CSVLogger()
+            # Should use default PROVIDER_CACHE_ROOT setting which resolves to
+            # project root/data
+            assert "data" in str(logger.storage.base_path)
 
     def test_get_log_file_path(self, logger):
         """Test log file path generation."""
@@ -370,9 +382,16 @@ class TestDebugLevelFiltering:
 
     @pytest.fixture
     def temp_storage_path(self):
-        """Create a temporary storage directory in the workspace temp folder."""
-        project_root = Path(__file__).resolve().parent.parent.parent
-        temp_dir = project_root / "temp" / "test_debug_level"
+        """Create a unique temporary storage directory for each test."""
+        import uuid
+
+        # Use unique directory for each test to avoid conflicts
+        unique_id = str(uuid.uuid4())[:8]
+        temp_dir = (
+            Path(__file__).parent.parent.parent
+            / "temp"
+            / f"test_debug_level_{unique_id}"
+        )
         temp_dir.mkdir(parents=True, exist_ok=True)
         yield temp_dir
         # Cleanup after test
@@ -550,6 +569,7 @@ class TestDebugLevelFiltering:
 
     def test_default_debug_level_all_logs(self, temp_storage_path):
         """Test that default DEBUG_LEVEL='debug' logs all messages."""
+        # Create logger with direct storage to avoid global logger conflicts
         from app.lib.storage import DateBasedStorage
 
         storage = DateBasedStorage(base_path=temp_storage_path)

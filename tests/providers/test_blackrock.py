@@ -21,7 +21,9 @@ os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 
 @pytest.fixture(autouse=True)
 def isolate_cwd(tmp_path, monkeypatch):
-    # Use a temp cwd to avoid cache pollution
+    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid persistent cache files
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
+    # Also change cwd for backward compatibility
     monkeypatch.chdir(tmp_path)
 
 
@@ -30,8 +32,10 @@ class TestBlackrockHoldingsProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = (
-            BlackrockHoldingsProvider()
+        # Disable caching to ensure we test the actual provider logic
+        config = ProviderConfig(cache_enabled=False)
+        self.provider = BlackrockHoldingsProvider(
+            config
         )  # pylint: disable=attribute-defined-outside-init
 
     def test_provider_type(self):
@@ -489,7 +493,9 @@ class TestBlackrockProviderIntegration:
             mock_client.__aexit__.return_value = None
             mock_client_class.return_value = mock_client
 
-            provider = BlackrockHoldingsProvider()
+            # Disable caching to ensure we test the actual provider logic
+            config = ProviderConfig(cache_enabled=False)
+            provider = BlackrockHoldingsProvider(config)
 
             # Make multiple concurrent requests
             tasks = [
@@ -562,7 +568,9 @@ class TestBlackrockProviderIntegration:
             mock_client.__aexit__.return_value = None
             mock_client_class.return_value = mock_client
 
-            provider = BlackrockHoldingsProvider()
+            # Disable caching to ensure we test the actual provider logic
+            config = ProviderConfig(cache_enabled=False)
+            provider = BlackrockHoldingsProvider(config)
 
             tasks = [
                 provider.get_data("TEST1"),  # Should succeed
@@ -587,8 +595,8 @@ class TestCacheSettingsBlackrock:
         # Mock Serper API key
         mock_getenv.return_value = "test_api_key"
 
-        # Use isolated temp cwd
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable cache in provider config
         config = ProviderConfig(cache_enabled=False)
         provider = BlackrockHoldingsProvider(config)
@@ -645,8 +653,8 @@ class TestGlobalCacheSettingsBlackrock:
         # Mock Serper API key
         mock_getenv.return_value = "test_api_key"
 
-        # Use isolated temp cwd
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable global cache
         from app.lib.settings import settings
 

@@ -2,12 +2,14 @@ import os
 import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest import mock
 import pandas as pd
 from pydantic import BaseModel
 import pytest
 
 from app.providers.cache import cache
 from app.providers.base import BaseProvider, ProviderType, ProviderConfig
+from app.lib.storage import get_cache_file_paths
 
 
 class DummyDFProvider(BaseProvider[pd.DataFrame]):
@@ -35,7 +37,7 @@ class DummyModelProvider(BaseProvider[SimpleModel]):
 
 @pytest.fixture(autouse=True)
 def temp_cache_dir(monkeypatch):
-    """Create a temporary cache directory in the workspace temp folder."""
+    """Create a temporary cache directory using PROVIDER_CACHE_ROOT."""
     # Use the project's temp directory to avoid polluting data or OS temp
     project_root = Path(__file__).resolve().parent.parent.parent
 
@@ -46,14 +48,10 @@ def temp_cache_dir(monkeypatch):
     temp_dir = project_root / "temp" / f"test_cache_{timestamp}"
     temp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Change working directory to temp for cache isolation
-    original_cwd = os.getcwd()
-    monkeypatch.chdir(temp_dir)
+    # Set PROVIDER_CACHE_ROOT to point to our temp directory
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(temp_dir))
 
     yield temp_dir
-
-    # Restore original directory
-    os.chdir(original_cwd)
 
     # Cleanup after test
     if temp_dir.exists():
@@ -69,9 +67,11 @@ async def test_dataframe_cache():
     assert res1.success
     df1 = res1.data  # type: ignore[attr-defined]
     assert isinstance(df1, pd.DataFrame)
-    date_dir = Path.cwd() / "data" / datetime.now().strftime("%Y%m%d")
-    files = list(date_dir.glob("*_FOO.parquet"))
-    assert files, "Parquet cache file was not created"
+
+    # Check for cache files using the storage system
+    json_path, parquet_path = get_cache_file_paths("custom", "foo")
+    assert parquet_path.exists(), "Parquet cache file was not created"
+
     # Second fetch should return cached DataFrame
     res2 = await provider.get_data("foo")
     df2 = res2.data  # type: ignore[attr-defined]
@@ -89,9 +89,11 @@ async def test_model_cache():
     model1 = res1.data  # type: ignore[attr-defined]
     assert isinstance(model1, SimpleModel)
     assert model1.value == 3
-    date_dir = Path.cwd() / "data" / datetime.now().strftime("%Y%m%d")
-    files = list(date_dir.glob("*_BAR.json"))
-    assert files, "JSON cache file was not created"
+
+    # Check for cache files using the storage system
+    json_path, parquet_path = get_cache_file_paths("custom", "bar")
+    assert json_path.exists(), "JSON cache file was not created"
+
     # Second fetch should return cached model
     res2 = await provider.get_data("bar")
     model2 = res2.data  # type: ignore[attr-defined]
@@ -100,16 +102,20 @@ async def test_model_cache():
 
 
 @pytest.mark.asyncio
-async def test_cache_date_read_only():
+async def test_cache_date_read_only(temp_cache_dir):
     provider = DummyDFProvider(ProviderConfig())
     # Provide a past date where no cache exists
     old_date = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
     # Should fetch without error and not write new cache files
     df = await provider._fetch_data("baz", cache_date=old_date)
     assert isinstance(df, pd.DataFrame)
-    cache_dir = Path.cwd() / "data" / old_date
-    # Directory is created but should remain empty
-    assert cache_dir.exists()
-    assert not any(
-        cache_dir.iterdir()
-    ), "Read-only cache directory should have no files"
+
+    # Check that cache files were not created for read-only mode
+    json_path, parquet_path = get_cache_file_paths("custom", "baz", old_date)
+    # Directory may be created by get_cache_paths, but no files should be written
+    assert (
+        not json_path.exists()
+    ), "JSON cache file should not be created in read-only mode"
+    assert (
+        not parquet_path.exists()
+    ), "Parquet cache file should not be created in read-only mode"

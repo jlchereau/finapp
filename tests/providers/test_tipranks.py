@@ -24,7 +24,9 @@ os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
 
 @pytest.fixture(autouse=True)
 def isolate_cwd(tmp_path, monkeypatch):
-    # Use a temp cwd to avoid cache pollution
+    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid persistent cache files
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
+    # Also change cwd for backward compatibility
     monkeypatch.chdir(tmp_path)
 
 
@@ -93,7 +95,9 @@ class TestTipranksDataProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = TipranksDataProvider()
+        # Disable caching to ensure we test the actual provider logic
+        config = ProviderConfig(cache_enabled=False)
+        self.provider = TipranksDataProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
@@ -399,8 +403,8 @@ class TestCacheSettingsTipranks:
     async def test_cache_disabled_per_provider(
         self, mock_client_class, tmp_path, monkeypatch
     ):
-        # Use isolated temp cwd
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable cache in provider config
         config = ProviderConfig(cache_enabled=False)
         provider = TipranksDataProvider(config)
@@ -437,8 +441,8 @@ class TestGlobalCacheSettingsTipranks:
     async def test_global_cache_disabled(
         self, mock_client_class, tmp_path, monkeypatch
     ):
-        # Use isolated temp cwd
-        monkeypatch.chdir(tmp_path)
+        # Set PROVIDER_CACHE_ROOT to isolated temp directory
+        monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
         # Disable global cache
         from app.lib.settings import settings
 
@@ -537,7 +541,9 @@ class TestTipranksNewsSentimentProvider:
 
     def setup_method(self):
         """Set up test fixtures."""
-        self.provider = TipranksNewsSentimentProvider()
+        # Disable caching to ensure we test the actual provider logic
+        config = ProviderConfig(cache_enabled=False)
+        self.provider = TipranksNewsSentimentProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""

@@ -7,6 +7,7 @@ providing a centralized, type-safe configuration system.
 """
 
 # import multiprocessing
+from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -35,6 +36,9 @@ class Settings(BaseSettings):
     # Logging Settings
     DEBUG_LEVEL: str = "debug"  # debug, info, warning, error
 
+    # Storage Settings
+    PROVIDER_CACHE_ROOT: str = "data"  # Base directory for all cache and data storage
+
     @field_validator("DEBUG_LEVEL")
     @classmethod
     def validate_debug_level(cls, v: str) -> str:
@@ -43,6 +47,28 @@ class Settings(BaseSettings):
         if v.lower() not in valid_levels:
             raise ValueError(f"DEBUG_LEVEL must be one of: {', '.join(valid_levels)}")
         return v.lower()  # Store as lowercase for consistent comparison
+
+    @field_validator("PROVIDER_CACHE_ROOT")
+    @classmethod
+    def validate_provider_cache_root(cls, v: str) -> str:
+        """Validate and normalize PROVIDER_CACHE_ROOT path."""
+        if not v:
+            raise ValueError("PROVIDER_CACHE_ROOT cannot be empty")
+
+        # Convert to Path and resolve relative to project root if not absolute
+        path = Path(v)
+        if not path.is_absolute():
+            # Find project root by looking for rxconfig.py
+            current_path = Path(__file__).resolve()
+            for parent in current_path.parents:
+                if (parent / "rxconfig.py").exists():
+                    path = parent / path
+                    break
+            else:
+                # Fallback to relative to current file's parent
+                path = current_path.parent.parent.parent / path
+
+        return str(path)
 
     # This tells Pydantic to look for a .env file.
     model_config = SettingsConfigDict(

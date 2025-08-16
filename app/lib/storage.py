@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Union
 
+from .settings import settings
+
 
 class DateBasedStorage:
     """
@@ -23,20 +25,13 @@ class DateBasedStorage:
         Initialize storage manager.
 
         Args:
-            base_path: Base directory for storage. If None, uses project root/data.
+            base_path: Base directory for storage. If None, uses
+                PROVIDER_CACHE_ROOT setting.
         """
         if base_path is None:
-            self.base_path = self._detect_project_root() / "data"
+            self.base_path = Path(settings.PROVIDER_CACHE_ROOT)
         else:
             self.base_path = Path(base_path)
-
-    def _detect_project_root(self) -> Path:
-        """Auto-detect project root by looking for rxconfig.py"""
-        current_path = Path(__file__).resolve()
-        for parent in current_path.parents:
-            if (parent / "rxconfig.py").exists():
-                return parent
-        return current_path.parent.parent.parent
 
     def get_date_folder(
         self, date_str: Optional[str] = None, create: bool = True
@@ -283,24 +278,7 @@ def get_cache_file_paths(
     Returns:
         Tuple of (json_path, parquet_path).
     """
-    # For backward compatibility with tests, use current directory if available
-    # This maintains the original cache.py behavior where tests could change cwd
-    import os
-
-    current_dir = Path(os.getcwd())
-
-    # Check if we're in a test environment (pytest changes cwd to tmp directories)
-    if (
-        "pytest" in str(current_dir)
-        or "tmp" in str(current_dir)
-        or "test_cache" in str(current_dir)
-    ):
-        # Use current directory for tests
-        storage = DateBasedStorage(base_path=current_dir / "data")
-    else:
-        # Use default storage (project root detection) for production
-        storage = DateBasedStorage()
-
+    storage = DateBasedStorage()
     return storage.get_cache_paths(provider_type, query, date_str)
 
 
