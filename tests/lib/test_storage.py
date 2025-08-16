@@ -42,13 +42,15 @@ class TestDateBasedStorage:
         # Clear environment variables to test actual default behavior
         # This ensures the test works in both local and CI environments
         with mock.patch.dict(os.environ, {}, clear=True):
-            # Need to reload settings module to pick up cleared environment
-            import importlib
-            from app.lib import settings
+            # Create a fresh Settings instance with cleared environment
+            from app.lib.settings import Settings
 
-            importlib.reload(settings)
+            # Create settings instance that will pick up default values
+            fresh_settings = Settings()
 
-            storage = DateBasedStorage()
+            # Create storage with explicit base path from fresh settings
+            storage = DateBasedStorage(base_path=fresh_settings.PROVIDER_CACHE_ROOT)
+
             # Should auto-detect project root and use data subfolder
             assert (storage.base_path.parent / "rxconfig.py").exists()
             assert storage.base_path.name == "data"

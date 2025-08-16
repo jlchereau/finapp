@@ -62,14 +62,18 @@ class TestCSVLogger:
         # Clear environment variables to test default behavior
         # This ensures the test works in both local and CI environments
         with mock.patch.dict(os.environ, {}, clear=True):
-            # Need to reload settings module to pick up cleared environment
-            import importlib
-            from app.lib import settings
+            # Create a fresh Settings instance with cleared environment
+            from app.lib.settings import Settings
+            from app.lib.storage import DateBasedStorage
 
-            importlib.reload(settings)
+            # Create settings instance that will pick up default values
+            fresh_settings = Settings()
 
-            # Create logger which should use reloaded settings with defaults
-            logger = CSVLogger()
+            # Create storage with the fresh settings
+            storage = DateBasedStorage(base_path=fresh_settings.PROVIDER_CACHE_ROOT)
+
+            # Create logger with explicit storage
+            logger = CSVLogger(storage=storage)
 
             # Should use default PROVIDER_CACHE_ROOT setting which resolves to
             # project root/data (not influenced by CI environment variables)
