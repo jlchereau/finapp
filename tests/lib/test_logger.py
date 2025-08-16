@@ -59,11 +59,20 @@ class TestCSVLogger:
 
     def test_auto_detect_project_root(self):
         """Test auto-detection of project root."""
-        # Clear any existing PROVIDER_CACHE_ROOT to test default behavior
+        # Clear environment variables to test default behavior
+        # This ensures the test works in both local and CI environments
         with mock.patch.dict(os.environ, {}, clear=True):
+            # Need to reload settings module to pick up cleared environment
+            import importlib
+            from app.lib import settings
+
+            importlib.reload(settings)
+
+            # Create logger which should use reloaded settings with defaults
             logger = CSVLogger()
+
             # Should use default PROVIDER_CACHE_ROOT setting which resolves to
-            # project root/data
+            # project root/data (not influenced by CI environment variables)
             assert "data" in str(logger.storage.base_path)
 
     def test_get_log_file_path(self, logger):

@@ -2,6 +2,7 @@
 Unit tests for the storage utilities.
 """
 
+import os
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -38,10 +39,19 @@ class TestDateBasedStorage:
 
     def test_storage_initialization_default(self):
         """Test storage initialization with default path."""
-        storage = DateBasedStorage()
-        # Should auto-detect project root and use data subfolder
-        assert (storage.base_path.parent / "rxconfig.py").exists()
-        assert storage.base_path.name == "data"
+        # Clear environment variables to test actual default behavior
+        # This ensures the test works in both local and CI environments
+        with mock.patch.dict(os.environ, {}, clear=True):
+            # Need to reload settings module to pick up cleared environment
+            import importlib
+            from app.lib import settings
+
+            importlib.reload(settings)
+
+            storage = DateBasedStorage()
+            # Should auto-detect project root and use data subfolder
+            assert (storage.base_path.parent / "rxconfig.py").exists()
+            assert storage.base_path.name == "data"
 
     def test_get_date_folder_current_date(self, storage):
         """Test getting date folder for current date."""

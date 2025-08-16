@@ -180,14 +180,17 @@ class TestDebugLevelValidation:
             with open(env_file, "w", encoding="utf-8") as f:
                 f.write(env_content)
 
-            # Create settings with custom env file
-            class TestSettings(Settings):
-                model_config = SettingsConfigDict(
-                    env_file=env_file, env_file_encoding="utf-8", extra="ignore"
-                )
+            # Clear environment variables to ensure env file takes precedence
+            # This is important in CI where DEBUG_LEVEL might be set as env var
+            with patch.dict(os.environ, {}, clear=True):
+                # Create settings with custom env file
+                class TestSettings(Settings):
+                    model_config = SettingsConfigDict(
+                        env_file=env_file, env_file_encoding="utf-8", extra="ignore"
+                    )
 
-            settings = TestSettings()
-            assert settings.DEBUG_LEVEL == "warning"
+                settings = TestSettings()
+                assert settings.DEBUG_LEVEL == "warning"
 
         finally:
             if os.path.exists(env_file):
