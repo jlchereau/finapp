@@ -124,15 +124,25 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 
 ### Date-Based Storage System (`app/lib/storage.py`)
 - **DateBasedStorage class**: Manages data in YYYYMMDD-organized folders
+- **Configurable Base Path**: Uses `PROVIDER_CACHE_ROOT` setting for storage location
 - **Cache Management**: Automatic file organization with cleanup utilities
 - **Storage Methods**: `get_date_folder()`, `get_file_path()`, `list_date_folders()`, `delete_date_folder()`
 - **Log Integration**: `get_log_data()` for reading structured CSV logs
+
+### Application Settings (`app/lib/settings.py`)
+- **Settings class**: Centralized configuration management using pydantic-settings
+- **Environment Priority**: Environment variables > .env file > defaults
+- **Storage Configuration**: `PROVIDER_CACHE_ROOT` setting controls cache and data storage location
+- **Debug Level Control**: `DEBUG_LEVEL` setting filters log output (debug, info, warning, error)
+- **Path Validation**: Automatic project root detection for relative paths
+- **CI/CD Support**: Environment variables can override defaults for testing environments
 
 ### Custom Logging System (`app/lib/logger.py`)
 - **CSVLogger class**: Structured logging to date-based CSV files
 - **Log Format**: timestamp, level, message, context, file, function, params
 - **Context Detection**: Automatically identifies workflow vs app context
 - **Thread-Safe**: Concurrent logging support with file locking
+- **Debug Level Filtering**: Respects `DEBUG_LEVEL` setting for selective logging
 
 ### Data Provider System (`app/providers/`)
 - **Base Provider** (`base.py`): Abstract base with rate limiting, retries, error handling
@@ -147,6 +157,25 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Cache Deletion**: Confirmation dialog with secure folder removal
 - **Toast Notifications**: User feedback for all operations
 - **Most Recent First**: Both directories and log entries sorted by recency
+
+## Environment Configuration
+
+### Storage Location
+The application uses `PROVIDER_CACHE_ROOT` setting to determine where cache and data files are stored:
+- **Default**: `data/` folder in project root (for local development)
+- **Override**: Set environment variable `PROVIDER_CACHE_ROOT` to custom path
+- **CI/CD**: GitHub Actions sets this to `temp/` to avoid conflicts
+
+### Debug Level Control  
+The `DEBUG_LEVEL` setting controls logging verbosity:
+- **Values**: `debug` (all), `info` (info+), `warning` (warning+), `error` (error only)
+- **Default**: `debug` for development
+- **Override**: Set environment variable `DEBUG_LEVEL` or add to `.env` file
+
+### Testing Considerations
+- Tests that verify default behavior should mock environment variables to ensure consistent results
+- Use `mock.patch.dict(os.environ, {}, clear=True)` to isolate tests from CI environment
+- Reload settings module when testing configuration changes: `importlib.reload(settings)`
 
 ## Key Notes
 - Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between coverage and maintainability.
