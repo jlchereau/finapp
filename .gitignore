@@ -11,3 +11,7 @@ temp/
 .env
 *.db
 *.py[cod]
+
+# Coverage artifacts
+.coverage
+htmlcov/
