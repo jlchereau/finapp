@@ -363,3 +363,213 @@ class TestLoggerIntegration:
         assert "param1" in params
         assert "param2" in params
         assert "param3" in params
+
+
+class TestDebugLevelFiltering:
+    """Test cases for DEBUG_LEVEL filtering functionality."""
+
+    @pytest.fixture
+    def temp_storage_path(self):
+        """Create a temporary storage directory in the workspace temp folder."""
+        project_root = Path(__file__).resolve().parent.parent.parent
+        temp_dir = project_root / "temp" / "test_debug_level"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        yield temp_dir
+        # Cleanup after test
+        import shutil
+
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+    def test_debug_level_hierarchy(self, temp_storage_path):
+        """Test that the level hierarchy is correctly defined."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        expected_hierarchy = {
+            "debug": 0,
+            "info": 1,
+            "warning": 2,
+            "error": 3,
+        }
+        assert logger.LEVEL_HIERARCHY == expected_hierarchy
+
+    def test_should_log_method(self, temp_storage_path):
+        """Test the _should_log method with different configurations."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        # Mock settings for different debug levels
+        with mock.patch("app.lib.logger.settings") as mock_settings:
+            # Test debug level (should log everything)
+            mock_settings.DEBUG_LEVEL = "debug"
+            assert logger._should_log("debug") is True
+            assert logger._should_log("info") is True
+            assert logger._should_log("warning") is True
+            assert logger._should_log("error") is True
+
+            # Test info level (should skip debug)
+            mock_settings.DEBUG_LEVEL = "info"
+            assert logger._should_log("debug") is False
+            assert logger._should_log("info") is True
+            assert logger._should_log("warning") is True
+            assert logger._should_log("error") is True
+
+            # Test warning level (should only log warning and error)
+            mock_settings.DEBUG_LEVEL = "warning"
+            assert logger._should_log("debug") is False
+            assert logger._should_log("info") is False
+            assert logger._should_log("warning") is True
+            assert logger._should_log("error") is True
+
+            # Test error level (should only log error)
+            mock_settings.DEBUG_LEVEL = "error"
+            assert logger._should_log("debug") is False
+            assert logger._should_log("info") is False
+            assert logger._should_log("warning") is False
+            assert logger._should_log("error") is True
+
+    def test_case_insensitive_debug_level(self, temp_storage_path):
+        """Test that DEBUG_LEVEL comparison is case-insensitive."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        with mock.patch("app.lib.logger.settings") as mock_settings:
+            # Test various case combinations
+            for debug_level in ["INFO", "Info", "iNfO", "info"]:
+                mock_settings.DEBUG_LEVEL = debug_level
+                assert logger._should_log("debug") is False
+                assert logger._should_log("info") is True
+                assert logger._should_log("WARNING") is True
+                assert logger._should_log("Error") is True
+
+    def test_debug_level_filtering_integration(self, temp_storage_path):
+        """Test that actual logging respects DEBUG_LEVEL settings."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        with mock.patch("app.lib.logger.settings") as mock_settings:
+            # Test with info level
+            mock_settings.DEBUG_LEVEL = "info"
+
+            logger.debug("Debug message")  # Should not be logged
+            logger.info("Info message")  # Should be logged
+            logger.warning("Warning message")  # Should be logged
+            logger.error("Error message")  # Should be logged
+
+            log_file = logger._get_log_file_path()
+            with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
+                reader = csv.DictReader(csvfile)
+                rows = list(reader)
+
+            # Should have 3 entries (info, warning, error - no debug)
+            assert len(rows) == 3
+            levels = [row["level"] for row in rows]
+            assert "debug" not in levels
+            assert "info" in levels
+            assert "warning" in levels
+            assert "error" in levels
+
+    def test_debug_level_warning_only(self, temp_storage_path):
+        """Test DEBUG_LEVEL='warning' logs only warning and error."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        with mock.patch("app.lib.logger.settings") as mock_settings:
+            mock_settings.DEBUG_LEVEL = "warning"
+
+            logger.debug("Debug message")  # Should not be logged
+            logger.info("Info message")  # Should not be logged
+            logger.warning("Warning message")  # Should be logged
+            logger.error("Error message")  # Should be logged
+
+            log_file = logger._get_log_file_path()
+            with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
+                reader = csv.DictReader(csvfile)
+                rows = list(reader)
+
+            # Should have 2 entries (warning, error)
+            assert len(rows) == 2
+            levels = [row["level"] for row in rows]
+            assert "debug" not in levels
+            assert "info" not in levels
+            assert "warning" in levels
+            assert "error" in levels
+
+    def test_debug_level_error_only(self, temp_storage_path):
+        """Test DEBUG_LEVEL='error' logs only error messages."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        with mock.patch("app.lib.logger.settings") as mock_settings:
+            mock_settings.DEBUG_LEVEL = "error"
+
+            logger.debug("Debug message")  # Should not be logged
+            logger.info("Info message")  # Should not be logged
+            logger.warning("Warning message")  # Should not be logged
+            logger.error("Error message")  # Should be logged
+
+            log_file = logger._get_log_file_path()
+            with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
+                reader = csv.DictReader(csvfile)
+                rows = list(reader)
+
+            # Should have 1 entry (error only)
+            assert len(rows) == 1
+            assert rows[0]["level"] == "error"
+            assert rows[0]["message"] == "Error message"
+
+    def test_should_log_exception_handling(self, temp_storage_path):
+        """Test that _should_log handles exceptions gracefully."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        # Test with invalid/missing settings
+        with mock.patch(
+            "app.lib.logger.settings", side_effect=Exception("Settings error")
+        ):
+            # Should default to logging (fail-safe)
+            assert logger._should_log("debug") is True
+            assert logger._should_log("info") is True
+            assert logger._should_log("warning") is True
+            assert logger._should_log("error") is True
+
+    def test_default_debug_level_all_logs(self, temp_storage_path):
+        """Test that default DEBUG_LEVEL='debug' logs all messages."""
+        from app.lib.storage import DateBasedStorage
+
+        storage = DateBasedStorage(base_path=temp_storage_path)
+        logger = CSVLogger(storage=storage)
+
+        # Use actual settings (should default to 'debug')
+        logger.debug("Debug message")
+        logger.info("Info message")
+        logger.warning("Warning message")
+        logger.error("Error message")
+
+        log_file = logger._get_log_file_path()
+        with open(log_file, "r", encoding="utf-8", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = list(reader)
+
+        # Should have 4 entries (all levels)
+        assert len(rows) == 4
+        levels = [row["level"] for row in rows]
+        assert "debug" in levels
+        assert "info" in levels
+        assert "warning" in levels
+        assert "error" in levels

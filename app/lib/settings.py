@@ -7,6 +7,7 @@ providing a centralized, type-safe configuration system.
 """
 
 # import multiprocessing
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,6 +31,18 @@ class Settings(BaseSettings):
 
     # Provider Cache Settings (file-based)
     PROVIDER_CACHE_ENABLED: bool = True
+
+    # Logging Settings
+    DEBUG_LEVEL: str = "debug"  # debug, info, warning, error
+
+    @field_validator("DEBUG_LEVEL")
+    @classmethod
+    def validate_debug_level(cls, v: str) -> str:
+        """Validate DEBUG_LEVEL is a supported log level (case-insensitive)."""
+        valid_levels = {"debug", "info", "warning", "error"}
+        if v.lower() not in valid_levels:
+            raise ValueError(f"DEBUG_LEVEL must be one of: {', '.join(valid_levels)}")
+        return v.lower()  # Store as lowercase for consistent comparison
 
     # This tells Pydantic to look for a .env file.
     model_config = SettingsConfigDict(

@@ -21,12 +21,21 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 from .storage import DateBasedStorage
+from .settings import settings
 
 
 class CSVLogger:
     """
     A custom logger that writes log entries to CSV files organized by date.
     """
+
+    # Log level hierarchy for filtering
+    LEVEL_HIERARCHY = {
+        "debug": 0,
+        "info": 1,
+        "warning": 2,
+        "error": 3,
+    }
 
     def __init__(self, storage: Optional[DateBasedStorage] = None):
         """
@@ -37,6 +46,26 @@ class CSVLogger:
         """
         self.storage = storage or DateBasedStorage()
         self._lock = threading.Lock()
+
+    def _should_log(self, level: str) -> bool:
+        """
+        Check if a log entry should be recorded based on the configured DEBUG_LEVEL.
+
+        Args:
+            level: The log level to check
+
+        Returns:
+            True if the log should be recorded, False otherwise
+        """
+        try:
+            current_level_value = self.LEVEL_HIERARCHY.get(level.lower(), 0)
+            configured_level_value = self.LEVEL_HIERARCHY.get(
+                settings.DEBUG_LEVEL.lower(), 0
+            )
+            return current_level_value >= configured_level_value
+        except Exception:
+            # If there's any error, default to logging (fail-safe)
+            return True
 
     def _get_log_file_path(self) -> Path:
         """Get the path to today's log file."""
@@ -227,19 +256,23 @@ class CSVLogger:
 
     def debug(self, message: Union[str, Exception]) -> None:
         """Log a debug message."""
-        self._write_log_entry("debug", str(message))
+        if self._should_log("debug"):
+            self._write_log_entry("debug", str(message))
 
     def info(self, message: Union[str, Exception]) -> None:
         """Log an info message."""
-        self._write_log_entry("info", str(message))
+        if self._should_log("info"):
+            self._write_log_entry("info", str(message))
 
     def warning(self, message: Union[str, Exception]) -> None:
         """Log a warning message."""
-        self._write_log_entry("warning", str(message))
+        if self._should_log("warning"):
+            self._write_log_entry("warning", str(message))
 
     def error(self, message: Union[str, Exception]) -> None:
         """Log an error message."""
-        self._write_log_entry("error", str(message))
+        if self._should_log("error"):
+            self._write_log_entry("error", str(message))
 
 
 # Global logger instance
