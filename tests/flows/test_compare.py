@@ -20,6 +20,13 @@ from app.flows.compare import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_cache(monkeypatch, tmp_path):
+    """Isolate cache to prevent contamination of production cache directory."""
+    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid persistent cache files
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
+
+
 @pytest.fixture
 def sample_ohlcv_data():
     """Create sample OHLCV data for testing."""

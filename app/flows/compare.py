@@ -6,7 +6,7 @@ using the YahooHistoryProvider with proper error handling and parallel processin
 """
 
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 import pandas as pd
@@ -16,6 +16,73 @@ from ..providers.yahoo import create_yahoo_history_provider
 from ..lib.logger import logger
 from ..lib.finance import calculate_volatility, calculate_rsi
 from .cache import apply_flow_cache
+
+
+def _filter_data_by_date(data: pd.DataFrame, base_date: datetime) -> pd.DataFrame:
+    """
+    Common date filtering logic used across all workflows.
+
+    Args:
+        data: DataFrame with datetime index to filter
+        base_date: Start date for filtering
+
+    Returns:
+        Filtered DataFrame containing data from base_date onwards
+    """
+    base_date_pd = pd.to_datetime(base_date.date())
+
+    # Handle timezone-aware indexes
+    if data.index.tz is not None:
+        data_index = data.index.tz_localize(None)
+        return data[data_index >= base_date_pd]
+    else:
+        return data[data.index >= base_date_pd]
+
+
+def _process_ticker_result(
+    ticker: str, raw_data: Dict[str, pd.DataFrame], failed_tickers: List[str]
+) -> Optional[pd.DataFrame]:
+    """
+    Standard ticker validation and data extraction.
+
+    Args:
+        ticker: Ticker symbol to process
+        raw_data: Dictionary mapping ticker to raw data
+        failed_tickers: List to append failed tickers to
+
+    Returns:
+        DataFrame if successful, None if failed (ticker added to failed_tickers)
+    """
+    if ticker not in raw_data:
+        failed_tickers.append(ticker)
+        return None
+
+    data = raw_data[ticker]
+    if data.empty:
+        failed_tickers.append(ticker)
+        return None
+
+    return data
+
+
+def _get_close_prices(data: pd.DataFrame, ticker: str) -> Optional[pd.Series]:
+    """
+    Extract close prices from OHLCV data with fallback to Adj Close.
+
+    Args:
+        data: OHLCV DataFrame
+        ticker: Ticker symbol for logging
+
+    Returns:
+        Close price Series or None if not available
+    """
+    if "Close" in data.columns:
+        return data["Close"].dropna()
+    elif "Adj Close" in data.columns:
+        return data["Adj Close"].dropna()
+    else:
+        logger.warning(f"No Close price data for {ticker}")
+        return None
 
 
 class DataFetchedEvent(Event):
@@ -67,7 +134,8 @@ class CompareDataWorkflow(Workflow):
         )
 
         # Create tasks for parallel execution
-        # Use period="max" to get comprehensive cached data, then filter in normalize step
+        # Use period="max" to get comprehensive cached data,
+        # then filter in normalize step
         tasks = {}
 
         logger.debug(f"Fetching max period data, will filter from {base_date}")
@@ -156,20 +224,13 @@ class CompareDataWorkflow(Workflow):
 
                 # Filter data to start from base_date
                 logger.debug(
-                    f"Raw data for {ticker}: {len(data)} rows, index range: {data.index.min()} to {data.index.max()}"
+                    f"Raw data for {ticker}: {len(data)} rows, "
+                    f"index range: {data.index.min()} to {data.index.max()}"
                 )
                 logger.debug(f"Base date for filtering: {base_date}")
 
-                # Convert base_date to pandas datetime for comparison
-                # Handle timezone-aware indexes by making base_date timezone-naive
-                base_date_pd = pd.to_datetime(base_date.date())
-
-                # Make sure both dates are timezone-naive for comparison
-                if data.index.tz is not None:
-                    data_index = data.index.tz_localize(None)
-                    filtered_data = data[data_index >= base_date_pd]
-                else:
-                    filtered_data = data[data.index >= base_date_pd]
+                # Use helper function for consistent filtering
+                filtered_data = _filter_data_by_date(data, base_date)
 
                 logger.debug(f"Filtered data for {ticker}: {len(filtered_data)} rows")
 
@@ -260,7 +321,8 @@ async def fetch_raw_ticker_data(
 
     try:
         logger.info(
-            f"Fetching raw data for {len(tickers)} tickers (cache_key: {cache_key[:50]}...)"
+            f"Fetching raw data for {len(tickers)} tickers "
+            f"(cache_key: {cache_key[:50]}...)"
         )
 
         # Create provider to fetch raw OHLCV data
@@ -298,7 +360,8 @@ async def fetch_raw_ticker_data(
                     failed_tickers.append(ticker)
                     continue
 
-                # Store raw data without filtering - let individual processors handle filtering
+                # Store raw data without filtering - let individual
+                # processors handle filtering
                 successful_data[ticker] = data
                 logger.debug(f"Cached raw data for {ticker}: {len(data)} rows")
 
@@ -307,7 +370,8 @@ async def fetch_raw_ticker_data(
                 failed_tickers.append(ticker)
 
         logger.info(
-            f"Raw data fetch completed: {len(successful_data)} successful, {len(failed_tickers)} failed"
+            f"Raw data fetch completed: {len(successful_data)} successful, "
+            f"{len(failed_tickers)} failed"
         )
 
         if failed_tickers:
@@ -365,40 +429,24 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
         failed_tickers = []
 
         for ticker in tickers:
-            if ticker not in raw_data:
-                failed_tickers.append(ticker)
-                continue
-
             try:
-                data = raw_data[ticker]
-                if data.empty:
-                    failed_tickers.append(ticker)
+                # Use helper function for standard ticker processing
+                data = _process_ticker_result(ticker, raw_data, failed_tickers)
+                if data is None:
                     continue
 
                 # Filter data from base_date
-                base_date_pd = pd.to_datetime(base_date.date())
-                if data.index.tz is not None:
-                    data_index = data.index.tz_localize(None)
-                    filtered_data = data[data_index >= base_date_pd]
-                else:
-                    filtered_data = data[data.index >= base_date_pd]
+                # (returns need filtering first)
+                filtered_data = _filter_data_by_date(data, base_date)
 
                 if filtered_data.empty:
                     logger.warning(f"No data after {base_date} for {ticker}, skipping")
                     failed_tickers.append(ticker)
                     continue
 
-                # Get close prices and normalize to percentage returns
-                if "Close" in filtered_data.columns:
-                    close_prices = filtered_data["Close"].dropna()
-                elif "Adj Close" in filtered_data.columns:
-                    close_prices = filtered_data["Adj Close"].dropna()
-                else:
-                    logger.warning(f"No Close price data for {ticker}, skipping")
-                    failed_tickers.append(ticker)
-                    continue
-
-                if close_prices.empty:
+                # Get close prices using helper function
+                close_prices = _get_close_prices(filtered_data, ticker)
+                if close_prices is None or close_prices.empty:
                     logger.warning(f"No valid close prices for {ticker}, skipping")
                     failed_tickers.append(ticker)
                     continue
@@ -412,7 +460,8 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
                 successful_tickers.append(ticker)
 
                 logger.debug(
-                    f"Processed returns for {ticker}: {len(percentage_returns)} data points"
+                    f"Processed returns for {ticker}: "
+                    f"{len(percentage_returns)} data points"
                 )
 
             except Exception as e:
@@ -421,7 +470,8 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
                 continue
 
         logger.info(
-            f"Returns processing completed: {len(successful_tickers)} successful, {len(failed_tickers)} failed"
+            f"Returns processing completed: {len(successful_tickers)} successful, "
+            f"{len(failed_tickers)} failed"
         )
 
         return {
@@ -485,48 +535,46 @@ async def fetch_volatility_data(
         volatility_data = pd.DataFrame()
 
         for ticker in tickers:
-            if ticker not in raw_data:
-                failed_tickers.append(ticker)
-                continue
-
             try:
-                data = raw_data[ticker]
-                if data.empty:
+                # Use helper function for standard ticker processing
+                data = _process_ticker_result(ticker, raw_data, failed_tickers)
+                if data is None:
+                    continue
+
+                # Calculate volatility on FULL dataset first
+                # (avoid truncation)
+                vol_data = calculate_volatility(data, window=30, annualize=True)
+
+                if vol_data.empty:
+                    logger.warning(f"No volatility calculated for {ticker}")
                     failed_tickers.append(ticker)
                     continue
 
-                # Filter data from base_date
-                base_date_pd = pd.to_datetime(base_date.date())
-                if data.index.tz is not None:
-                    data_index = data.index.tz_localize(None)
-                    filtered_data = data[data_index >= base_date_pd]
-                else:
-                    filtered_data = data[data.index >= base_date_pd]
+                # Filter calculated volatility results to display period
+                filtered_vol_data = _filter_data_by_date(vol_data, base_date)
 
-                if filtered_data.empty:
+                if filtered_vol_data.empty:
+                    logger.warning(f"No volatility data after {base_date} for {ticker}")
                     failed_tickers.append(ticker)
                     continue
 
-                # Calculate volatility using finance library
-                vol_data = calculate_volatility(
-                    filtered_data, window=30, annualize=True
+                # Store filtered volatility data
+                volatility_data[ticker] = filtered_vol_data["Volatility"]
+                successful_tickers.append(ticker)
+
+                logger.debug(
+                    f"Processed volatility for {ticker}: "
+                    f"{len(filtered_vol_data)} data points "
+                    f"(calculated from {len(vol_data)} total points)"
                 )
-
-                if not vol_data.empty:
-                    volatility_data[ticker] = vol_data["Volatility"]
-                    successful_tickers.append(ticker)
-                    logger.debug(
-                        f"Processed volatility for {ticker}: {len(vol_data)} data points"
-                    )
-                else:
-                    failed_tickers.append(ticker)
 
             except Exception as e:
                 logger.warning(f"Error calculating volatility for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
         logger.info(
-            f"Volatility processing completed: {len(successful_tickers)} successful, {len(failed_tickers)} failed"
+            f"Volatility processing completed: {len(successful_tickers)} successful, "
+            f"{len(failed_tickers)} failed"
         )
 
         return {
@@ -588,25 +636,18 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
         volume_data = pd.DataFrame()
 
         for ticker in tickers:
-            if ticker not in raw_data:
-                failed_tickers.append(ticker)
-                continue
-
             try:
-                data = raw_data[ticker]
-                if data.empty:
-                    failed_tickers.append(ticker)
+                # Use helper function for standard ticker processing
+                data = _process_ticker_result(ticker, raw_data, failed_tickers)
+                if data is None:
                     continue
 
                 # Filter data from base_date
-                base_date_pd = pd.to_datetime(base_date.date())
-                if data.index.tz is not None:
-                    data_index = data.index.tz_localize(None)
-                    filtered_data = data[data_index >= base_date_pd]
-                else:
-                    filtered_data = data[data.index >= base_date_pd]
+                # (volume is direct extraction)
+                filtered_data = _filter_data_by_date(data, base_date)
 
                 if filtered_data.empty:
+                    logger.warning(f"No data after {base_date} for {ticker}")
                     failed_tickers.append(ticker)
                     continue
 
@@ -615,9 +656,11 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
                     volume_data[ticker] = filtered_data["Volume"]
                     successful_tickers.append(ticker)
                     logger.debug(
-                        f"Processed volume for {ticker}: {len(filtered_data)} data points"
+                        f"Processed volume for {ticker}: "
+                        f"{len(filtered_data)} data points"
                     )
                 else:
+                    logger.warning(f"No Volume data for {ticker}")
                     failed_tickers.append(ticker)
 
             except Exception as e:
@@ -625,7 +668,8 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
                 failed_tickers.append(ticker)
 
         logger.info(
-            f"Volume processing completed: {len(successful_tickers)} successful, {len(failed_tickers)} failed"
+            f"Volume processing completed: {len(successful_tickers)} successful, "
+            f"{len(failed_tickers)} failed"
         )
 
         return {
@@ -687,46 +731,44 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
         rsi_data = pd.DataFrame()
 
         for ticker in tickers:
-            if ticker not in raw_data:
-                failed_tickers.append(ticker)
-                continue
-
             try:
-                data = raw_data[ticker]
-                if data.empty:
+                # Use helper function for standard ticker processing
+                data = _process_ticker_result(ticker, raw_data, failed_tickers)
+                if data is None:
+                    continue
+
+                # Calculate RSI on FULL dataset first (avoid truncation)
+                rsi_result = calculate_rsi(data, window=14)
+
+                if rsi_result.empty:
+                    logger.warning(f"No RSI calculated for {ticker}")
                     failed_tickers.append(ticker)
                     continue
 
-                # Filter data from base_date
-                base_date_pd = pd.to_datetime(base_date.date())
-                if data.index.tz is not None:
-                    data_index = data.index.tz_localize(None)
-                    filtered_data = data[data_index >= base_date_pd]
-                else:
-                    filtered_data = data[data.index >= base_date_pd]
+                # Filter calculated RSI results to display period
+                filtered_rsi_data = _filter_data_by_date(rsi_result, base_date)
 
-                if filtered_data.empty:
+                if filtered_rsi_data.empty:
+                    logger.warning(f"No RSI data after {base_date} for {ticker}")
                     failed_tickers.append(ticker)
                     continue
 
-                # Calculate RSI using finance library
-                rsi_result = calculate_rsi(filtered_data, window=14)
+                # Store filtered RSI data
+                rsi_data[ticker] = filtered_rsi_data["RSI"]
+                successful_tickers.append(ticker)
 
-                if not rsi_result.empty:
-                    rsi_data[ticker] = rsi_result["RSI"]
-                    successful_tickers.append(ticker)
-                    logger.debug(
-                        f"Processed RSI for {ticker}: {len(rsi_result)} data points"
-                    )
-                else:
-                    failed_tickers.append(ticker)
+                logger.debug(
+                    f"Processed RSI for {ticker}: {len(filtered_rsi_data)} data points "
+                    f"(calculated from {len(rsi_result)} total points)"
+                )
 
             except Exception as e:
                 logger.warning(f"Error calculating RSI for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
         logger.info(
-            f"RSI processing completed: {len(successful_tickers)} successful, {len(failed_tickers)} failed"
+            f"RSI processing completed: {len(successful_tickers)} successful, "
+            f"{len(failed_tickers)} failed"
         )
 
         return {

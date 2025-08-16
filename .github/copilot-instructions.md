@@ -166,6 +166,40 @@ The application uses `PROVIDER_CACHE_ROOT` setting to determine where cache and 
 - **Override**: Set environment variable `PROVIDER_CACHE_ROOT` to custom path
 - **CI/CD**: GitHub Actions sets this to `temp/` to avoid conflicts
 
+## Testing Guidelines
+
+### Cache Isolation for Tests
+**CRITICAL**: Always isolate cache when writing tests to prevent contamination of production cache directory.
+
+All tests that involve data providers, workflows, or cache operations MUST include cache isolation:
+
+```python
+@pytest.fixture(autouse=True)  
+def isolate_cache(monkeypatch, tmp_path):
+    """Isolate cache to prevent contamination of production cache directory."""
+    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
+```
+
+### Running Tests Safely
+When running tests, use isolated environments to avoid cache contamination:
+
+```bash
+# Safe: Run specific test modules with proper isolation
+.venv/bin/python -m pytest tests/flows/test_compare.py -v
+
+# Safe: Run all tests (they should have isolation)
+make test
+
+# DANGER: Never run tests in production environment without cache isolation
+# This can pollute the production cache with test data
+```
+
+### Cache Contamination Prevention
+- **Test data should never appear in `data/YYYYMMDD/` folders**
+- **Real stock data has DatetimeIndex, test data often has RangeIndex** 
+- **If charts show flat lines or strange data, check for cache contamination**
+- **Clear cache if contaminated**: Delete affected date folders in `data/`
+
 ### Debug Level Control  
 The `DEBUG_LEVEL` setting controls logging verbosity:
 - **Values**: `debug` (all), `info` (info+), `warning` (warning+), `error` (error only)
