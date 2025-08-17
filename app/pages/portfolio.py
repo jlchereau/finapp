@@ -14,8 +14,8 @@ class PortfolioState(rx.State):  # pylint: disable=inherit-non-class
 def page():
     """The portfolio page."""
     return rx.vstack(
-        rx.heading("Portfolio", size="9"),
-        spacing="5",
-        justify="center",
-        min_height="85vh",
+        rx.heading("Portfolio", size="6", margin_bottom="1rem"),
+        # rx.hstack(),
+        # height="100%",
+        spacing="0",
     )

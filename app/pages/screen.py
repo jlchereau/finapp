@@ -44,12 +44,12 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 def page():
     """The screen page."""
     return rx.vstack(
-        rx.heading("Screen", size="9"),
+        rx.heading("Screen", size="6", margin_bottom="1rem"),
         # rx.text(f"Selected: {State.selected}"),
         # rx.text(f"Selected person: {State.selected_person}"),
         # Component comparison
         rx.vstack(
-            rx.heading("Component Comparison", size="6", margin_bottom="4"),
+            rx.heading("Component Comparison", size="5", margin_bottom="4"),
             # Reflex Input for comparison
             rx.box(
                 rx.text("Reflex Input:", font_weight="bold", margin_bottom="2"),

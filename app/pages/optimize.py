@@ -70,7 +70,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 def page():
     """The optimize page."""
     return rx.vstack(
-        rx.heading("Optimize", size="9"),
+        rx.heading("Optimize", size="6", margin_bottom="1rem"),
         rx.card(
             rx.color_mode_cond(
                 pyplot(State.fig_light, width="100%", height="height"),

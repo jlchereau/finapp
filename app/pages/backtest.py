@@ -16,8 +16,8 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 def page():
     """The backtest page."""
     return rx.vstack(
-        rx.heading("Backtest", size="9"),
-        spacing="5",
-        justify="center",
-        min_height="85vh",
+        rx.heading("Backtest", size="6", margin_bottom="1rem"),
+        # rx.hstack(),
+        # height="100%",
+        spacing="0",
     )
