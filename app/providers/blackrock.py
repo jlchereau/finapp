@@ -482,31 +482,38 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         weight_cols = ["weight", "poids", "pondération"]
         for col in weight_cols:
             if col in df.columns:
-                # Convert to string and clean
-                df.loc[:, col] = df[col].astype(str).str.replace("%", "", regex=False)
-                df.loc[:, col] = (
+                # Convert to string and clean in a single operation
+                cleaned_series = (
                     df[col]
+                    .astype(str)
+                    .str.replace("%", "", regex=False)
                     .str.replace(",", ".", regex=False)
                     .str.replace(" ", "", regex=False)
                 )
-                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
+                # Convert to numeric and assign once
+                numeric_series = pd.to_numeric(cleaned_series, errors="coerce")
+                
                 if col != "weight":  # Rename to standard column name
-                    df.loc[:, "weight"] = df[col]
+                    df["weight"] = numeric_series
                     df = df.drop(columns=[col])
+                else:
+                    df[col] = numeric_series
 
         # Clean numeric columns
         numeric_cols = ["market_value", "shares", "price"]
         for col in numeric_cols:
             if col in df.columns:
-                # Convert to string and clean
-                df.loc[:, col] = df[col].astype(str).str.replace(",", "", regex=False)
-                df.loc[:, col] = (
+                # Convert to string and clean in a single operation
+                cleaned_series = (
                     df[col]
+                    .astype(str)
+                    .str.replace(",", "", regex=False)
                     .str.replace("$", "", regex=False)
                     .str.replace("€", "", regex=False)
+                    .str.replace(" ", "", regex=False)
                 )
-                df.loc[:, col] = df[col].str.replace(" ", "", regex=False)
-                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
+                # Convert to numeric and assign once
+                df[col] = pd.to_numeric(cleaned_series, errors="coerce")
 
         # Filter out rows without holding names
         if "holding_name" in df.columns:

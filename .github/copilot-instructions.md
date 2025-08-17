@@ -94,7 +94,8 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
   - **YYYYMMDD/\*.json**: Cached JSON responses from providers
   - **YYYYMMDD/\*.parquet**: Cached DataFrame data
 - **temp/**: Temporary workspace for experiments (in .gitignore)
-- **tests/**: Comprehensive unit test suite (196 tests)
+- **tests/**: Comprehensive unit test suite (282 tests)
+  - **conftest.py**: Global test configuration with automatic cache isolation
 
 ## Application Components
 - **State Management**: Uses `rx.State` class for reactive state with page-specific state classes
@@ -169,36 +170,49 @@ The application uses `PROVIDER_CACHE_ROOT` setting to determine where cache and 
 ## Testing Guidelines
 
 ### Cache Isolation for Tests
-**CRITICAL**: Always isolate cache when writing tests to prevent contamination of production cache directory.
+**CRITICAL**: All tests are automatically isolated to prevent contamination of production cache directory.
 
-All tests that involve data providers, workflows, or cache operations MUST include cache isolation:
+Cache isolation is handled globally via `tests/conftest.py` which automatically:
+- **Provider Cache Isolation**: Redirects `PROVIDER_CACHE_ROOT` to `temp/pytest/` (instead of `data/`)
+- **Workflow Cache Isolation**: Disables `FLOW_CACHE_ENABLED` to prevent workflow caching during tests
+- **Complete Protection**: Ensures no test data appears in production `data/` directory
+- **Automatic Coverage**: Works for all tests without requiring individual fixtures
+- **CI/CD Compatible**: Respects environment overrides for GitHub Actions
 
-```python
-@pytest.fixture(autouse=True)  
-def isolate_cache(monkeypatch, tmp_path):
-    """Isolate cache to prevent contamination of production cache directory."""
-    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
-```
+This dual isolation protects both file-based provider caching and in-memory workflow caching.
 
 ### Running Tests Safely
-When running tests, use isolated environments to avoid cache contamination:
+All tests are automatically isolated via global configuration:
 
 ```bash
-# Safe: Run specific test modules with proper isolation
+# Safe: Run specific test modules (automatically isolated)
 .venv/bin/python -m pytest tests/flows/test_compare.py -v
 
-# Safe: Run all tests (they should have isolation)
+# Safe: Run all tests (automatically isolated)
 make test
 
-# DANGER: Never run tests in production environment without cache isolation
-# This can pollute the production cache with test data
+# All cache operations are automatically redirected:
+# - Provider cache: temp/pytest/ instead of data/
+# - Workflow cache: disabled entirely during tests
 ```
 
 ### Cache Contamination Prevention
-- **Test data should never appear in `data/YYYYMMDD/` folders**
-- **Real stock data has DatetimeIndex, test data often has RangeIndex** 
-- **If charts show flat lines or strange data, check for cache contamination**
-- **Clear cache if contaminated**: Delete affected date folders in `data/`
+With global cache isolation, test data contamination is automatically prevented:
+- **Provider cache**: Test files stored in `temp/pytest/`, production files in `data/`
+- **Workflow cache**: Completely disabled during tests to ensure fresh data
+- **Production protection**: `data/` directory remains untouched by test runs
+- **Real vs test data**: Real stock data has DatetimeIndex, test data often has RangeIndex
+- **Troubleshooting**: If charts show flat lines, check for manual modifications in `data/`
+
+### Global Configuration Details
+The `tests/conftest.py` file uses `pytest_configure()` hook to set:
+```python
+# Redirect provider cache to isolated directory
+os.environ["PROVIDER_CACHE_ROOT"] = "temp/pytest/"
+
+# Disable workflow caching entirely during tests  
+os.environ["FLOW_CACHE_ENABLED"] = "False"
+```
 
 ### Debug Level Control  
 The `DEBUG_LEVEL` setting controls logging verbosity:
@@ -207,9 +221,11 @@ The `DEBUG_LEVEL` setting controls logging verbosity:
 - **Override**: Set environment variable `DEBUG_LEVEL` or add to `.env` file
 
 ### Testing Considerations
-- Tests that verify default behavior should mock environment variables to ensure consistent results
-- Use `mock.patch.dict(os.environ, {}, clear=True)` to isolate tests from CI environment
-- Reload settings module when testing configuration changes: `importlib.reload(settings)`
+- **Environment isolation**: Tests that verify default behavior should mock environment variables to ensure consistent results
+- **CI isolation**: Use `mock.patch.dict(os.environ, {}, clear=True)` to isolate tests from CI environment
+- **Settings reload**: Reload settings module when testing configuration changes: `importlib.reload(settings)`
+- **No individual fixtures needed**: Global cache isolation eliminates the need for individual test fixtures
+- **New test files**: Automatically inherit cache isolation without any special configuration
 
 ## Key Notes
 - Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between coverage and maintainability.

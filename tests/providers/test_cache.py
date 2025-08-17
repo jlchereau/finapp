@@ -33,29 +33,6 @@ class DummyModelProvider(BaseProvider[SimpleModel]):
         return SimpleModel(value=len(query) if query else 0)
 
 
-@pytest.fixture(autouse=True)
-def temp_cache_dir(monkeypatch):
-    """Create a temporary cache directory using PROVIDER_CACHE_ROOT."""
-    # Use the project's temp directory to avoid polluting data or OS temp
-    project_root = Path(__file__).resolve().parent.parent.parent
-
-    # Create unique temp directory for this test run
-    import time
-
-    timestamp = str(int(time.time() * 1000))
-    temp_dir = project_root / "temp" / f"test_cache_{timestamp}"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-
-    # Set PROVIDER_CACHE_ROOT to point to our temp directory
-    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(temp_dir))
-
-    yield temp_dir
-
-    # Cleanup after test
-    if temp_dir.exists():
-        shutil.rmtree(temp_dir)
-
-
 @pytest.mark.asyncio
 async def test_dataframe_cache():
     provider = DummyDFProvider(ProviderConfig())
@@ -100,7 +77,7 @@ async def test_model_cache():
 
 
 @pytest.mark.asyncio
-async def test_cache_date_read_only(temp_cache_dir):
+async def test_cache_date_read_only():
     provider = DummyDFProvider(ProviderConfig())
     # Provide a past date where no cache exists
     old_date = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")

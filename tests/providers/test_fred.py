@@ -18,17 +18,6 @@ from unittest.mock import AsyncMock, patch, MagicMock
 from app.providers.fred import FredSeriesProvider, create_fred_series_provider
 from app.providers.base import ProviderConfig
 
-os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
-
-
-@pytest.fixture(autouse=True)
-def isolate_cwd(tmp_path, monkeypatch):
-    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid
-    # persistent cache files
-    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
-    # Also change cwd for backward compatibility
-    monkeypatch.chdir(tmp_path)
-
 
 @pytest.fixture
 def mock_fred_response():

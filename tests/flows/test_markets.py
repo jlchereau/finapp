@@ -16,14 +16,6 @@ from app.flows.markets import (
 )
 
 
-@pytest.fixture(autouse=True)
-def isolate_cache(monkeypatch, tmp_path):
-    """Isolate cache to prevent contamination of production cache directory."""
-    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
-    # Disable flow cache for tests to prevent interference with mocking
-    monkeypatch.setenv("FLOW_CACHE_ENABLED", "False")
-
-
 @pytest.fixture
 def sample_gdp_data():
     """Create sample GDP data from FRED."""

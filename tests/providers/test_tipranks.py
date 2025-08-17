@@ -19,16 +19,6 @@ from app.providers.tipranks import (
 )
 from app.providers.base import ProviderType, ProviderConfig
 
-os.environ["PYTEST_DEBUG_TEMPROOT"] = os.getcwd() + "/temp/"
-
-
-@pytest.fixture(autouse=True)
-def isolate_cwd(tmp_path, monkeypatch):
-    # Set PROVIDER_CACHE_ROOT to fresh tmp dir for each test to avoid persistent cache files
-    monkeypatch.setenv("PROVIDER_CACHE_ROOT", str(tmp_path))
-    # Also change cwd for backward compatibility
-    monkeypatch.chdir(tmp_path)
-
 
 class TestTipranksDataModel:
     """Test cases for TipranksDataModel."""
