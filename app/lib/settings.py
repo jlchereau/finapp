@@ -8,7 +8,7 @@ providing a centralized, type-safe configuration system.
 
 # import multiprocessing
 from pathlib import Path
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -38,6 +38,14 @@ class Settings(BaseSettings):
 
     # Storage Settings
     PROVIDER_CACHE_ROOT: str = "data"  # Base directory for all cache and data storage
+
+    # API Keys
+    FRED_API_KEY: str = Field(
+        default="", description="FRED (Federal Reserve Economic Data) API key"
+    )
+    OPENAI_API_KEY: str = Field(default="", description="OpenAI API key")
+    PERPLEXITY_API_KEY: str = Field(default="", description="Perplexity API key")
+    SERPER_API_KEY: str = Field(default="", description="Serper API key")
 
     @field_validator("DEBUG_LEVEL")
     @classmethod
@@ -69,6 +77,14 @@ class Settings(BaseSettings):
                 path = current_path.parent.parent.parent / path
 
         return str(path)
+
+    @field_validator("FRED_API_KEY")
+    @classmethod
+    def validate_fred_api_key(cls, v: str) -> str:
+        """Validate FRED API key format (basic length check)."""
+        if v and len(v) < 10:  # Basic sanity check - FRED keys are typically 32 chars
+            raise ValueError("FRED_API_KEY appears to be invalid (too short)")
+        return v
 
     # This tells Pydantic to look for a .env file.
     model_config = SettingsConfigDict(

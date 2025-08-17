@@ -45,6 +45,7 @@ class ProviderType(str, Enum):
     BLACKROCK_HOLDINGS = "blackrock_holdings"
     ALPHA_VANTAGE = "alpha_vantage"
     IEX = "iex"
+    FRED_SERIES = "fred_series"
     CUSTOM = "custom"
 
 
