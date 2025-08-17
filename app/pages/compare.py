@@ -208,7 +208,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         yield CompareState.update_volume_chart
         yield CompareState.update_rsi_chart
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def update_returns_chart(self):
         """Update the returns chart using background processing."""
         if not self.selected_tickers:
@@ -344,7 +344,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_returns = False
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def update_volatility_chart(self):
         """Update the volatility chart using background processing."""
         if not self.selected_tickers:
@@ -458,7 +458,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_volatility = False
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def update_volume_chart(self):
         """Update the volume chart using background processing."""
         if not self.selected_tickers:
@@ -570,7 +570,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_volume = False
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def update_rsi_chart(self):
         """Update the RSI chart using background processing."""
         if not self.selected_tickers:

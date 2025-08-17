@@ -85,7 +85,7 @@ class TestState(rx.State):  # pylint: disable=inherit-non-class
 
         return display_results
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def fetch_single_ticker(self):
         """Fetch data for a single ticker using the actual workflow."""
         if not self.single_ticker:
@@ -127,7 +127,7 @@ class TestState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.is_loading_single = False
 
-    @rx.event(background=True)
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def fetch_multi_tickers(self):
         """Fetch data for multiple tickers using the actual workflow."""
         if not self.multi_tickers:
