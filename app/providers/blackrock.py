@@ -418,6 +418,9 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         Returns:
             Cleaned DataFrame with standardized columns
         """
+        # Make a copy to avoid SettingWithCopyWarning
+        df = df.copy()
+
         # Standardize column names (support multiple languages and formats)
         column_mapping = {
             # English column names (CSV and XML)
@@ -480,15 +483,15 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         for col in weight_cols:
             if col in df.columns:
                 # Convert to string and clean
-                df[col] = df[col].astype(str).str.replace("%", "", regex=False)
-                df[col] = (
+                df.loc[:, col] = df[col].astype(str).str.replace("%", "", regex=False)
+                df.loc[:, col] = (
                     df[col]
                     .str.replace(",", ".", regex=False)
                     .str.replace(" ", "", regex=False)
                 )
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
                 if col != "weight":  # Rename to standard column name
-                    df["weight"] = df[col]
+                    df.loc[:, "weight"] = df[col]
                     df = df.drop(columns=[col])
 
         # Clean numeric columns
@@ -496,14 +499,14 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         for col in numeric_cols:
             if col in df.columns:
                 # Convert to string and clean
-                df[col] = df[col].astype(str).str.replace(",", "", regex=False)
-                df[col] = (
+                df.loc[:, col] = df[col].astype(str).str.replace(",", "", regex=False)
+                df.loc[:, col] = (
                     df[col]
                     .str.replace("$", "", regex=False)
                     .str.replace("€", "", regex=False)
                 )
-                df[col] = df[col].str.replace(" ", "", regex=False)
-                df[col] = pd.to_numeric(df[col], errors="coerce")
+                df.loc[:, col] = df[col].str.replace(" ", "", regex=False)
+                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
 
         # Filter out rows without holding names
         if "holding_name" in df.columns:
