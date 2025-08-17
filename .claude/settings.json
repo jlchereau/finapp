@@ -2,18 +2,21 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
       "Bash(make format)",
       "Bash(make lint)",
       "Bash(make build)",
-      "Bash(.venv/bin/python -m pytest:*)",
       "Bash(make test)",
+      "Bash(.venv/bin/blake:*)",
+      "Bash(.venv/bin/flake8:*)",
+      "Bash(.venv/bin/pylint:*)",
+      "Bash(.venv/bin/python -m pytest:*)",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_take_screenshot"
     ],
     "deny": [
-      "Bash(make run)"
+      "Bash(make run)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }
