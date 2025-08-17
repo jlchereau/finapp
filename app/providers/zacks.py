@@ -81,7 +81,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
             ValueError: If no data is returned or response is invalid
             Exception: For other network-related errors
         """
-        logger.debug(f"ZacksProvider._fetch_data called for query: {query}")
         # Prepare and validate query
         if query is None:
             logger.error("Query cannot be None for ZacksProvider")
@@ -89,7 +88,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
                 "Query must be provided for ZacksProvider"
             )
         ticker = query.upper().strip()
-        logger.debug(f"Normalized ticker: {ticker}")
         # HTTP request with exception mapping
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(
@@ -122,10 +120,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
 
         # Validate and parse JSON data
         json_data = response.json()
-        logger.debug(
-            f"Raw API response for {ticker}: {type(json_data)} with keys: "
-            f"{list(json_data.keys()) if isinstance(json_data, dict) else 'not dict'}"
-        )
         if not json_data:
             logger.warning(f"Empty response from Zacks API for ticker: {ticker}")
             raise ValueError("Invalid response from Zacks API")
@@ -135,19 +129,9 @@ class ZacksProvider(BaseProvider[BaseModel]):
         try:
             if isinstance(json_data, dict) and ticker in json_data:
                 ticker_data = json_data[ticker]
-                keys_info = (
-                    list(ticker_data.keys())
-                    if isinstance(ticker_data, dict)
-                    else "not dict"
-                )
-                logger.debug(
-                    f"Extracted ticker data for {ticker}: {type(ticker_data)} "
-                    f"with keys: {keys_info}"
-                )
             else:
                 # If direct format, use as-is
                 ticker_data = json_data
-                logger.debug(f"Using direct JSON format for {ticker}")
 
             # Process data for type conversion
             # Convert string numbers to appropriate types
@@ -206,8 +190,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
             else:
                 ticker_data["dividend_yield"] = 0.0
 
-            logger.debug(f"Processed ticker data for {ticker} ready for validation")
-
         except Exception as e:
             logger.error(f"Error extracting ticker data for {ticker}: {e}")
             raise NonRetriableProviderException(
@@ -217,7 +199,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
         # Parse the JSON data using the Pydantic model (strict validation)
         try:
             result = ZacksModel(**ticker_data)
-            logger.debug(f"Successfully parsed Zacks data for {ticker}")
             return result
         except ValidationError as e:
             logger.error(

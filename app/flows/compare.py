@@ -138,8 +138,6 @@ class CompareDataWorkflow(Workflow):
         # then filter in normalize step
         tasks = {}
 
-        logger.debug(f"Fetching max period data, will filter from {base_date}")
-
         for ticker in tickers:
             # Fetch max period data for better caching
             task = self.yahoo_history.get_data(ticker)
@@ -223,16 +221,11 @@ class CompareDataWorkflow(Workflow):
                     continue
 
                 # Filter data to start from base_date
-                logger.debug(
-                    f"Raw data for {ticker}: {len(data)} rows, "
-                    f"index range: {data.index.min()} to {data.index.max()}"
-                )
-                logger.debug(f"Base date for filtering: {base_date}")
-
-                # Use helper function for consistent filtering
                 filtered_data = _filter_data_by_date(data, base_date)
 
-                logger.debug(f"Filtered data for {ticker}: {len(filtered_data)} rows")
+                logger.debug(
+                    f"{ticker}: {len(data)} -> {len(filtered_data)} rows after filtering"
+                )
 
                 if filtered_data.empty:
                     logger.warning(f"No data after {base_date} for {ticker}, skipping")
@@ -262,10 +255,6 @@ class CompareDataWorkflow(Workflow):
                 # Add to normalized data
                 normalized_data[ticker] = percentage_returns
                 successful_tickers.append(ticker)
-
-                logger.debug(
-                    f"Normalized {ticker}: {len(percentage_returns)} data points"
-                )
 
             except (KeyError, IndexError, AttributeError) as e:
                 logger.warning(f"Error normalizing data for {ticker}: {e}")
@@ -315,15 +304,8 @@ async def fetch_raw_ticker_data(
         logger.debug("fetch_raw_ticker_data: No tickers provided")
         return {}
 
-    # Create cache key for logging
-    tickers_sorted = sorted(tickers)
-    cache_key = f"raw_data:{hash(tuple(tickers_sorted))}:{base_date.isoformat()}"
-
     try:
-        logger.info(
-            f"Fetching raw data for {len(tickers)} tickers "
-            f"(cache_key: {cache_key[:50]}...)"
-        )
+        logger.info(f"Fetching raw data for {len(tickers)} tickers")
 
         # Create provider to fetch raw OHLCV data
         yahoo_history = create_yahoo_history_provider(
@@ -459,11 +441,6 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
                 normalized_data[ticker] = percentage_returns
                 successful_tickers.append(ticker)
 
-                logger.debug(
-                    f"Processed returns for {ticker}: "
-                    f"{len(percentage_returns)} data points"
-                )
-
             except Exception as e:
                 logger.warning(f"Error processing returns for {ticker}: {e}")
                 failed_tickers.append(ticker)
@@ -562,12 +539,6 @@ async def fetch_volatility_data(
                 volatility_data[ticker] = filtered_vol_data["Volatility"]
                 successful_tickers.append(ticker)
 
-                logger.debug(
-                    f"Processed volatility for {ticker}: "
-                    f"{len(filtered_vol_data)} data points "
-                    f"(calculated from {len(vol_data)} total points)"
-                )
-
             except Exception as e:
                 logger.warning(f"Error calculating volatility for {ticker}: {e}")
                 failed_tickers.append(ticker)
@@ -655,10 +626,6 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
                 if "Volume" in filtered_data.columns:
                     volume_data[ticker] = filtered_data["Volume"]
                     successful_tickers.append(ticker)
-                    logger.debug(
-                        f"Processed volume for {ticker}: "
-                        f"{len(filtered_data)} data points"
-                    )
                 else:
                     logger.warning(f"No Volume data for {ticker}")
                     failed_tickers.append(ticker)
@@ -756,11 +723,6 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
                 # Store filtered RSI data
                 rsi_data[ticker] = filtered_rsi_data["RSI"]
                 successful_tickers.append(ticker)
-
-                logger.debug(
-                    f"Processed RSI for {ticker}: {len(filtered_rsi_data)} data points "
-                    f"(calculated from {len(rsi_result)} total points)"
-                )
 
             except Exception as e:
                 logger.warning(f"Error calculating RSI for {ticker}: {e}")

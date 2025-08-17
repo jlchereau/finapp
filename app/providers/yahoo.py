@@ -80,10 +80,9 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             ValueError: If no data is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
-        logger.debug(f"YahooHistoryProvider._fetch_data called for query: {query}")
         try:
             # Extract parameters with defaults
-            # Default to "max" period for optimal caching - workflows can filter to shorter periods
+            # Default to "max" period for optimal caching - workflows can filter
             period = kwargs.get("period", self.config.extra_config.get("period", "max"))
             interval = kwargs.get(
                 "interval", self.config.extra_config.get("interval", "1d")
@@ -91,17 +90,11 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
             start = kwargs.get("start", self.config.extra_config.get("start"))
             end = kwargs.get("end", self.config.extra_config.get("end"))
 
-            logger.debug(
-                f"Using parameters: period={period}, interval={interval}, "
-                f"start={start}, end={end}"
-            )
-
             # Validate query
             if query is None:
                 logger.error("Query cannot be None for YahooHistoryProvider")
                 raise ValueError("Query must be provided for YahooHistoryProvider")
             ticker = query.upper().strip()
-            logger.debug(f"Normalized ticker: {ticker}")
 
             # Run yfinance call in a separate thread to avoid blocking
             def fetch_history():
@@ -126,11 +119,9 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
                 )
                 raise ValueError(f"No historical data found for query: {query}")
 
-            logger.debug(f"Retrieved {len(data)} rows of data for {ticker}")
             # Clean up the data
             data.index.name = "Date"
             data = data.round(2)  # Round to 2 decimal places
-            logger.debug(f"Data cleaned and rounded for {ticker}")
 
             return data
         except ValueError as e:
@@ -176,14 +167,12 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
             ValueError: If no info is returned or ticker is invalid
             Exception: For other yfinance-related errors
         """
-        logger.debug(f"YahooInfoProvider._fetch_data called for query: {query}")
         try:
             # Validate query
             if query is None:
                 logger.error("Query cannot be None for YahooInfoProvider")
                 raise ValueError("Query must be provided for YahooInfoProvider")
             ticker = query.upper().strip()
-            logger.debug(f"Normalized ticker: {ticker}")
             # Run yfinance call in a separate thread to avoid blocking
 
             def fetch_info():
@@ -199,14 +188,8 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
                 )
                 raise ValueError(f"No info data found for query: {query}")
 
-            logger.debug(
-                f"Retrieved info data with {len(json_data)} fields for {ticker}"
-            )
             # Parse the JSON data using the Pydantic model (strict validation)
             result = YahooInfoModel(**json_data)
-            logger.debug(
-                f"Successfully parsed info data into YahooInfoModel for {ticker}"
-            )
             return result
         except ValueError as e:
             logger.error(f"Non-retriable error in YahooInfoProvider for {query}: {e}")
@@ -221,7 +204,7 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
 
 # Factory functions for easy provider creation
 def create_yahoo_history_provider(
-    period: str = "max",  # Default to max duration for caching - workflows can filter down
+    period: str = "max",  # Default to max for caching - workflows filter down
     interval: str = "1d",
     timeout: float = 30.0,
     retries: int = 3,
@@ -230,7 +213,7 @@ def create_yahoo_history_provider(
     Factory function to create a Yahoo History provider with custom settings.
 
     Args:
-        period: Default period for data fetching (default: "max" to maximize cached data)
+        period: Default period for data fetching (default: "max" for caching)
         interval: Default interval for data fetching
         timeout: Request timeout in seconds
         retries: Number of retry attempts
@@ -240,12 +223,9 @@ def create_yahoo_history_provider(
 
     Note:
         The default period is "max" to ensure maximum historical data is cached.
-        Workflows can filter to shorter durations, but cannot bypass cache for longer periods.
+        Workflows can filter to shorter durations, but cannot bypass cache for
+        longer periods.
     """
-    logger.debug(
-        f"Creating YahooHistoryProvider: period={period}, "
-        f"interval={interval}, timeout={timeout}s, retries={retries}"
-    )
     config = ProviderConfig(
         timeout=timeout,
         retries=retries,
@@ -268,6 +248,5 @@ def create_yahoo_info_provider(
     Returns:
         Configured YahooInfoProvider instance
     """
-    logger.debug(f"Creating YahooInfoProvider: timeout={timeout}, retries={retries}")
     config = ProviderConfig(timeout=timeout, retries=retries)
     return YahooInfoProvider(config)

@@ -7,7 +7,7 @@ to avoid external API dependencies.
 
 import pandas as pd
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
 
 from app.flows.compare import (
