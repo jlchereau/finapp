@@ -4,10 +4,11 @@ This module provides functionality to fetch data from Yahoo Finance.
 """
 
 import asyncio
-
 import yfinance as yf
 from pandas import DataFrame
 from pydantic import BaseModel, Field
+
+from app.lib.logger import logger
 from .base import (
     BaseProvider,
     ProviderType,
@@ -16,7 +17,6 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from ..lib.logger import logger
 
 
 class YahooInfoModel(BaseModel):

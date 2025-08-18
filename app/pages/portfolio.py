@@ -1,7 +1,7 @@
 """Portfolio page"""
 
 import reflex as rx
-from ..templates.template import template
+from app.templates.template import template
 
 
 class PortfolioState(rx.State):  # pylint: disable=inherit-non-class

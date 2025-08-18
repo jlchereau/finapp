@@ -10,6 +10,7 @@ import httpx
 import pandas as pd
 from pandas import DataFrame
 
+from app.lib.settings import settings
 from .base import (
     BaseProvider,
     ProviderType,
@@ -18,7 +19,6 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from ..lib.settings import settings
 
 
 class FredSeriesProvider(BaseProvider[DataFrame]):

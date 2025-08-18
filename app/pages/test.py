@@ -1,7 +1,7 @@
 """Test page"""
 
 import reflex as rx
-from ..templates.template import template
+from app.templates.template import template
 
 
 class TestState(rx.State):  # pylint: disable=inherit-non-class

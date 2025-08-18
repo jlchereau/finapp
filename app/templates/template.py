@@ -2,7 +2,7 @@
 
 from typing import Callable
 import reflex as rx
-from ..components.navbar import navbar
+from app.components.navbar import navbar
 
 
 def template(

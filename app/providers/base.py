@@ -21,7 +21,7 @@ from enum import Enum
 from pandas import DataFrame
 from pydantic import BaseModel, Field
 
-from ..lib.logger import logger
+from app.lib.logger import logger
 
 
 class NonRetriableProviderException(Exception):

@@ -13,10 +13,10 @@ import pandas as pd
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
 
-from ..providers.fred import create_fred_series_provider
-from ..providers.yahoo import create_yahoo_history_provider
-from ..lib.logger import logger
-from .cache import apply_flow_cache
+from app.providers.fred import create_fred_series_provider
+from app.providers.yahoo import create_yahoo_history_provider
+from app.lib.logger import logger
+from app.flows.cache import apply_flow_cache
 
 
 class BuffetIndicatorEvent(Event):

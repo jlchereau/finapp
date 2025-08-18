@@ -7,7 +7,7 @@ import reflex as rx
 from matplotlib.figure import Figure
 from reflex_pyplot import pyplot
 from reflex.style import toggle_color_mode
-from ..templates.template import template
+from app.templates.template import template
 
 
 def create_plot(theme: str, plot_data: tuple, scale: list):

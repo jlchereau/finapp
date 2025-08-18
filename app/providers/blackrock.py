@@ -22,7 +22,7 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from ..lib.logger import logger
+from app.lib.logger import logger
 
 
 class BlackrockHoldingsProvider(BaseProvider[DataFrame]):

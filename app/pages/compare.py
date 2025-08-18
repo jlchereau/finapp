@@ -9,14 +9,14 @@ import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
-from ..components.combobox import combobox_wrapper as combobox
-from ..flows.compare import (
+from app.components.combobox import combobox_wrapper as combobox
+from app.flows.compare import (
     fetch_returns_data,
     fetch_volatility_data,
     fetch_volume_data,
     fetch_rsi_data,
 )
-from ..templates.template import template
+from app.templates.template import template
 
 
 class CompareState(rx.State):  # pylint: disable=inherit-non-class

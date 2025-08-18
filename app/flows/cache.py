@@ -7,7 +7,7 @@ based on application settings. Used across multiple workflow modules.
 
 from aiocache import cached
 
-from ..lib.settings import settings
+from app.lib.settings import settings
 
 
 def apply_flow_cache(func):

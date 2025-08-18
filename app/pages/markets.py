@@ -9,8 +9,8 @@ import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
-from ..flows.markets import fetch_buffet_indicator_data
-from ..templates.template import template
+from app.flows.markets import fetch_buffet_indicator_data
+from app.templates.template import template
 
 
 class MarketState(rx.State):  # pylint: disable=inherit-non-class

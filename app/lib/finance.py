@@ -2,9 +2,9 @@
 A collection of finance functions for the computation of key financial metrics
 """
 
+from typing import Optional
 import pandas as pd
 import numpy as np
-from typing import Optional
 
 
 def calculate_returns(

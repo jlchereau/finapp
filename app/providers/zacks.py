@@ -4,8 +4,9 @@ This module provides functionality to fetch data from Zacks API.
 """
 
 import httpx
-
 from pydantic import BaseModel, Field, ValidationError
+
+from app.lib.logger import logger
 from .base import (
     BaseProvider,
     ProviderType,
@@ -14,7 +15,6 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from ..lib.logger import logger
 
 
 class ZacksModel(BaseModel):

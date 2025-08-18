@@ -18,7 +18,7 @@ from .base import (
 )
 from .cache import cache
 from .headers import get_random_user_agent
-from ..lib.logger import logger
+from app.lib.logger import logger
 
 
 class TipranksDataModel(BaseModel):

@@ -7,7 +7,7 @@ See: https://reflex.dev/docs/library/typography/markdown/
 
 from pathlib import Path
 import reflex as rx
-from ..templates.template import template
+from app.templates.template import template
 
 
 def load_markdown(file_name: str) -> str:

@@ -2,8 +2,8 @@
 
 from typing import List, Dict, Any
 import reflex as rx
-from ..lib.storage import DateBasedStorage
-from ..templates.template import template
+from app.lib.storage import DateBasedStorage
+from app.templates.template import template
 
 
 class State(rx.State):  # pylint: disable=inherit-non-class
