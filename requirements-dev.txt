@@ -3,6 +3,7 @@ black
 flake8
 ipykernel
 pylint
+pylint-per-file-ignores
 pytest
 pytest-asyncio
 pytest-cov

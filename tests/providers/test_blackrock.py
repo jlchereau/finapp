@@ -19,10 +19,6 @@ from app.providers.base import ProviderType, ProviderConfig
 class TestBlackrockHoldingsProvider:
     """Test cases for BlackrockHoldingsProvider."""
 
-    def __init__(self):
-        """Initialize test class."""
-        self.provider = None
-
     def setup_method(self):
         """Set up test fixtures."""
         # Disable caching to ensure we test the actual provider logic

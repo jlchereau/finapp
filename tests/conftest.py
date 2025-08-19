@@ -18,9 +18,13 @@ def pytest_configure(config):  # pylint: disable=unused-argument
 
     Also disables FLOW_CACHE_ENABLED to prevent workflow caching during tests.
 
+    Configures filterwarnings to suppress external library deprecation warnings.
+
     For local development: Uses temp/pytest/
     For CI/CD: Environment may override this (GitHub Actions already uses temp/)
     """
+    # Configure warning filters to suppress external library warnings
+    config.addinivalue_line("filterwarnings", "ignore::DeprecationWarning:workflows")
     # Only set if not already configured (allows CI to override)
     if "PROVIDER_CACHE_ROOT" not in os.environ:
         # Use project temp directory for test isolation

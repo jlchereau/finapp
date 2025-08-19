@@ -843,14 +843,16 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 rx.icon("heart", size=16),
                 size="2",
                 variant="solid",
-                on_click=lambda: CompareState.toggle_favorite(ticker),
+                # pylint: disable=no-value-for-parameter
+                on_click=CompareState.toggle_favorite(ticker),
             ),
             rx.button(
                 rx.icon("minus", size=16),
                 size="2",
                 variant="solid",
                 color_scheme="red",
-                on_click=lambda: CompareState.remove_ticker(ticker),
+                # pylint: disable=no-value-for-parameter
+                on_click=CompareState.remove_ticker(ticker),
             ),
             spacing="1",
         ),

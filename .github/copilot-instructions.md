@@ -40,6 +40,13 @@ make lint     # Run pylint on app/, tests/, *.py (disable R,C categories)
 make all      # Run install, format, lint, test in sequence
 ```
 
+**IMPORTANT - Pylint Configuration**: 
+- Uses `pylint-per-file-ignores` plugin configured in `.pylintrc` to disable specific checks on test files
+- Test files automatically ignore `protected-access` and `redefined-outer-name` violations (common in pytest fixtures)
+- **NEVER use `# pylint: disable=*` comments in code** - these should be considered LAST RESORT only when no coding alternative exists
+- Always prefer fixing the underlying code issue rather than suppressing the warning
+- Per-file ignores in `.pylintrc` are acceptable for systematic test-specific patterns that cannot be avoided
+
 ### Testing
 ```bash
 make test     # Run pytest on app/ and tests/ directories
@@ -119,7 +126,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Visualization**: matplotlib, plotly
 - **Database**: duckdb
 - **Build Tools**: pybind11
-- **Development**: black, flake8, pylint, pytest, pytest-asyncio, pytest-cov, ipykernel
+- **Development**: black, flake8, pylint, pylint-per-file-ignores, pytest, pytest-asyncio, pytest-cov, ipykernel
 
 ## Key Architecture Features
 
