@@ -2,9 +2,10 @@
 A collection of finance functions for the computation of key financial metrics
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 import pandas as pd
 import numpy as np
+from sklearn.linear_model import LinearRegression
 
 
 def calculate_returns(
@@ -149,3 +150,86 @@ def calculate_volume_metrics(data: pd.DataFrame, ma_window: int = 20) -> pd.Data
     result = pd.DataFrame({"Volume": volume, "Volume_MA": volume_ma})
 
     return result
+
+
+def calculate_exponential_trend(
+    data: pd.DataFrame, column: str
+) -> Optional[Dict[str, Any]]:
+    """
+    Calculate exponential trend lines with confidence intervals for a time series.
+
+    Uses log-linear regression to fit an exponential trend and calculates
+    standard deviation bands at 1 and 2 sigma levels.
+
+    Args:
+        data: DataFrame with datetime index and the specified column
+        column: Name of the column to analyze
+
+    Returns:
+        Dictionary with trend data containing:
+        - dates: Original datetime index
+        - trend: Exponential trend line values
+        - plus1_std: +1 standard deviation band
+        - minus1_std: -1 standard deviation band
+        - plus2_std: +2 standard deviation band
+        - minus2_std: -2 standard deviation band
+
+        Returns None if calculation fails or insufficient data
+    """
+    if data.empty or len(data) < 2:
+        return None
+
+    if column not in data.columns:
+        raise ValueError(f"Column '{column}' not found in DataFrame")
+
+    # Prepare data for regression using fractional years for smooth curves
+    # Convert dates to fractional years to avoid stair-step pattern in quarterly data
+    def date_to_fractional_year(date):
+        """Convert datetime to fractional year (e.g., 2020.25 for Q2 2020)."""
+        year = date.year
+        # Calculate fraction of year: (day_of_year - 1) / days_in_year
+        start_of_year = pd.Timestamp(year, 1, 1)
+        days_in_year = 366 if pd.Timestamp(year, 12, 31).day_of_year == 366 else 365
+        day_of_year = (date - start_of_year).days + 1
+        return year + (day_of_year - 1) / days_in_year
+
+    # Convert index to fractional years for smooth regression
+    fractional_years = np.array([date_to_fractional_year(date) for date in data.index])
+    X = fractional_years.reshape(-1, 1)
+    y = data[column].values
+
+    if len(y) < 2:
+        return None
+
+    # Handle zeros/negatives
+    if np.any(np.isnan(y) | (y <= 0)):
+        raise ValueError(f"Column '{column}' contains non-positive values")
+
+    y_log = np.log(y)
+
+    # Fit linear regression on log-transformed data
+    model = LinearRegression()
+    model.fit(X, y_log)
+
+    # Generate predictions
+    y_log_pred = model.predict(X)
+    y_pred = np.exp(y_log_pred)
+
+    # Calculate residuals and standard deviation
+    residuals = y_log - y_log_pred
+    std = residuals.std()
+
+    # Generate trend lines with confidence intervals
+    y_plus1 = np.exp(y_log_pred + std)
+    y_minus1 = np.exp(y_log_pred - std)
+    y_plus2 = np.exp(y_log_pred + 2 * std)
+    y_minus2 = np.exp(y_log_pred - 2 * std)
+
+    return {
+        "dates": data.index,
+        "trend": y_pred,
+        "plus1_std": y_plus1,
+        "minus1_std": y_minus1,
+        "plus2_std": y_plus2,
+        "minus2_std": y_minus2,
+    }

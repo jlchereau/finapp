@@ -11,6 +11,7 @@ from app.lib.finance import (
     calculate_volatility,
     calculate_rsi,
     calculate_volume_metrics,
+    calculate_exponential_trend,
 )
 
 
@@ -373,3 +374,177 @@ class TestCalculateVolumeMetrics:
         # But volume data should be preserved
         assert result.iloc[0]["Volume"] == 1000
         assert result.iloc[1]["Volume"] == 2000
+
+
+class TestCalculateExponentialTrend:
+    """Test cases for calculate_exponential_trend function."""
+
+    @pytest.fixture
+    def quarterly_buffet_data(self):
+        """Create sample quarterly Buffet Indicator data (mimics real workflow output)."""
+        # Create quarterly dates (Quarter Start like in BuffetIndicatorWorkflow)
+        dates = pd.date_range(start="2020-01-01", periods=16, freq="QS")
+
+        # Create exponentially growing data with some noise (typical of Buffet Indicator)
+        np.random.seed(42)  # For reproducible tests
+        base_values = [100 * (1.02 ** (i / 4)) for i in range(16)]  # 2% annual growth
+        noise = np.random.normal(0, 5, 16)  # Add some realistic noise
+        buffet_values = [
+            max(50, val + n) for val, n in zip(base_values, noise)
+        ]  # Ensure positive
+
+        return pd.DataFrame({"Buffet_Indicator": buffet_values}, index=dates)
+
+    @pytest.fixture
+    def annual_data(self):
+        """Create sample annual data."""
+        dates = pd.date_range(start="2020-01-01", periods=5, freq="YS")
+        values = [100, 120, 150, 180, 220]  # Clear exponential growth
+        return pd.DataFrame({"value": values}, index=dates)
+
+    def test_empty_dataframe(self):
+        """Test with empty DataFrame."""
+        empty_df = pd.DataFrame()
+        result = calculate_exponential_trend(empty_df, "value")
+        assert result is None
+
+    def test_missing_column(self, quarterly_buffet_data):
+        """Test with missing column."""
+        with pytest.raises(ValueError, match="Column 'missing' not found in DataFrame"):
+            calculate_exponential_trend(quarterly_buffet_data, "missing")
+
+    def test_insufficient_data(self):
+        """Test with insufficient data points."""
+        df = pd.DataFrame({"value": [100]}, index=[pd.Timestamp("2020-01-01")])
+        result = calculate_exponential_trend(df, "value")
+        assert result is None
+
+    def test_quarterly_data_smooth_trend(self, quarterly_buffet_data):
+        """Test that quarterly data produces smooth exponential trend (not stair-steps)."""
+        result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        assert result is not None
+        assert "trend" in result
+        assert "dates" in result
+        assert len(result["trend"]) == 16
+
+        # Check that trend values are different for each quarter (no stair-steps)
+        trend_values = result["trend"]
+
+        # Within each year, trend values should be different (not equal)
+        # Check Q1 vs Q2 of 2020 (should be different with fractional years)
+        q1_2020_idx = 0  # 2020-01-01
+        q2_2020_idx = 1  # 2020-04-01
+        assert trend_values[q1_2020_idx] != trend_values[q2_2020_idx]
+
+        # Most importantly: verify trend is smooth (different values for each quarter)
+        # Due to noise in test data, trend direction is less important than smoothness
+        assert len(set(trend_values)) > 1  # Should have variation, not flat
+
+    def test_return_structure(self, quarterly_buffet_data):
+        """Test that function returns expected structure."""
+        result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        required_keys = [
+            "dates",
+            "trend",
+            "plus1_std",
+            "minus1_std",
+            "plus2_std",
+            "minus2_std",
+        ]
+        for key in required_keys:
+            assert key in result
+
+        # All arrays should have same length
+        length = len(result["dates"])
+        for key in required_keys[1:]:  # Skip 'dates'
+            assert len(result[key]) == length
+
+        # Dates should match original index
+        pd.testing.assert_index_equal(result["dates"], quarterly_buffet_data.index)
+
+    def test_confidence_bands_ordering(self, quarterly_buffet_data):
+        """Test that confidence bands are properly ordered."""
+        result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        trend = result["trend"]
+        plus1 = result["plus1_std"]
+        minus1 = result["minus1_std"]
+        plus2 = result["plus2_std"]
+        minus2 = result["minus2_std"]
+
+        # Check ordering: minus2 < minus1 < trend < plus1 < plus2
+        for i in range(len(trend)):
+            assert minus2[i] <= minus1[i] <= trend[i] <= plus1[i] <= plus2[i]
+
+    def test_annual_data_compatibility(self, annual_data):
+        """Test that function works with annual data (backward compatibility)."""
+        result = calculate_exponential_trend(annual_data, "value")
+
+        assert result is not None
+        assert len(result["trend"]) == 5
+
+        # Should still produce smooth trend for annual data
+        trend = result["trend"]
+        assert trend[0] < trend[-1]  # Overall growth
+
+    def test_negative_values_error(self):
+        """Test that negative values raise appropriate error."""
+        dates = pd.date_range(start="2020-01-01", periods=4, freq="QS")
+        df = pd.DataFrame({"value": [100, -50, 75, 90]}, index=dates)
+
+        with pytest.raises(ValueError, match="contains non-positive values"):
+            calculate_exponential_trend(df, "value")
+
+    def test_zero_values_error(self):
+        """Test that zero values raise appropriate error."""
+        dates = pd.date_range(start="2020-01-01", periods=4, freq="QS")
+        df = pd.DataFrame({"value": [100, 0, 75, 90]}, index=dates)
+
+        with pytest.raises(ValueError, match="contains non-positive values"):
+            calculate_exponential_trend(df, "value")
+
+    def test_nan_values_error(self):
+        """Test that NaN values raise appropriate error."""
+        dates = pd.date_range(start="2020-01-01", periods=4, freq="QS")
+        df = pd.DataFrame({"value": [100, np.nan, 75, 90]}, index=dates)
+
+        with pytest.raises(ValueError, match="contains non-positive values"):
+            calculate_exponential_trend(df, "value")
+
+    def test_fractional_year_conversion_accuracy(self):
+        """Test that fractional year conversion produces expected values."""
+        # Test specific quarterly dates
+        dates = [
+            pd.Timestamp("2020-01-01"),  # Q1 -> ~2020.0
+            pd.Timestamp("2020-04-01"),  # Q2 -> ~2020.25
+            pd.Timestamp("2020-07-01"),  # Q3 -> ~2020.5
+            pd.Timestamp("2020-10-01"),  # Q4 -> ~2020.75
+        ]
+        df = pd.DataFrame({"value": [100, 110, 121, 133]}, index=dates)
+
+        result = calculate_exponential_trend(df, "value")
+        assert result is not None
+
+        # Verify that all trend values are different (no stair-steps)
+        trend = result["trend"]
+        assert len(set(trend)) == 4  # All values should be unique
+
+    def test_regression_quality(self, quarterly_buffet_data):
+        """Test that regression produces reasonable exponential fit."""
+        result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        trend = result["trend"]
+        original = quarterly_buffet_data["Buffet_Indicator"].values
+
+        # Trend should capture general direction
+        # (Can't be too strict due to noise in test data)
+        assert len(trend) == len(original)
+
+        # At minimum, trend should be positive and reasonable
+        assert all(val > 0 for val in trend)
+
+        # Standard deviation bands should be reasonable
+        std_width = result["plus1_std"][0] - result["minus1_std"][0]
+        assert std_width > 0  # Should have some spread

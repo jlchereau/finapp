@@ -22,6 +22,7 @@ matplotlib
 plotly
 pyarrow
 riskfolio-lib
+scikit-learn
 # TA-Lib
 yfinance
 reflex

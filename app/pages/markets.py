@@ -10,6 +10,7 @@ import reflex as rx
 import plotly.graph_objects as go
 
 from app.flows.markets import fetch_buffet_indicator_data
+from app.lib.finance import calculate_exponential_trend
 from app.templates.template import template
 
 
@@ -137,7 +138,80 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             # Create plotly chart
             fig = go.Figure()
 
-            # Plot Buffet Indicator
+            # Calculate exponential trend lines
+            trend_data = calculate_exponential_trend(buffet_data, "Buffet_Indicator")
+
+            # Add trend lines first (so they appear behind the main line)
+            if trend_data is not None:
+                # Main trend line
+                fig.add_trace(
+                    go.Scatter(
+                        x=trend_data["dates"],
+                        y=trend_data["trend"],
+                        mode="lines",
+                        name="Exponential Trend",
+                        line=dict(color="rgba(128,128,128,0.7)", width=2, dash="dash"),
+                        hovertemplate="<b>Exponential Trend</b><br>"
+                        # + "Date: %{x}<br>"
+                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                    )
+                )
+
+                # +/- 2 std dev bands (outer)
+                fig.add_trace(
+                    go.Scatter(
+                        x=trend_data["dates"],
+                        y=trend_data["plus2_std"],
+                        mode="lines",
+                        name="+2 Std Dev",
+                        line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
+                        hovertemplate="<b>+2 Std Dev</b><br>"
+                        # + "Date: %{x}<br>"
+                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                    )
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=trend_data["dates"],
+                        y=trend_data["minus2_std"],
+                        mode="lines",
+                        name="-2 Std Dev",
+                        line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
+                        showlegend=False,  # Don't show in legend to avoid duplication
+                        hovertemplate="<b>-2 Std Dev</b><br>"
+                        # + "Date: %{x}<br>"
+                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                    )
+                )
+
+                # +/- 1 std dev bands (inner)
+                fig.add_trace(
+                    go.Scatter(
+                        x=trend_data["dates"],
+                        y=trend_data["plus1_std"],
+                        mode="lines",
+                        name="+1 Std Dev",
+                        line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
+                        hovertemplate="<b>+1 Std Dev</b><br>"
+                        # + "Date: %{x}<br>"
+                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                    )
+                )
+                fig.add_trace(
+                    go.Scatter(
+                        x=trend_data["dates"],
+                        y=trend_data["minus1_std"],
+                        mode="lines",
+                        name="-1 Std Dev",
+                        line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
+                        showlegend=False,  # Don't show in legend to avoid duplication
+                        hovertemplate="<b>-1 Std Dev</b><br>"
+                        # + "Date: %{x}<br>"
+                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                    )
+                )
+
+            # Plot Buffet Indicator (on top of trend lines)
             fig.add_trace(
                 go.Scatter(
                     x=buffet_data.index,
@@ -147,9 +221,8 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                     line=dict(color="#2563eb", width=3),
                     marker=dict(size=4),
                     hovertemplate="<b>Buffet Indicator</b><br>"
-                    + "Date: %{x}<br>"
-                    + "Value: %{y:.1f}<br>"
-                    + "<extra></extra>",
+                    # + "Date: %{x}<br>"
+                    + "Value: %{y:.1f}<br>" + "<extra></extra>",
                 )
             )
 
