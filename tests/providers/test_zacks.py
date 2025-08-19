@@ -4,7 +4,6 @@ Tests ZacksProvider for fetching financial data from Zacks API.
 """
 
 import asyncio
-import os
 from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
 from pydantic import BaseModel, ValidationError
@@ -21,13 +20,15 @@ from app.providers.base import ProviderType, ProviderConfig
 class TestZacksProvider:
     """Test cases for ZacksProvider."""
 
+    def __init__(self):
+        """Initialize test class."""
+        self.provider = None
+
     def setup_method(self):
         """Set up test fixtures."""
         # Disable caching to ensure we test the actual provider logic
         config = ProviderConfig(cache_enabled=False)
-        self.provider = ZacksProvider(
-            config
-        )  # pylint:disable=attribute-defined-outside-init
+        self.provider = ZacksProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""

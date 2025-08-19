@@ -113,7 +113,7 @@ class TestCalculateVolatility:
         # Create some price movement for volatility calculation
         np.random.seed(42)  # For reproducible tests
         prices = [100]
-        for i in range(49):
+        for _ in range(49):
             # Random walk with some volatility
             change = np.random.normal(0, 0.02)  # 2% daily volatility
             prices.append(prices[-1] * (1 + change))
@@ -381,11 +381,13 @@ class TestCalculateExponentialTrend:
 
     @pytest.fixture
     def quarterly_buffet_data(self):
-        """Create sample quarterly Buffet Indicator data (mimics real workflow output)."""
+        """Create sample quarterly Buffet Indicator data
+        (mimics real workflow output)."""
         # Create quarterly dates (Quarter Start like in BuffetIndicatorWorkflow)
         dates = pd.date_range(start="2020-01-01", periods=16, freq="QS")
 
-        # Create exponentially growing data with some noise (typical of Buffet Indicator)
+        # Create exponentially growing data with some noise
+        # (typical of Buffet Indicator)
         np.random.seed(42)  # For reproducible tests
         base_values = [100 * (1.02 ** (i / 4)) for i in range(16)]  # 2% annual growth
         noise = np.random.normal(0, 5, 16)  # Add some realistic noise
@@ -420,7 +422,8 @@ class TestCalculateExponentialTrend:
         assert result is None
 
     def test_quarterly_data_smooth_trend(self, quarterly_buffet_data):
-        """Test that quarterly data produces smooth exponential trend (not stair-steps)."""
+        """Test that quarterly data produces smooth exponential trend
+        (not stair-steps)."""
         result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
 
         assert result is not None

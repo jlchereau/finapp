@@ -4,7 +4,6 @@ Tests BlackrockHoldingsProvider for fetching ETF holdings data from BlackRock we
 """
 
 import asyncio
-import os
 from unittest.mock import patch, AsyncMock, MagicMock
 import httpx
 import pandas as pd
@@ -20,13 +19,15 @@ from app.providers.base import ProviderType, ProviderConfig
 class TestBlackrockHoldingsProvider:
     """Test cases for BlackrockHoldingsProvider."""
 
+    def __init__(self):
+        """Initialize test class."""
+        self.provider = None
+
     def setup_method(self):
         """Set up test fixtures."""
         # Disable caching to ensure we test the actual provider logic
         config = ProviderConfig(cache_enabled=False)
-        self.provider = BlackrockHoldingsProvider(
-            config
-        )  # pylint: disable=attribute-defined-outside-init
+        self.provider = BlackrockHoldingsProvider(config)
 
     def test_provider_type(self):
         """Test that provider returns correct type."""

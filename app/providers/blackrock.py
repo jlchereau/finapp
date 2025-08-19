@@ -492,7 +492,7 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
                 )
                 # Convert to numeric and assign once
                 numeric_series = pd.to_numeric(cleaned_series, errors="coerce")
-                
+
                 if col != "weight":  # Rename to standard column name
                     df["weight"] = numeric_series
                     df = df.drop(columns=[col])

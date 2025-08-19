@@ -1,9 +1,11 @@
 """
 Gauge Chart
 
-The Reflex Gaugechart custom component is a Reflex wrapper for the popular react-gauge-chart React library.
+The Reflex Gaugechart custom component is a Reflex wrapper for the popular
+react-gauge-chart React library.
 
-It provides a visually appealing and highly customisable gauge chart component, ideal for displaying percentage values or progress in a sleek, modern format.
+It provides a visually appealing and highly customisable gauge chart component,
+ideal for displaying percentage values or progress in a sleek, modern format.
 
 From: https://github.com/leogaggl/reflex_gaugechart
 """
@@ -13,7 +15,8 @@ from typing import Optional
 
 
 class Gaugechart(rx.NoSSRComponent):
-    """Gaugechart is a custom Reflex component that provides a visual representation of a single value within a range using a gauge chart."""
+    """Gaugechart is a custom Reflex component that provides a visual
+    representation of a single value within a range using a gauge chart."""
 
     library = "react-gauge-chart"
     lib_dependencies: list[str] = ["lodash", "d3"]
@@ -47,7 +50,8 @@ class Gaugechart(rx.NoSSRComponent):
     ]  # Whether or not to hide the percentage display	false
     arcsLength: Optional[
         rx.Var[list]
-    ]  # An array specifying the length of each individual arc. If this prop is set, the nrOfLevels prop will have no effect
+    ]  # An array specifying the length of each individual arc. If this prop
+    # is set, the nrOfLevels prop will have no effect
     animate: Optional[
         rx.Var[bool]
     ]  # Whether or not to animate the needle when loaded	true

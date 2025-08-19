@@ -35,10 +35,12 @@ class Querybuilder(rx.Component):
     tag = "QueryBuilder"
 
     # If the tag is the default export from the module, you must set is_default = True.
-    # This is normally used when components don't have curly braces around them when importing.
+    # This is normally used when components don't have curly braces around
+    # them when importing.
     # is_default = True
 
-    # If you are wrapping another components with the same tag as a component in your project
+    # If you are wrapping another components with the same tag as a component
+    # in your project
     # you can use aliases to differentiate between them and avoid naming conflicts.
     # alias = "OtherQuerybuilder"
 
@@ -49,9 +51,12 @@ class Querybuilder(rx.Component):
     # some_prop: rx.Var[str] = "some default value"
     # some_other_prop: rx.Var[int] = 1
 
-    # By default Reflex will install the library you have specified in the library property.
-    # However, sometimes you may need to install other libraries to use a component.
-    # In this case you can use the lib_dependencies property to specify other libraries to install.
+    # By default Reflex will install the library you have specified in the
+    # library property.
+    # However, sometimes you may need to install other libraries to use a
+    # component.
+    # In this case you can use the lib_dependencies property to specify other
+    # libraries to install.
     # lib_dependencies: list[str] = []
 
     # Event triggers declaration if any.
@@ -62,9 +67,9 @@ class Querybuilder(rx.Component):
     # on_change: rx.EventHandler[lambda e: [e]]
     fields: rx.Var[list[Field]]
 
-    # TODO: do we need to implement `query` and on_query_change as in
-    # https://codesandbox.io/p/sandbox/github/react-querybuilder/react-querybuilder/tree/
-    # main/examples/basic-ts?file=%2Fsrc%2FApp.tsx%3A6%2C25-9%2C3
+    # Additional props like `query` and `on_query_change` can be added if needed
+    # for more advanced query building functionality. Current implementation focuses
+    # on basic field display. See react-querybuilder documentation for more options.
 
     # To add custom code to your component
     # def _get_custom_code(self) -> str:

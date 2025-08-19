@@ -9,7 +9,6 @@ These tests verify the functionality of the FRED API provider including:
 - Cache behavior
 """
 
-import os
 import pytest
 import httpx
 import pandas as pd

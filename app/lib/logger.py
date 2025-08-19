@@ -63,7 +63,7 @@ class CSVLogger:
                 settings.DEBUG_LEVEL.lower(), 0
             )
             return current_level_value >= configured_level_value
-        except Exception:
+        except (AttributeError, KeyError):
             # If there's any error, default to logging (fail-safe)
             return True
 
@@ -111,7 +111,7 @@ class CSVLogger:
                 self_obj = frame.f_locals["self"]
                 return self_obj.__class__.__name__
             return None
-        except Exception:
+        except (AttributeError, KeyError):
             return None
 
     def _get_caller_info(self) -> Dict[str, Any]:
@@ -203,11 +203,12 @@ class CSVLogger:
                     else:
                         # For complex objects, just store the type
                         params[key] = f"<{type(value).__name__}>"
-                except Exception:
+                except (TypeError, ValueError, AttributeError):
                     params[key] = f"<{type(value).__name__}>"
 
             return json.dumps(params, default=str)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Need to catch all errors to ensure logging never fails
             return "{}"
 
     def _write_log_entry(self, level: str, message: Union[str, Exception]) -> None:

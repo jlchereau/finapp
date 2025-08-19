@@ -175,7 +175,7 @@ class DateBasedStorage:
 
             shutil.rmtree(folder_path)
             return True
-        except Exception:
+        except (FileNotFoundError, OSError, PermissionError):
             return False
 
     def get_log_data(self, date_str: str) -> list[dict]:
@@ -205,9 +205,7 @@ class DateBasedStorage:
                 for row in reader:
                     # Parse timestamp for better display
                     try:
-                        from datetime import datetime as dt
-
-                        timestamp = dt.fromisoformat(row["timestamp"])
+                        timestamp = datetime.fromisoformat(row["timestamp"])
                         row["timestamp"] = timestamp.strftime("%H:%M:%S")
                     except (ValueError, KeyError):
                         pass
@@ -226,7 +224,7 @@ class DateBasedStorage:
 
                     log_data.append(row)
             return list(reversed(log_data))
-        except Exception:
+        except (FileNotFoundError, OSError, csv.Error, UnicodeDecodeError):
             return []
 
 

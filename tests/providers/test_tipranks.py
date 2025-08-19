@@ -4,7 +4,6 @@ Tests TipranksDataProvider for fetching analyst data from Tipranks website.
 """
 
 import asyncio
-import os
 from unittest.mock import patch, MagicMock
 import httpx
 import pytest
@@ -82,6 +81,10 @@ class TestTipranksDataModel:
 
 class TestTipranksDataProvider:
     """Test cases for TipranksDataProvider."""
+
+    def __init__(self):
+        """Initialize test class."""
+        self.provider = None
 
     def setup_method(self):
         """Set up test fixtures."""
@@ -528,6 +531,10 @@ class TestTipranksNewsSentimentModel:
 
 class TestTipranksNewsSentimentProvider:
     """Test cases for TipranksNewsSentimentProvider."""
+
+    def __init__(self):
+        """Initialize test class."""
+        self.provider = None
 
     def setup_method(self):
         """Set up test fixtures."""

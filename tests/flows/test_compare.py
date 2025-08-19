@@ -90,9 +90,12 @@ class TestFetchRawTickerData:
             with patch("app.flows.cache.settings") as mock_settings:
                 mock_settings.FLOW_CACHE_ENABLED = False
 
-                result = await fetch_raw_ticker_data(["INVALID"], datetime(2024, 1, 1))
+                # Should raise WorkflowException when all tickers fail
+                with pytest.raises(Exception) as exc_info:
+                    await fetch_raw_ticker_data(["INVALID"], datetime(2024, 1, 1))
 
-                assert result == {}
+                # Check it's the expected exception type
+                assert "Failed to fetch data for all 1 tickers" in str(exc_info.value)
 
 
 class TestFetchReturnsData:
@@ -153,10 +156,14 @@ class TestFetchReturnsData:
         with patch("app.flows.compare.fetch_raw_ticker_data") as mock_fetch:
             mock_fetch.return_value = mock_raw_data
 
-            result = await fetch_returns_data(["AAPL"], datetime(2024, 1, 1))
+            # Should raise WorkflowException when all tickers fail processing
+            with pytest.raises(Exception) as exc_info:
+                await fetch_returns_data(["AAPL"], datetime(2024, 1, 1))
 
-            assert result["successful_tickers"] == []
-            assert result["failed_tickers"] == ["AAPL"]
+            # Check it's the expected exception type
+            assert "Failed to process returns data for all 1 tickers" in str(
+                exc_info.value
+            )
 
 
 class TestFetchVolatilityData:

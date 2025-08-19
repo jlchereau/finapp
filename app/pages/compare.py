@@ -16,6 +16,7 @@ from app.flows.compare import (
     fetch_volume_data,
     fetch_rsi_data,
 )
+from app.lib.exceptions import DataProcessingException, ChartException
 from app.templates.template import template
 
 
@@ -81,20 +82,24 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not tickers:
             return pd.DataFrame()
 
-        try:
-            # Use the compare workflow to fetch and normalize data
-            result = await fetch_returns_data(tickers, base_date)
+        # Use the compare workflow to fetch and normalize data
+        result = await fetch_returns_data(tickers, base_date)
 
-            # Extract the normalized DataFrame
-            normalized_data = result.get("data")
+        # Extract the normalized DataFrame
+        normalized_data = result.get("data")
 
-            if normalized_data is None or normalized_data.empty:
-                return pd.DataFrame()
+        if normalized_data is None or normalized_data.empty:
+            raise DataProcessingException(
+                operation="normalize_returns_data",
+                message=f"No normalized returns data returned for tickers: {tickers}",
+                user_message=(
+                    "Unable to fetch returns data. Please check the selected tickers "
+                    "and try again."
+                ),
+                context={"tickers": tickers, "base_date": str(base_date)},
+            )
 
-            return normalized_data
-
-        except Exception:
-            return pd.DataFrame()
+        return normalized_data
 
     async def get_volatility_data(
         self, tickers: List[str], base_date: datetime
@@ -103,17 +108,21 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not tickers:
             return pd.DataFrame()
 
-        try:
-            result = await fetch_volatility_data(tickers, base_date)
-            volatility_data = result.get("data")
+        result = await fetch_volatility_data(tickers, base_date)
+        volatility_data = result.get("data")
 
-            if volatility_data is None or volatility_data.empty:
-                return pd.DataFrame()
+        if volatility_data is None or volatility_data.empty:
+            raise DataProcessingException(
+                operation="fetch_volatility_data",
+                message=f"No volatility data returned for tickers: {tickers}",
+                user_message=(
+                    "Unable to fetch volatility data. Please check the selected "
+                    "tickers and try again."
+                ),
+                context={"tickers": tickers, "base_date": str(base_date)},
+            )
 
-            return volatility_data
-
-        except Exception:
-            return pd.DataFrame()
+        return volatility_data
 
     async def get_volume_data(
         self, tickers: List[str], base_date: datetime
@@ -122,17 +131,21 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not tickers:
             return pd.DataFrame()
 
-        try:
-            result = await fetch_volume_data(tickers, base_date)
-            volume_data = result.get("data")
+        result = await fetch_volume_data(tickers, base_date)
+        volume_data = result.get("data")
 
-            if volume_data is None or volume_data.empty:
-                return pd.DataFrame()
+        if volume_data is None or volume_data.empty:
+            raise DataProcessingException(
+                operation="fetch_volume_data",
+                message=f"No volume data returned for tickers: {tickers}",
+                user_message=(
+                    "Unable to fetch volume data. Please check the selected tickers "
+                    "and try again."
+                ),
+                context={"tickers": tickers, "base_date": str(base_date)},
+            )
 
-            return volume_data
-
-        except Exception:
-            return pd.DataFrame()
+        return volume_data
 
     async def get_rsi_data(
         self, tickers: List[str], base_date: datetime
@@ -141,17 +154,21 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         if not tickers:
             return pd.DataFrame()
 
-        try:
-            result = await fetch_rsi_data(tickers, base_date)
-            rsi_data = result.get("data")
+        result = await fetch_rsi_data(tickers, base_date)
+        rsi_data = result.get("data")
 
-            if rsi_data is None or rsi_data.empty:
-                return pd.DataFrame()
+        if rsi_data is None or rsi_data.empty:
+            raise DataProcessingException(
+                operation="fetch_rsi_data",
+                message=f"No RSI data returned for tickers: {tickers}",
+                user_message=(
+                    "Unable to fetch RSI data. Please check the selected tickers "
+                    "and try again."
+                ),
+                context={"tickers": tickers, "base_date": str(base_date)},
+            )
 
-            return rsi_data
-
-        except Exception:
-            return pd.DataFrame()
+        return rsi_data
 
     def add_ticker(self):
         """Add ticker to selected list."""
@@ -231,7 +248,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
                 async with self:
                     yield rx.toast.info(
-                        f"Loading data from {self.base_date_option} ({base_date.strftime('%Y-%m-%d')})"
+                        f"Loading data from {self.base_date_option} "
+                        f"({base_date.strftime('%Y-%m-%d')})"
                     )
 
             # Get returns data
@@ -251,7 +269,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     f"Loaded data for {', '.join(returns_data.columns)}"
                 )
                 yield rx.toast.info(
-                    f"Data: {returns_data.shape[0]} days, {returns_data.shape[1]} tickers"
+                    f"Data: {returns_data.shape[0]} days, "
+                    f"{returns_data.shape[1]} tickers"
                 )
 
             # Create plotly chart
@@ -336,10 +355,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     f"Returns chart updated with {len(returns_data.columns)} tickers"
                 )
 
-        except Exception:
-            async with self:
-                self.chart_figure_returns = go.Figure()
-                yield rx.toast.error("Returns chart update failed")
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="returns",
+                message=f"Failed to generate returns chart: {e}",
+                user_message=(
+                    "Failed to generate returns chart. Please try refreshing the data."
+                ),
+                context={"tickers": self.selected_tickers, "error": str(e)},
+            ) from e
         finally:
             async with self:
                 self.loading_returns = False
@@ -451,9 +476,17 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.chart_figure_volatility = fig
 
-        except Exception:
-            async with self:
-                self.chart_figure_volatility = go.Figure()
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="volatility",
+                message=f"Failed to generate volatility chart: {e}",
+                user_message=(
+                    "Failed to generate volatility chart. Please try refreshing "
+                    "the data."
+                ),
+                context={"tickers": self.selected_tickers, "error": str(e)},
+            ) from e
         finally:
             async with self:
                 self.loading_volatility = False
@@ -563,9 +596,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.chart_figure_volume = fig
 
-        except Exception:
-            async with self:
-                self.chart_figure_volume = go.Figure()
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="volume",
+                message=f"Failed to generate volume chart: {e}",
+                user_message=(
+                    "Failed to generate volume chart. Please try refreshing the data."
+                ),
+                context={"tickers": self.selected_tickers, "error": str(e)},
+            ) from e
         finally:
             async with self:
                 self.loading_volume = False
@@ -692,9 +732,16 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.chart_figure_rsi = fig
 
-        except Exception:
-            async with self:
-                self.chart_figure_rsi = go.Figure()
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="rsi",
+                message=f"Failed to generate RSI chart: {e}",
+                user_message=(
+                    "Failed to generate RSI chart. Please try refreshing the data."
+                ),
+                context={"tickers": self.selected_tickers, "error": str(e)},
+            ) from e
         finally:
             async with self:
                 self.loading_rsi = False
@@ -796,14 +843,14 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 rx.icon("heart", size=16),
                 size="2",
                 variant="solid",
-                on_click=CompareState.toggle_favorite(ticker),
+                on_click=lambda: CompareState.toggle_favorite(ticker),
             ),
             rx.button(
                 rx.icon("minus", size=16),
                 size="2",
                 variant="solid",
                 color_scheme="red",
-                on_click=CompareState.remove_ticker(ticker),
+                on_click=lambda: CompareState.remove_ticker(ticker),
             ),
             spacing="1",
         ),
@@ -847,7 +894,7 @@ def plots_asset_returns() -> rx.Component:
         CompareState.loading_returns,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length(),
+            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
             rx.plotly(
                 data=CompareState.chart_figure_returns,
                 width="100%",
@@ -867,7 +914,7 @@ def plots_asset_volumes() -> rx.Component:
         CompareState.loading_volume,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length(),
+            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
             rx.plotly(
                 data=CompareState.chart_figure_volume,
                 width="100%",
@@ -887,7 +934,7 @@ def plots_asset_relative_strength() -> rx.Component:
         CompareState.loading_rsi,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length(),
+            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
             rx.plotly(
                 data=CompareState.chart_figure_rsi,
                 width="100%",
@@ -907,7 +954,7 @@ def plots_asset_volatility() -> rx.Component:
         CompareState.loading_volatility,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length(),
+            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
             rx.plotly(
                 data=CompareState.chart_figure_volatility,
                 width="100%",

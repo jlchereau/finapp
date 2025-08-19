@@ -8,7 +8,7 @@ to prevent contamination of the production cache in data/.
 import os
 
 
-def pytest_configure(config):
+def pytest_configure(config):  # pylint: disable=unused-argument
     """
     Global pytest configuration hook that runs before any tests.
 

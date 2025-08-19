@@ -1,6 +1,4 @@
-import shutil
 from datetime import datetime, timedelta
-from pathlib import Path
 import pandas as pd
 from pydantic import BaseModel
 import pytest
@@ -44,7 +42,7 @@ async def test_dataframe_cache():
     assert isinstance(df1, pd.DataFrame)
 
     # Check for cache files using the storage system
-    json_path, parquet_path = get_cache_file_paths("custom", "foo")
+    _, parquet_path = get_cache_file_paths("custom", "foo")
     assert parquet_path.exists(), "Parquet cache file was not created"
 
     # Second fetch should return cached DataFrame
@@ -66,7 +64,7 @@ async def test_model_cache():
     assert model1.value == 3
 
     # Check for cache files using the storage system
-    json_path, parquet_path = get_cache_file_paths("custom", "bar")
+    json_path, _ = get_cache_file_paths("custom", "bar")
     assert json_path.exists(), "JSON cache file was not created"
 
     # Second fetch should return cached model

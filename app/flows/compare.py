@@ -15,6 +15,7 @@ from workflows.events import Event, StartEvent, StopEvent
 from app.providers.yahoo import create_yahoo_history_provider
 from app.lib.logger import logger
 from app.lib.finance import calculate_volatility, calculate_rsi
+from app.lib.exceptions import DataFetchException, WorkflowException
 from app.flows.cache import apply_flow_cache
 
 
@@ -224,7 +225,8 @@ class CompareDataWorkflow(Workflow):
                 filtered_data = _filter_data_by_date(data, base_date)
 
                 logger.debug(
-                    f"{ticker}: {len(data)} -> {len(filtered_data)} rows after filtering"
+                    f"{ticker}: {len(data)} -> {len(filtered_data)} rows after "
+                    f"filtering"
                 )
 
                 if filtered_data.empty:
@@ -359,11 +361,33 @@ async def fetch_raw_ticker_data(
         if failed_tickers:
             logger.debug(f"Failed tickers: {failed_tickers}")
 
+        # Check if we have any successful data
+        if not successful_data:
+            raise DataFetchException(
+                provider="yahoo",
+                query=f"tickers={tickers}",
+                message=f"Failed to fetch data for all {len(tickers)} tickers",
+                user_message=(
+                    "Unable to fetch data for any of the selected tickers. "
+                    "Please check the ticker symbols and try again."
+                ),
+                context={"tickers": tickers, "failed_count": len(failed_tickers)},
+            )
+
         return successful_data
 
     except Exception as e:
         logger.error(f"Raw data fetch failed: {e}")
-        return {}
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_raw_ticker_data",
+            step="data_processing",
+            message=f"Raw data fetch workflow failed: {e}",
+            user_message=(
+                "Data fetching failed due to a system error. Please try again."
+            ),
+            context={"tickers": tickers, "base_date": str(base_date)},
+        ) from e
 
 
 async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[str, Any]:
@@ -451,6 +475,21 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
             f"{len(failed_tickers)} failed"
         )
 
+        # Check if we have any successful data
+        if not successful_tickers:
+            raise DataFetchException(
+                provider="yahoo",
+                query=f"returns_data for {tickers}",
+                message=(
+                    f"Failed to process returns data for all {len(tickers)} tickers"
+                ),
+                user_message=(
+                    "Unable to calculate returns for any of the selected tickers. "
+                    "Please check the ticker symbols and try again."
+                ),
+                context={"tickers": tickers, "failed_count": len(failed_tickers)},
+            )
+
         return {
             "data": normalized_data,
             "successful_tickers": successful_tickers,
@@ -460,13 +499,16 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
 
     except Exception as e:
         logger.error(f"Returns data processing failed: {e}")
-        return {
-            "data": pd.DataFrame(),
-            "successful_tickers": [],
-            "failed_tickers": tickers,
-            "base_date": base_date,
-            "error": str(e),
-        }
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_returns_data",
+            step="returns_processing",
+            message=f"Returns data processing workflow failed: {e}",
+            user_message=(
+                "Returns calculation failed due to a system error. Please try again."
+            ),
+            context={"tickers": tickers, "base_date": str(base_date)},
+        ) from e
 
 
 async def fetch_volatility_data(

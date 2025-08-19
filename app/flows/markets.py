@@ -16,6 +16,7 @@ from workflows.events import Event, StartEvent, StopEvent
 from app.providers.fred import create_fred_series_provider
 from app.providers.yahoo import create_yahoo_history_provider
 from app.lib.logger import logger
+from app.lib.exceptions import WorkflowException
 from app.flows.cache import apply_flow_cache
 
 
@@ -213,8 +214,10 @@ class BuffetIndicatorWorkflow(Workflow):
             if common_quarters.empty:
                 logger.error("No overlapping quarters between GDP and Wilshire data")
                 logger.debug(
-                    f"GDP range: {gdp_quarterly.index.min()} to {gdp_quarterly.index.max()}, "
-                    f"Wilshire range: {wilshire_quarterly.index.min()} to {wilshire_quarterly.index.max()}"
+                    f"GDP range: {gdp_quarterly.index.min()} to "
+                    f"{gdp_quarterly.index.max()}, Wilshire range: "
+                    f"{wilshire_quarterly.index.min()} to "
+                    f"{wilshire_quarterly.index.max()}"
                 )
                 raise Exception("No overlapping dates between GDP and Wilshire data")
 
@@ -261,7 +264,8 @@ class BuffetIndicatorWorkflow(Workflow):
                 )
 
             logger.info(
-                f"BuffetIndicator completed: {len(display_data)} quarters from {base_date}"
+                f"BuffetIndicator completed: {len(display_data)} quarters "
+                f"from {base_date}"
             )
 
             return StopEvent(
@@ -279,9 +283,16 @@ class BuffetIndicatorWorkflow(Workflow):
 
         except Exception as e:
             logger.error(f"Error calculating Buffet Indicator: {e}")
-            return StopEvent(
-                result={"data": pd.DataFrame(), "base_date": base_date, "error": str(e)}
-            )
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="BuffetIndicatorWorkflow",
+                step="calculate_indicator",
+                message=f"Buffet Indicator calculation failed: {e}",
+                user_message=(
+                    "Failed to calculate Buffet Indicator. Please try again later."
+                ),
+                context={"base_date": str(base_date)},
+            ) from e
 
 
 @apply_flow_cache
@@ -319,4 +330,14 @@ async def fetch_buffet_indicator_data(base_date: datetime) -> Dict[str, Any]:
 
     except Exception as e:
         logger.error(f"Buffet Indicator workflow failed: {e}")
-        return {"data": pd.DataFrame(), "base_date": base_date, "error": str(e)}
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_buffet_indicator_data",
+            step="workflow_execution",
+            message=f"Buffet Indicator workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch Buffet Indicator data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e

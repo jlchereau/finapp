@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 
 from app.flows.markets import fetch_buffet_indicator_data
 from app.lib.finance import calculate_exponential_trend
+from app.lib.exceptions import DataProcessingException, ChartException
 from app.templates.template import template
 
 
@@ -62,20 +63,27 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
 
     async def get_buffet_data(self, base_date: datetime) -> pd.DataFrame:
         """Get Buffet Indicator data using workflow."""
-        try:
-            # Use the markets workflow to fetch and calculate data
-            result = await fetch_buffet_indicator_data(base_date)
+        # Use the markets workflow to fetch and calculate data
+        result = await fetch_buffet_indicator_data(base_date)
 
-            # Extract the DataFrame
-            buffet_data = result.get("data")
+        # Extract the DataFrame
+        buffet_data = result.get("data")
 
-            if buffet_data is None or buffet_data.empty:
-                return pd.DataFrame()
+        if buffet_data is None or buffet_data.empty:
+            raise DataProcessingException(
+                operation="fetch_buffet_indicator_data",
+                message=f"No Buffet Indicator data returned for base_date: {base_date}",
+                user_message=(
+                    "Unable to fetch Buffet Indicator data. Please try a different "
+                    "time period."
+                ),
+                context={
+                    "base_date": str(base_date),
+                    "base_date_option": self.base_date_option,
+                },
+            )
 
-            return buffet_data
-
-        except Exception:
-            return pd.DataFrame()
+        return buffet_data
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
@@ -295,10 +303,17 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 self.chart_figure_buffet = fig
                 yield rx.toast.success("Buffet Indicator chart updated successfully")
 
-        except Exception:
-            async with self:
-                self.chart_figure_buffet = go.Figure()
-                yield rx.toast.error("Buffet Indicator chart update failed")
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="buffet_indicator",
+                message=f"Failed to generate Buffet Indicator chart: {e}",
+                user_message=(
+                    "Failed to generate Buffet Indicator chart. Please try "
+                    "refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
         finally:
             async with self:
                 self.loading_buffet = False

@@ -47,13 +47,18 @@ def cache(func):  # decorator for async _fetch_data methods
             if parquet_path.exists():
                 try:
                     return pd.read_parquet(parquet_path)
-                except Exception:
+                except (
+                    FileNotFoundError,
+                    pd.errors.EmptyDataError,
+                    pd.errors.ParserError,
+                    OSError,
+                ):
                     pass
             # Attempt to load BaseModel cache
             if json_path.exists():
                 try:
                     raw = open(json_path, "rb").read()
-                    obj = orjson.loads(raw)
+                    obj = orjson.loads(raw)  # pylint: disable=no-member
                     model_name = obj.get("__model__")
                     data = obj.get("data")
                     # Use model_validate instead of parse_obj (Pydantic V2)
@@ -64,7 +69,12 @@ def cache(func):  # decorator for async _fetch_data methods
                         # For now, skip cache loading - models will be recreated
                         # This is a temporary solution
                         pass
-                except Exception:
+                except (
+                    FileNotFoundError,
+                    OSError,
+                    ValueError,  # orjson raises ValueError for JSON errors
+                    UnicodeDecodeError,
+                ):
                     pass
             # Cache miss or read-only mode: fetch fresh data
             result = await func(self, query, *args, **kwargs)
@@ -75,7 +85,7 @@ def cache(func):  # decorator for async _fetch_data methods
             if isinstance(result, pd.DataFrame):
                 try:
                     result.to_parquet(str(parquet_path))
-                except Exception:
+                except (OSError, ValueError):
                     pass
             # Write BaseModel cache
             elif hasattr(result, "model_dump"):
@@ -84,10 +94,10 @@ def cache(func):  # decorator for async _fetch_data methods
                         "__model__": result.__class__.__name__,
                         "data": result.model_dump(),
                     }
-                    data_bytes = orjson.dumps(payload)
+                    data_bytes = orjson.dumps(payload)  # pylint: disable=no-member
                     with open(json_path, "wb") as f:
                         f.write(data_bytes)
-                except Exception:
+                except (OSError, TypeError):
                     pass
             return result
 

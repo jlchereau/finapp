@@ -3,7 +3,6 @@ Unit tests for the Yahoo provider module.
 Tests both YahooHistoryProvider and YahooInfoProvider.
 """
 
-import os
 import asyncio
 from unittest.mock import patch, MagicMock, PropertyMock
 from pandas import DataFrame
@@ -508,7 +507,6 @@ class TestCacheSettingsYahoo:
         config = ProviderConfig(cache_enabled=False)
         provider = YahooHistoryProvider(config)
         # Patch yfinance history
-        from pandas import DataFrame
 
         with patch("app.providers.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
@@ -558,7 +556,6 @@ class TestGlobalCacheSettingsYahoo:
         provider = YahooHistoryProvider(config)
 
         # Patch yfinance history
-        from pandas import DataFrame
 
         with patch("app.providers.yahoo.yf.Ticker") as mock_ticker_class:
             mock_ticker = MagicMock()
