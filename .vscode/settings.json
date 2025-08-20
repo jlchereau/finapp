@@ -7,5 +7,14 @@
         "tests"
     ],
     "python.testing.unittestEnabled": false,
-    "python.testing.pytestEnabled": true
+    "python.testing.pytestEnabled": true,
+    // "github.copilot.inlineSuggest.enable": false,
+    // Optional: enable/disable per language
+    // "github.copilot.enable": {
+    //   "*": false,
+    //   "python": true
+    // },
+    "aws.codeWhisperer.autoSuggestions": false,
+    "aws.codeWhisperer.inlineSuggestions": false,
+    "gemini.codeAssist.inlineCompletions.enabled": false
 }
