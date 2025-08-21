@@ -46,6 +46,8 @@ class ProviderType(str, Enum):
     ALPHA_VANTAGE = "alpha_vantage"
     IEX = "iex"
     FRED_SERIES = "fred_series"
+    IBKR_POSITIONS = "ibkr_positions"
+    IBKR_CASH = "ibkr_cash"
     CUSTOM = "custom"
 
 
@@ -190,7 +192,7 @@ class BaseProvider(ABC, Generic[T]):
         """
         raise NotImplementedError()
 
-    async def get_data(self, query: str | None, **kwargs) -> ProviderResult[T]:
+    async def get_data(self, query: str | None = None, **kwargs) -> ProviderResult[T]:
         """
         Fetch data from the provider with comprehensive error handling.
         This is the main public interface that workflows should use.
@@ -339,7 +341,7 @@ class BaseProvider(ABC, Generic[T]):
                     query=query,
                 )
 
-    def get_data_sync(self, query: str | None, **kwargs) -> ProviderResult[T]:
+    def get_data_sync(self, query: str | None = None, **kwargs) -> ProviderResult[T]:
         """
         Synchronous wrapper for get_data. Useful for non-async contexts.
 

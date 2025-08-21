@@ -400,6 +400,23 @@ class TestFredSeriesProvider:
             call_args = mock_client_instance.get.call_args
             assert call_args[1]["params"]["series_id"] == "GDPC1"
 
+    @pytest.mark.asyncio
+    async def test_get_data_without_query_raises_error(self):
+        """Test that calling get_data() without query raises appropriate error."""
+        result = await self.provider.get_data()  # No query parameter
+
+        assert result.success is False
+        assert "must be provided" in result.error_message.lower()
+        assert result.error_code == "ValueError"
+
+    def test_get_data_sync_without_query_raises_error(self):
+        """Test that calling get_data_sync() without query raises appropriate error."""
+        result = self.provider.get_data_sync()  # No query parameter
+
+        assert result.success is False
+        assert "must be provided" in result.error_message.lower()
+        assert result.error_code == "ValueError"
+
 
 class TestFredSeriesIntegration:
     """Integration tests that test the full provider workflow."""

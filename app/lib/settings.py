@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     PERPLEXITY_API_KEY: str = Field(default="", description="Perplexity API key")
     SERPER_API_KEY: str = Field(default="", description="Serper API key")
 
+    # IBKR Settings
+    IB_GATEWAY_CLIENT_ID: int = Field(
+        default=1, description="Interactive Brokers Gateway client ID"
+    )
+    IB_GATEWAY_PORT: int = Field(
+        default=4001,
+        description="Interactive Brokers Gateway port (4001 for live, 4002 for paper)",
+    )
+
     @field_validator("DEBUG_LEVEL")
     @classmethod
     def validate_debug_level(cls, v: str) -> str:

@@ -221,3 +221,160 @@ class TestDebugLevelValidation:
         finally:
             if os.path.exists(env_file):
                 os.remove(env_file)
+
+
+class TestIBKRSettingsValidation:
+    """Test cases for IBKR settings validation."""
+
+    def test_ibkr_settings_defaults(self):
+        """Test that IBKR settings have correct default values."""
+        from app.lib.settings import Settings
+
+        with patch.dict(os.environ, {}, clear=True):
+            settings = Settings()
+            assert settings.IB_GATEWAY_CLIENT_ID == 1
+            assert settings.IB_GATEWAY_PORT == 4001
+
+    @patch.dict(os.environ, {"IB_GATEWAY_CLIENT_ID": "5", "IB_GATEWAY_PORT": "4002"})
+    def test_ibkr_settings_from_environment(self):
+        """Test that IBKR settings can be set via environment variables."""
+        from app.lib.settings import Settings
+
+        settings = Settings()
+        assert settings.IB_GATEWAY_CLIENT_ID == 5
+        assert settings.IB_GATEWAY_PORT == 4002
+
+    def test_ibkr_settings_from_env_file(self):
+        """Test that IBKR settings can be set via .env file."""
+        from app.lib.settings import Settings
+
+        env_content = "IB_GATEWAY_CLIENT_ID=3\nIB_GATEWAY_PORT=7497"
+        env_file = ".env.test_ibkr"
+
+        try:
+            with open(env_file, "w", encoding="utf-8") as f:
+                f.write(env_content)
+
+            with patch.dict(os.environ, {}, clear=True):
+
+                class TestSettings(Settings):
+                    model_config = SettingsConfigDict(
+                        env_file=env_file, env_file_encoding="utf-8", extra="ignore"
+                    )
+
+                settings = TestSettings()
+                assert settings.IB_GATEWAY_CLIENT_ID == 3
+                assert settings.IB_GATEWAY_PORT == 7497
+
+        finally:
+            if os.path.exists(env_file):
+                os.remove(env_file)
+
+    @patch.dict(os.environ, {"IB_GATEWAY_CLIENT_ID": "10", "IB_GATEWAY_PORT": "4002"})
+    def test_environment_overrides_env_file_ibkr(self):
+        """Test that environment variables override .env file for IBKR settings."""
+        from app.lib.settings import Settings
+
+        env_content = "IB_GATEWAY_CLIENT_ID=2\nIB_GATEWAY_PORT=7497"
+        env_file = ".env.test_ibkr_override"
+
+        try:
+            with open(env_file, "w", encoding="utf-8") as f:
+                f.write(env_content)
+
+            class TestSettings(Settings):
+                model_config = SettingsConfigDict(
+                    env_file=env_file, env_file_encoding="utf-8", extra="ignore"
+                )
+
+            settings = TestSettings()
+            # Environment variables should take precedence
+            assert settings.IB_GATEWAY_CLIENT_ID == 10
+            assert settings.IB_GATEWAY_PORT == 4002
+
+        finally:
+            if os.path.exists(env_file):
+                os.remove(env_file)
+
+    def test_ibkr_settings_type_validation(self):
+        """Test that IBKR settings validate data types correctly."""
+        from app.lib.settings import Settings
+
+        # Test valid integer values as strings (should be coerced)
+        with patch.dict(
+            os.environ, {"IB_GATEWAY_CLIENT_ID": "999", "IB_GATEWAY_PORT": "8080"}
+        ):
+            settings = Settings()
+            assert isinstance(settings.IB_GATEWAY_CLIENT_ID, int)
+            assert isinstance(settings.IB_GATEWAY_PORT, int)
+            assert settings.IB_GATEWAY_CLIENT_ID == 999
+            assert settings.IB_GATEWAY_PORT == 8080
+
+    def test_ibkr_settings_edge_cases(self):
+        """Test IBKR settings with edge case values."""
+        from app.lib.settings import Settings
+
+        # Test with zero and negative values (valid from pydantic perspective)
+        with patch.dict(
+            os.environ, {"IB_GATEWAY_CLIENT_ID": "0", "IB_GATEWAY_PORT": "1"}
+        ):
+            settings = Settings()
+            assert settings.IB_GATEWAY_CLIENT_ID == 0
+            assert settings.IB_GATEWAY_PORT == 1
+
+        # Test with large values
+        with patch.dict(
+            os.environ, {"IB_GATEWAY_CLIENT_ID": "9999", "IB_GATEWAY_PORT": "65535"}
+        ):
+            settings = Settings()
+            assert settings.IB_GATEWAY_CLIENT_ID == 9999
+            assert settings.IB_GATEWAY_PORT == 65535
+
+    def test_ibkr_settings_invalid_values_raise_validation_error(self):
+        """Test that invalid IBKR setting values raise ValidationError."""
+        from app.lib.settings import Settings
+
+        # Test non-numeric values
+        invalid_cases = [
+            ("IB_GATEWAY_CLIENT_ID", "invalid"),
+            ("IB_GATEWAY_PORT", "not_a_number"),
+            ("IB_GATEWAY_CLIENT_ID", ""),
+            ("IB_GATEWAY_PORT", "port"),
+        ]
+
+        for field_name, invalid_value in invalid_cases:
+            with patch.dict(os.environ, {field_name: invalid_value}):
+                with pytest.raises(ValidationError) as exc_info:
+                    Settings()
+
+                error_msg = str(exc_info.value)
+                assert (
+                    "validation error" in error_msg.lower()
+                    or "invalid" in error_msg.lower()
+                )
+
+    @patch.dict(os.environ, {"IB_GATEWAY_CLIENT_ID": "2", "IB_GATEWAY_PORT": "4002"})
+    def test_ibkr_settings_integration_with_provider(self):
+        """Integration test: IBKR settings work with provider imports."""
+        from app.lib.settings import Settings
+
+        # Create fresh settings instance to pick up environment variables
+        test_settings = Settings()
+
+        # Verify settings are loaded correctly
+        assert test_settings.IB_GATEWAY_CLIENT_ID == 2
+        assert test_settings.IB_GATEWAY_PORT == 4002
+
+        # Verify provider can import settings without issues
+        try:
+            from app.providers.ibkr import IBKRPositionsProvider, IBKRCashProvider
+
+            # Basic provider instantiation should work
+            pos_provider = IBKRPositionsProvider()
+            cash_provider = IBKRCashProvider()
+
+            # Verify provider types are accessible
+            assert pos_provider.provider_type.value == "ibkr_positions"
+            assert cash_provider.provider_type.value == "ibkr_cash"
+        except ImportError as e:
+            pytest.fail(f"IBKR provider import failed with settings: {e}")

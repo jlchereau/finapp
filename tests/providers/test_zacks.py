@@ -380,6 +380,23 @@ class TestZacksProvider:
 
             assert result.success is True
 
+    @pytest.mark.asyncio
+    async def test_get_data_without_query_raises_error(self):
+        """Test that calling get_data() without query raises appropriate error."""
+        result = await self.provider.get_data()  # No query parameter
+
+        assert result.success is False
+        assert "must be provided" in result.error_message.lower()
+        assert result.error_code == "NonRetriableProviderException"
+
+    def test_get_data_sync_without_query_raises_error(self):
+        """Test that calling get_data_sync() without query raises appropriate error."""
+        result = self.provider.get_data_sync()  # No query parameter
+
+        assert result.success is False
+        assert "must be provided" in result.error_message.lower()
+        assert result.error_code == "NonRetriableProviderException"
+
 
 class TestZacksFactoryFunction:
     """Test cases for Zacks provider factory function."""
