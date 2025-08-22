@@ -28,6 +28,13 @@ class BuffetIndicatorEvent(Event):
     base_date: datetime
 
 
+class VIXEvent(Event):
+    """Event emitted when VIX data is fetched."""
+
+    vix_data: pd.DataFrame
+    base_date: datetime
+
+
 class BuffetIndicatorWorkflow(Workflow):
     """
     Workflow that fetches data for the Buffet Indicator calculation.
@@ -295,6 +302,156 @@ class BuffetIndicatorWorkflow(Workflow):
             ) from e
 
 
+class VIXWorkflow(Workflow):
+    """
+    Workflow that fetches VIX (volatility index) data.
+
+    The VIX is a measure of market volatility, often called the "fear gauge".
+    We use the ^VIX ticker from Yahoo Finance to get historical VIX data.
+
+    This workflow:
+    - Fetches daily VIX data from Yahoo Finance
+    - Calculates historical mean for reference
+    - Filters data based on base_date for display
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_vix_data(self, ev: StartEvent) -> VIXEvent:
+        """
+        Fetch VIX data from Yahoo Finance.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            VIXEvent with VIX data
+        """
+        base_date = ev.base_date
+
+        logger.debug(f"VIXWorkflow: Fetching VIX data from {base_date}")
+
+        # Fetch VIX data
+        vix_result = await self.yahoo_provider.get_data("^VIX")
+
+        # Process VIX data
+        if isinstance(vix_result, Exception):
+            logger.error(f"Failed to fetch VIX data: {vix_result}")
+            raise vix_result
+
+        if not (hasattr(vix_result, "success") and vix_result.success):
+            error_msg = getattr(vix_result, "error_message", "Unknown VIX fetch error")
+            logger.error(f"VIX provider failed: {error_msg}")
+            raise Exception(f"VIX data fetch failed: {error_msg}")
+
+        vix_data = vix_result.data
+        if vix_data.empty:
+            logger.error("Empty VIX data returned")
+            raise Exception("No VIX data available")
+
+        logger.debug(
+            f"VIX data: {len(vix_data)} rows, "
+            f"range: {vix_data.index.min()} to {vix_data.index.max()}"
+        )
+
+        return VIXEvent(vix_data=vix_data, base_date=base_date)
+
+    @step
+    async def process_vix_data(self, ev: VIXEvent) -> StopEvent:
+        """
+        Process VIX data and calculate statistics.
+
+        Args:
+            ev: VIXEvent with VIX data
+
+        Returns:
+            StopEvent with processed VIX data and statistics
+        """
+        vix_data = ev.vix_data
+        base_date = ev.base_date
+
+        logger.debug("VIXWorkflow: Processing VIX data")
+
+        try:
+            # Extract close prices from VIX data
+            if "Close" in vix_data.columns:
+                vix_close = vix_data["Close"].dropna()
+            elif "Adj Close" in vix_data.columns:
+                vix_close = vix_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in VIX data")
+                raise Exception("No Close price data available for VIX")
+
+            if vix_close.empty:
+                logger.error("No VIX close price data available")
+                raise Exception("No VIX data available")
+
+            # Normalize timezone to ensure proper filtering
+            if vix_close.index.tz is not None:
+                vix_close_naive = vix_close.tz_localize(None)
+            else:
+                vix_close_naive = vix_close
+
+            # Calculate historical mean from full dataset
+            historical_mean = float(vix_close_naive.mean())
+
+            # Calculate 50-day moving average on full dataset
+            moving_avg_50 = vix_close_naive.rolling(window=50, min_periods=1).mean()
+
+            # Create complete result DataFrame
+            result_df = pd.DataFrame(
+                {
+                    "VIX": vix_close_naive,
+                    "VIX_MA50": moving_avg_50,
+                },
+                index=vix_close_naive.index,
+            )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(f"No VIX data after base_date {base_date} for display")
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["VIX", "VIX_MA50"])
+
+            logger.info(
+                f"VIX processing completed: {len(display_data)} data points "
+                f"from {base_date}, historical mean: {historical_mean:.2f}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "historical_mean": historical_mean,
+                    "latest_value": (
+                        display_data["VIX"].iloc[-1] if not display_data.empty else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing VIX data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="VIXWorkflow",
+                step="process_vix_data",
+                message=f"VIX data processing failed: {e}",
+                user_message="Failed to process VIX data. Please try again later.",
+                context={"base_date": str(base_date)},
+            ) from e
+
+
 @apply_flow_cache
 async def fetch_buffet_indicator_data(base_date: datetime) -> Dict[str, Any]:
     """
@@ -338,6 +495,54 @@ async def fetch_buffet_indicator_data(base_date: datetime) -> Dict[str, Any]:
             user_message=(
                 "Failed to fetch Buffet Indicator data due to a system error. "
                 "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_vix_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process VIX data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with VIX values
+        - base_date: The base date used
+        - historical_mean: Historical mean VIX value
+        - latest_value: Most recent VIX value
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting VIX data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = VIXWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("VIX workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "VIX workflow result missing .result attribute, returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"VIX workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_vix_data",
+            step="workflow_execution",
+            message=f"VIX workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch VIX data due to a system error. Please try again."
             ),
             context={"base_date": str(base_date)},
         ) from e

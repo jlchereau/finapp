@@ -9,7 +9,7 @@ import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
-from app.flows.markets import fetch_buffet_indicator_data
+from app.flows.markets import fetch_buffet_indicator_data, fetch_vix_data
 from app.lib.finance import calculate_exponential_trend
 from app.lib.exceptions import DataProcessingException, ChartException
 from app.templates.template import template
@@ -20,23 +20,33 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
 
     active_tab: str = "summary"
 
-    # Buffet Indicator state
+    # Chart settings
     base_date_option: str = "10Y"
     base_date_options: List[str] = [
+        "1W",
+        "2W",
+        "1M",
+        "2M",
+        "1Q",
+        "2Q",
+        "3Q",
         "1Y",
         "2Y",
         "3Y",
+        "4Y",
         "5Y",
         "10Y",
-        "20Y",
+        "YTD",
         "MAX",
     ]
 
     # Chart data
     chart_figure_buffet: go.Figure = go.Figure()
+    chart_figure_vix: go.Figure = go.Figure()
 
     # Loading state
     loading_buffet: bool = False
+    loading_vix: bool = False
 
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
@@ -56,10 +66,11 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         }
 
     def set_base_date(self, option: str):
-        """Set base date option and update Buffet Indicator chart."""
+        """Set base date option and update charts."""
         self.base_date_option = option
         yield rx.toast.info(f"Changed time period to {option}")
         yield MarketState.update_buffet_chart
+        yield MarketState.update_vix_chart
 
     async def get_buffet_data(self, base_date: datetime) -> pd.DataFrame:
         """Get Buffet Indicator data using workflow."""
@@ -84,6 +95,29 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             )
 
         return buffet_data
+
+    async def get_vix_data(self, base_date: datetime) -> pd.DataFrame:
+        """Get VIX data using workflow."""
+        # Use the markets workflow to fetch VIX data
+        result = await fetch_vix_data(base_date)
+
+        # Extract the DataFrame
+        vix_data = result.get("data")
+
+        if vix_data is None or vix_data.empty:
+            raise DataProcessingException(
+                operation="fetch_vix_data",
+                message=f"No VIX data returned for base_date: {base_date}",
+                user_message=(
+                    "Unable to fetch VIX data. Please try a different time period."
+                ),
+                context={
+                    "base_date": str(base_date),
+                    "base_date_option": self.base_date_option,
+                },
+            )
+
+        return vix_data
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
@@ -173,9 +207,10 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         mode="lines",
                         name="+2 Std Dev",
                         line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
-                        hovertemplate="<b>+2 Std Dev</b><br>"
+                        hoverinfo="skip",
+                        # hovertemplate="<b>+2 Std Dev</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                        # "Value: %{y:.1f}<br>" + "<extra></extra>",
                     )
                 )
                 fig.add_trace(
@@ -186,9 +221,10 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         name="-2 Std Dev",
                         line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
                         showlegend=False,  # Don't show in legend to avoid duplication
-                        hovertemplate="<b>-2 Std Dev</b><br>"
+                        hoverinfo="skip",
+                        # hovertemplate="<b>-2 Std Dev</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
                     )
                 )
 
@@ -200,9 +236,10 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         mode="lines",
                         name="+1 Std Dev",
                         line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
-                        hovertemplate="<b>+1 Std Dev</b><br>"
+                        hoverinfo="skip",
+                        # hovertemplate="<b>+1 Std Dev</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
                     )
                 )
                 fig.add_trace(
@@ -213,9 +250,10 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         name="-1 Std Dev",
                         line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
                         showlegend=False,  # Don't show in legend to avoid duplication
-                        hovertemplate="<b>-1 Std Dev</b><br>"
+                        hoverinfo="skip",
+                        # hovertemplate="<b>-1 Std Dev</b><br>"
                         # + "Date: %{x}<br>"
-                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
+                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
                     )
                 )
 
@@ -319,9 +357,177 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 self.loading_buffet = False
 
     @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_vix_chart(self):
+        """Update the VIX chart using background processing."""
+        async with self:
+            self.loading_vix = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use a very old date
+                base_date = datetime(1990, 1, 1)  # VIX started in 1990
+                async with self:
+                    yield rx.toast.info("Loading maximum available VIX data...")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+                async with self:
+                    period = self.base_date_option
+                    date_str = base_date.strftime("%Y-%m-%d")
+                    yield rx.toast.info(f"Loading VIX data from {period} ({date_str})")
+
+            # Get VIX data
+            vix_result = await fetch_vix_data(base_date)
+            vix_data = vix_result.get("data")
+            historical_mean = vix_result.get(
+                "historical_mean", 20.0
+            )  # Default fallback
+
+            if vix_data is None or vix_data.empty:
+                async with self:
+                    self.chart_figure_vix = go.Figure()
+                    yield rx.toast.warning(
+                        "No VIX data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded VIX data: {vix_data.shape[0]} data points"
+                )
+
+            # Create plotly chart
+            fig = go.Figure()
+
+            # Plot VIX data
+            fig.add_trace(
+                go.Scatter(
+                    x=vix_data.index,
+                    y=vix_data["VIX"],
+                    mode="lines",
+                    name="VIX (Volatility Index)",
+                    line=dict(color="#2563eb", width=2),  # Blue color for volatility
+                    hovertemplate="<b>VIX</b><br>"
+                    + "Value: %{y:.2f}<br>"
+                    + "<extra></extra>",
+                )
+            )
+
+            # Add 50-day moving average if available
+            if "VIX_MA50" in vix_data.columns and not vix_data["VIX_MA50"].isna().all():
+                fig.add_trace(
+                    go.Scatter(
+                        x=vix_data.index,
+                        y=vix_data["VIX_MA50"],
+                        mode="lines",
+                        name="50-Day Moving Average",
+                        line=dict(
+                            color="#f59e0b", width=2, dash="dot"
+                        ),  # Amber dotted line
+                        hovertemplate="<b>50-Day MA</b><br>"
+                        + "Value: %{y:.2f}<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Add reference lines
+            fig.add_hline(
+                y=historical_mean,
+                line_dash="dash",
+                line_color="orange",
+                opacity=0.7,
+                annotation_text=f"Historical Mean (~{historical_mean:.1f})",
+                annotation_position="bottom right",
+            )
+            fig.add_hline(
+                y=10,
+                line_dash="dash",
+                line_color="green",
+                opacity=0.7,
+                annotation_text="Low Volatility (10)",
+                annotation_position="top left",
+            )
+            fig.add_hline(
+                y=30,
+                line_dash="dash",
+                line_color="red",
+                opacity=0.7,
+                annotation_text="High Volatility (30)",
+                annotation_position="top right",
+            )
+
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+
+            # Update layout
+            title = "VIX (CBOE Volatility Index)"
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Date",
+                "yaxis_title": "VIX Level",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 400,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",
+                ),
+            }
+
+            # Only add font_color if it's not None
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+
+            fig.update_layout(**layout_props)
+
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+
+            async with self:
+                self.chart_figure_vix = fig
+                yield rx.toast.success("VIX chart updated successfully")
+
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="vix",
+                message=f"Failed to generate VIX chart: {e}",
+                user_message=(
+                    "Failed to generate VIX chart. Please try refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_vix = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def run_workflows(self):
-        """Load initial Buffet Indicator data."""
+        """Load initial chart data."""
         yield MarketState.update_buffet_chart
+        yield MarketState.update_vix_chart
 
 
 def plots_fear_and_greed_index() -> rx.Component:
@@ -334,35 +540,33 @@ def plots_buffet_indicator() -> rx.Component:
     Buffet indicator plot.
     See https://www.currentmarketvaluation.com/models/buffett-indicator.php
     """
-    return rx.vstack(
-        rx.hstack(
-            rx.text("Period:", font_weight="bold"),
-            rx.select(
-                MarketState.base_date_options,
-                value=MarketState.base_date_option,
-                on_change=MarketState.set_base_date,
-            ),
-            spacing="2",
-            align="center",
-            justify="start",
+    return rx.cond(
+        MarketState.loading_buffet,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_buffet,
+            width="100%",
+            height="400px",
         ),
-        rx.cond(
-            MarketState.loading_buffet,
-            rx.center(rx.spinner(), height="400px"),
-            rx.plotly(
-                data=MarketState.chart_figure_buffet,
-                width="100%",
-                height="400px",
-            ),
-        ),
-        spacing="3",
-        width="100%",
     )
 
 
 def plots_yield_curve() -> rx.Component:
     """Yield curve plot."""
     return rx.box(rx.text("Yield curve plot"))
+
+
+def plots_vix_index() -> rx.Component:
+    """VIX index plot."""
+    return rx.cond(
+        MarketState.loading_vix,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_vix,
+            width="100%",
+            height="400px",
+        ),
+    )
 
 
 def tabs_summary() -> rx.Component:
@@ -383,14 +587,27 @@ def tabs_summary() -> rx.Component:
 
 def tabs_us() -> rx.Component:
     """US tab content."""
-    return rx.grid(
-        rx.card(plots_fear_and_greed_index()),
-        rx.card(plots_buffet_indicator()),
-        rx.card(plots_yield_curve()),
-        rx.card("Card 4"),
-        columns="2",
-        spacing="3",
-        width="100%",
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Period:", font_weight="bold"),
+            rx.select(
+                MarketState.base_date_options,
+                value=MarketState.base_date_option,
+                on_change=MarketState.set_base_date,
+            ),
+            spacing="2",
+            align="center",
+            justify="start",
+        ),
+        rx.grid(
+            rx.card(plots_fear_and_greed_index()),
+            rx.card(plots_buffet_indicator()),
+            rx.card(plots_yield_curve()),
+            rx.card(plots_vix_index()),
+            columns="2",
+            spacing="3",
+            width="100%",
+        ),
     )
 
 
