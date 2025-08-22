@@ -974,7 +974,7 @@ def plots_tab_content() -> rx.Component:
     """Plot tab showing several asset comparison charts."""
     return rx.vstack(
         rx.hstack(
-            rx.text("Base:", font_weight="bold"),
+            rx.text("Period:", font_weight="bold"),
             rx.select(
                 CompareState.base_date_options,
                 value=CompareState.base_date_option,
@@ -982,6 +982,7 @@ def plots_tab_content() -> rx.Component:
             ),
             spacing="2",
             align="center",
+            justify="start",
         ),
         rx.grid(
             rx.card(
