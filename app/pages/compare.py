@@ -3,7 +3,7 @@ Compare page - Stock comparison and analysis
 """
 
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import reflex as rx
@@ -17,6 +17,12 @@ from app.flows.compare import (
     fetch_rsi_data,
 )
 from app.lib.exceptions import DataProcessingException, ChartException
+from app.lib.periods import (
+    get_period_options,
+    calculate_base_date,
+    get_max_fallback_date,
+    format_date_range_message,
+)
 from app.templates.template import template
 
 
@@ -32,23 +38,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     # Chart settings
     active_tab: str = "plots"
     base_date_option: str = "1Y"
-    base_date_options: List[str] = [
-        "1W",
-        "2W",
-        "1M",
-        "2M",
-        "1Q",
-        "2Q",
-        "3Q",
-        "1Y",
-        "2Y",
-        "3Y",
-        "4Y",
-        "5Y",
-        "10Y",
-        "YTD",
-        "MAX",
-    ]
+    base_date_options: List[str] = get_period_options()
 
     # Chart data
     chart_figure_returns: go.Figure = go.Figure()
@@ -240,17 +230,17 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                # For MAX option, use a very old date
-                base_date = datetime(2000, 1, 1)
-                async with self:
-                    yield rx.toast.info("Loading maximum available data...")
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("stocks")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
-                async with self:
-                    yield rx.toast.info(
-                        f"Loading data from {self.base_date_option} "
-                        f"({base_date.strftime('%Y-%m-%d')})"
-                    )
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
 
             # Get returns data
             returns_data = await self.get_returns_data(self.selected_tickers, base_date)
@@ -384,7 +374,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                base_date = datetime(2000, 1, 1)
+                base_date = get_max_fallback_date("stocks")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
 
@@ -506,7 +496,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                base_date = datetime(2000, 1, 1)
+                base_date = get_max_fallback_date("stocks")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
 
@@ -625,7 +615,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                base_date = datetime(2000, 1, 1)
+                base_date = get_max_fallback_date("stocks")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
 
@@ -755,39 +745,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
-        today = datetime.now()
-
-        if self.base_date_option == "1W":
-            base_date = today - timedelta(weeks=1)
-        elif self.base_date_option == "2W":
-            base_date = today - timedelta(weeks=2)
-        elif self.base_date_option == "1M":
-            base_date = today - timedelta(days=30)
-        elif self.base_date_option == "2M":
-            base_date = today - timedelta(days=60)
-        elif self.base_date_option == "1Q":
-            base_date = today - timedelta(days=90)
-        elif self.base_date_option == "2Q":
-            base_date = today - timedelta(days=180)
-        elif self.base_date_option == "3Q":
-            base_date = today - timedelta(days=270)
-        elif self.base_date_option == "1Y":
-            base_date = today - timedelta(days=365)
-        elif self.base_date_option == "2Y":
-            base_date = today - timedelta(days=730)
-        elif self.base_date_option == "3Y":
-            base_date = today - timedelta(days=1095)
-        elif self.base_date_option == "4Y":
-            base_date = today - timedelta(days=1460)
-        elif self.base_date_option == "5Y":
-            base_date = today - timedelta(days=1825)
-        elif self.base_date_option == "10Y":
-            base_date = today - timedelta(days=3650)
-        elif self.base_date_option == "YTD":
-            base_date = datetime(today.year, 1, 1)
-        else:  # MAX
+        base_date = calculate_base_date(self.base_date_option)
+        if base_date is None:
             return None
-
         return base_date.strftime("%Y-%m-%d")
 
 

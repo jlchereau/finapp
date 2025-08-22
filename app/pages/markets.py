@@ -3,15 +3,20 @@ Markets page
 """
 
 from typing import List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
 from app.flows.markets import fetch_buffet_indicator_data, fetch_vix_data
-from app.lib.finance import calculate_exponential_trend
 from app.lib.exceptions import DataProcessingException, ChartException
+from app.lib.periods import (
+    get_period_options,
+    calculate_base_date,
+    get_max_fallback_date,
+    format_date_range_message,
+)
 from app.templates.template import template
 
 
@@ -22,23 +27,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
 
     # Chart settings
     base_date_option: str = "10Y"
-    base_date_options: List[str] = [
-        "1W",
-        "2W",
-        "1M",
-        "2M",
-        "1Q",
-        "2Q",
-        "3Q",
-        "1Y",
-        "2Y",
-        "3Y",
-        "4Y",
-        "5Y",
-        "10Y",
-        "YTD",
-        "MAX",
-    ]
+    base_date_options: List[str] = get_period_options()
 
     # Chart data
     chart_figure_buffet: go.Figure = go.Figure()
@@ -72,13 +61,22 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
 
-    async def get_buffet_data(self, base_date: datetime) -> pd.DataFrame:
+    async def get_buffet_data(
+        self, base_date: datetime
+    ) -> tuple[pd.DataFrame, dict | None, dict]:
         """Get Buffet Indicator data using workflow."""
         # Use the markets workflow to fetch and calculate data
-        result = await fetch_buffet_indicator_data(base_date)
+        result = await fetch_buffet_indicator_data(base_date, self.base_date_option)
 
-        # Extract the DataFrame
+        # Extract the DataFrame, trend data, and adjustment info
         buffet_data = result.get("data")
+        trend_data = result.get("trend_data")
+        adjustment_info = {
+            "was_adjusted": result.get("was_adjusted", False),
+            "original_period": result.get("original_period", self.base_date_option),
+            "actual_period": result.get("actual_period", self.base_date_option),
+            "data_points": result.get("data_points", 0),
+        }
 
         if buffet_data is None or buffet_data.empty:
             raise DataProcessingException(
@@ -94,7 +92,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 },
             )
 
-        return buffet_data
+        return buffet_data, trend_data, adjustment_info
 
     async def get_vix_data(self, base_date: datetime) -> pd.DataFrame:
         """Get VIX data using workflow."""
@@ -121,23 +119,9 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
-        today = datetime.now()
-
-        if self.base_date_option == "1Y":
-            base_date = today - timedelta(days=365)
-        elif self.base_date_option == "2Y":
-            base_date = today - timedelta(days=730)
-        elif self.base_date_option == "3Y":
-            base_date = today - timedelta(days=1095)
-        elif self.base_date_option == "5Y":
-            base_date = today - timedelta(days=1825)
-        elif self.base_date_option == "10Y":
-            base_date = today - timedelta(days=3650)
-        elif self.base_date_option == "20Y":
-            base_date = today - timedelta(days=7300)
-        else:  # MAX
+        base_date = calculate_base_date(self.base_date_option)
+        if base_date is None:
             return None
-
         return base_date.strftime("%Y-%m-%d")
 
     @rx.event(background=True)  # pylint: disable=not-callable
@@ -150,18 +134,21 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                # For MAX option, use a very old date
-                base_date = datetime(1970, 1, 1)
-                async with self:
-                    yield rx.toast.info("Loading maximum available data...")
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("markets")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
-                async with self:
-                    period = self.base_date_option
-                    date_str = base_date.strftime("%Y-%m-%d")
-                    yield rx.toast.info(f"Loading data from {period} ({date_str})")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
             # Get Buffet Indicator data
-            buffet_data = await self.get_buffet_data(base_date)
+            buffet_data, trend_data, adjustment_info = await self.get_buffet_data(
+                base_date
+            )
 
             if buffet_data is None or buffet_data.empty:
                 async with self:
@@ -171,17 +158,27 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                     )
                 return
 
-            # Log successful data fetch
+            # Log successful data fetch and show adjustment message if needed
             async with self:
-                yield rx.toast.success(
-                    f"Loaded Buffet Indicator data: {buffet_data.shape[0]} quarters"
-                )
+                if adjustment_info["was_adjusted"]:
+                    from app.lib.periods import format_period_adjustment_message
+
+                    adjustment_msg = format_period_adjustment_message(
+                        adjustment_info["original_period"],
+                        adjustment_info["actual_period"],
+                        adjustment_info["data_points"],
+                    )
+                    yield rx.toast.info(adjustment_msg)
+                else:
+                    yield rx.toast.success(
+                        f"Loaded Buffet Indicator data: {buffet_data.shape[0]} quarters"
+                    )
 
             # Create plotly chart
             fig = go.Figure()
 
-            # Calculate exponential trend lines
-            trend_data = calculate_exponential_trend(buffet_data, "Buffet_Indicator")
+            # Use pre-calculated trend data (calculated on full dataset in workflow)
+            # This ensures trend lines represent full historical context
 
             # Add trend lines first (so they appear behind the main line)
             if trend_data is not None:
@@ -366,16 +363,17 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             # Calculate base date
             base_date = self._get_base_date()
             if base_date is None:
-                # For MAX option, use a very old date
-                base_date = datetime(1990, 1, 1)  # VIX started in 1990
-                async with self:
-                    yield rx.toast.info("Loading maximum available VIX data...")
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("vix")
             else:
                 base_date = datetime.strptime(base_date, "%Y-%m-%d")
-                async with self:
-                    period = self.base_date_option
-                    date_str = base_date.strftime("%Y-%m-%d")
-                    yield rx.toast.info(f"Loading VIX data from {period} ({date_str})")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
 
             # Get VIX data
             vix_result = await fetch_vix_data(base_date)

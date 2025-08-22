@@ -17,6 +17,12 @@ from app.providers.fred import create_fred_series_provider
 from app.providers.yahoo import create_yahoo_history_provider
 from app.lib.logger import logger
 from app.lib.exceptions import WorkflowException
+from app.lib.periods import (
+    ensure_minimum_data_points,
+    format_period_adjustment_message,
+    filter_trend_data_to_period,
+)
+from app.lib.finance import calculate_exponential_trend
 from app.flows.cache import apply_flow_cache
 
 
@@ -26,6 +32,7 @@ class BuffetIndicatorEvent(Event):
     gdp_data: pd.DataFrame
     wilshire_data: pd.DataFrame
     base_date: datetime
+    original_period: str
 
 
 class VIXEvent(Event):
@@ -70,11 +77,13 @@ class BuffetIndicatorWorkflow(Workflow):
 
         Args:
             ev.base_date: Start date for data fetching
+            ev.original_period: Original period selected by user (e.g., "2M")
 
         Returns:
             BuffetIndicatorEvent with GDP and Wilshire data
         """
         base_date = ev.base_date
+        original_period = getattr(ev, "original_period", "1Y")  # Default fallback
 
         logger.debug(f"BuffetIndicatorWorkflow: Fetching data from {base_date}")
 
@@ -130,7 +139,10 @@ class BuffetIndicatorWorkflow(Workflow):
         )
 
         return BuffetIndicatorEvent(
-            gdp_data=gdp_data, wilshire_data=wilshire_data, base_date=base_date
+            gdp_data=gdp_data,
+            wilshire_data=wilshire_data,
+            base_date=base_date,
+            original_period=original_period,
         )
 
     @step
@@ -152,6 +164,7 @@ class BuffetIndicatorWorkflow(Workflow):
         gdp_data = ev.gdp_data
         wilshire_data = ev.wilshire_data
         base_date = ev.base_date
+        original_period = ev.original_period
 
         logger.debug("BuffetIndicatorWorkflow: Calculating Buffet Indicator")
 
@@ -259,26 +272,51 @@ class BuffetIndicatorWorkflow(Workflow):
                 index=common_dates,  # Use timezone-naive common dates
             )
 
-            # STEP 6: ONLY NOW filter by base_date for display purposes
-            base_date_pd = pd.to_datetime(base_date.date())
-            display_data = result_df[result_df.index >= base_date_pd]
+            # STEP 6: Calculate exponential trend on FULL dataset (before filtering)
+            # This ensures trend lines represent full historical context
+            full_trend_data = calculate_exponential_trend(result_df, "Buffet_Indicator")
 
-            if display_data.empty:
-                logger.warning(f"No data after base_date {base_date} for display")
-                # Return empty result but don't error - this is just a display filter
-                display_data = pd.DataFrame(
-                    columns=["GDP", "Wilshire_5000", "Buffet_Indicator"]
-                )
-
-            logger.info(
-                f"BuffetIndicator completed: {len(display_data)} quarters "
-                f"from {base_date}"
+            logger.debug(
+                f"Calculated exponential trend on full dataset: "
+                f"{len(result_df)} quarters"
             )
+
+            # STEP 7: Apply smart filtering with minimum data points guarantee
+            display_data, actual_period, was_adjusted = ensure_minimum_data_points(
+                data=result_df,
+                original_period=original_period,
+                base_date=base_date,
+                min_points=2,
+                data_frequency="quarterly",
+                reference_date=datetime.now(),
+            )
+
+            # STEP 8: Filter trend data to match display period
+            # This preserves statistical integrity while showing relevant time range
+            display_trend_data = filter_trend_data_to_period(
+                full_trend_data, display_data
+            )
+
+            # Log the filtering results
+            if was_adjusted:
+                adjustment_msg = format_period_adjustment_message(
+                    original_period, actual_period, len(display_data)
+                )
+                logger.info(f"BuffetIndicator period adjusted: {adjustment_msg}")
+            else:
+                logger.info(
+                    f"BuffetIndicator completed: {len(display_data)} quarters "
+                    f"for {original_period} from {base_date}"
+                )
 
             return StopEvent(
                 result={
                     "data": display_data,
+                    "trend_data": display_trend_data,
                     "base_date": base_date,
+                    "original_period": original_period,
+                    "actual_period": actual_period,
+                    "was_adjusted": was_adjusted,
                     "latest_value": (
                         display_data["Buffet_Indicator"].iloc[-1]
                         if not display_data.empty
@@ -453,26 +491,37 @@ class VIXWorkflow(Workflow):
 
 
 @apply_flow_cache
-async def fetch_buffet_indicator_data(base_date: datetime) -> Dict[str, Any]:
+async def fetch_buffet_indicator_data(
+    base_date: datetime, original_period: str = "1Y"
+) -> Dict[str, Any]:
     """
     Fetch and calculate Buffet Indicator data.
 
     Args:
         base_date: Start date for historical data
+        original_period: Original period selected by user (for smart filtering)
 
     Returns:
         Dictionary containing:
         - data: pandas DataFrame with GDP, Wilshire 5000, and Buffet Indicator
         - base_date: The base date used
+        - original_period: Original period selected by user
+        - actual_period: Period actually used after adjustment
+        - was_adjusted: Whether period was adjusted for minimum data points
         - latest_value: Most recent Buffet Indicator value
         - data_points: Number of data points
     """
     try:
-        logger.info(f"Starting Buffet Indicator data fetch from {base_date}")
+        logger.info(
+            f"Starting Buffet Indicator data fetch from {base_date} "
+            f"(period: {original_period})"
+        )
 
         # Create and run workflow
         workflow = BuffetIndicatorWorkflow()
-        result = await workflow.run(base_date=base_date)
+        result = await workflow.run(
+            base_date=base_date, original_period=original_period
+        )
 
         logger.info("Buffet Indicator workflow completed successfully")
 
