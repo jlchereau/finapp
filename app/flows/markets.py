@@ -42,6 +42,13 @@ class VIXEvent(Event):
     base_date: datetime
 
 
+class YieldCurveEvent(Event):
+    """Event emitted when yield curve data is fetched."""
+
+    yield_curve_data: pd.DataFrame
+    base_date: datetime
+
+
 class BuffetIndicatorWorkflow(Workflow):
     """
     Workflow that fetches data for the Buffet Indicator calculation.
@@ -490,6 +497,128 @@ class VIXWorkflow(Workflow):
             ) from e
 
 
+class YieldCurveWorkflow(Workflow):
+    """
+    Workflow that fetches US Treasury yield curve data.
+
+    The yield curve shows interest rates across different maturities,
+    from 1-month to 30-year Treasury securities. This workflow:
+    - Fetches multiple Treasury series from FRED API concurrently
+    - Combines data into structured DataFrame with maturity columns
+    - Applies period filtering with minimum data points guarantee
+    """
+
+    def __init__(self):
+        """Initialize workflow with FRED provider."""
+        super().__init__()
+        # Create provider
+        self.fred_provider = create_fred_series_provider(timeout=30.0, retries=2)
+
+    @step
+    async def fetch_yield_data(self, ev: StartEvent) -> YieldCurveEvent:
+        """
+        Fetch yield curve data from FRED API.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            YieldCurveEvent with yield curve data
+        """
+        base_date = ev.base_date
+
+        logger.debug(f"YieldCurveWorkflow: Fetching yield curve data from {base_date}")
+
+        try:
+            # Fetch yield curve data using the new method
+            yield_data = await self.fred_provider.fetch_yield_curve_data(
+                query=None,  # Not used for yield curve data
+                observation_start=base_date.strftime("%Y-%m-%d") if base_date else None
+            )
+
+            if yield_data.empty:
+                logger.error("Empty yield curve data returned")
+                raise Exception("No yield curve data available")
+
+            logger.debug(
+                f"Yield curve data: {len(yield_data)} rows, "
+                f"{len(yield_data.columns)} maturities, "
+                f"range: {yield_data.index.min()} to {yield_data.index.max()}"
+            )
+
+            return YieldCurveEvent(yield_curve_data=yield_data, base_date=base_date)
+
+        except Exception as e:
+            logger.error(f"Failed to fetch yield curve data: {e}")
+            raise
+
+    @step
+    async def process_yield_data(self, ev: YieldCurveEvent) -> StopEvent:
+        """
+        Process yield curve data and apply filtering.
+
+        Args:
+            ev: YieldCurveEvent with yield curve data
+
+        Returns:
+            StopEvent with processed yield curve data
+        """
+        yield_data = ev.yield_curve_data
+        base_date = ev.base_date
+
+        logger.debug("YieldCurveWorkflow: Processing yield curve data")
+
+        try:
+            # Apply date filtering if base_date is provided
+            if base_date:
+                base_date_pd = pd.to_datetime(base_date.date())
+                display_data = yield_data[yield_data.index >= base_date_pd]
+            else:
+                display_data = yield_data
+
+            if display_data.empty:
+                logger.warning(f"No yield curve data after base_date {base_date}")
+                # Return empty result but don't error
+                display_data = pd.DataFrame()
+
+            logger.info(
+                f"YieldCurve completed: {len(display_data)} trading days "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_date": (
+                        display_data.index[-1] if not display_data.empty else None
+                    ),
+                    "latest_yields": (
+                        display_data.iloc[-1].to_dict()
+                        if not display_data.empty
+                        else {}
+                    ),
+                    "data_points": len(display_data),
+                    "maturities": (
+                        list(display_data.columns) if not display_data.empty else []
+                    ),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing yield curve data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="YieldCurveWorkflow",
+                step="process_yield_data",
+                message=f"Yield curve data processing failed: {e}",
+                user_message=(
+                    "Failed to process yield curve data. Please try again later."
+                ),
+                context={"base_date": str(base_date)},
+            ) from e
+
+
 @apply_flow_cache
 async def fetch_buffet_indicator_data(
     base_date: datetime, original_period: str = "1Y"
@@ -543,6 +672,56 @@ async def fetch_buffet_indicator_data(
             message=f"Buffet Indicator workflow execution failed: {e}",
             user_message=(
                 "Failed to fetch Buffet Indicator data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_yield_curve_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process US Treasury yield curve data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with yield curve data
+        - base_date: The base date used
+        - latest_date: Date of most recent data
+        - maturities: List of available maturities
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting yield curve data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = YieldCurveWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Yield curve workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Yield curve workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Yield curve workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_yield_curve_data",
+            step="workflow_execution",
+            message=f"Yield curve workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch yield curve data due to a system error. "
                 "Please try again."
             ),
             context={"base_date": str(base_date)},

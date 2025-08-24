@@ -9,7 +9,11 @@ import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
-from app.flows.markets import fetch_buffet_indicator_data, fetch_vix_data
+from app.flows.markets import (
+    fetch_buffet_indicator_data,
+    fetch_vix_data,
+    fetch_yield_curve_data,
+)
 from app.lib.exceptions import DataProcessingException, ChartException
 from app.lib.periods import (
     get_period_options,
@@ -32,10 +36,12 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
     # Chart data
     chart_figure_buffet: go.Figure = go.Figure()
     chart_figure_vix: go.Figure = go.Figure()
+    chart_figure_yield: go.Figure = go.Figure()
 
     # Loading state
     loading_buffet: bool = False
     loading_vix: bool = False
+    loading_yield: bool = False
 
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
@@ -60,6 +66,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         yield rx.toast.info(f"Changed time period to {option}")
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
+        yield MarketState.update_yield_chart
 
     async def get_buffet_data(
         self, base_date: datetime
@@ -522,10 +529,180 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 self.loading_vix = False
 
     @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_yield_chart(self):
+        """Update the yield curve chart using background processing."""
+        async with self:
+            self.loading_yield = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("yield_curve")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get yield curve data
+            yield_result = await fetch_yield_curve_data(base_date)
+            yield_data = yield_result.get("data")
+            maturities = yield_result.get("maturities", [])
+            latest_date = yield_result.get("latest_date")
+
+            if yield_data is None or yield_data.empty:
+                async with self:
+                    self.chart_figure_yield = go.Figure()
+                    yield rx.toast.warning(
+                        "No yield curve data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded yield curve data: {yield_data.shape[0]} data points"
+                )
+
+            # Create plotly chart
+            fig = go.Figure()
+
+            # Get the most recent yield curve (latest available date)
+            if latest_date:
+                latest_data = yield_data.loc[yield_data.index == latest_date]
+                if not latest_data.empty:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=maturities,
+                            y=latest_data.iloc[0].values,
+                            mode="lines+markers",
+                            name=f"Yield Curve ({latest_date.strftime('%Y-%m-%d')})",
+                            line=dict(color="blue", width=3),
+                            marker=dict(size=8, color="blue"),
+                            hovertemplate="<b>%{fullData.name}</b><br>"
+                            + "Maturity: %{x}<br>"
+                            + "Yield: %{y:.2f}%<br>"
+                            + "<extra></extra>",
+                        )
+                    )
+
+            # Add historical perspective if we have enough data
+            if len(yield_data) > 1 and latest_date is not None:
+                # Add a few historical curves for context
+                # (e.g., 1 year ago, 6 months ago)
+                historical_dates = yield_data.index.sort_values(ascending=False)
+
+                # Find dates approximately 1 year and 6 months ago
+                for months_back, color, alpha in [
+                    (12, "gray", 0.5),
+                    (6, "orange", 0.7),
+                ]:
+                    target_date = latest_date - pd.DateOffset(months=months_back)
+                    closest_date = historical_dates[historical_dates <= target_date]
+
+                    if len(closest_date) > 0:
+                        hist_date = closest_date[0]
+                        hist_data = yield_data.loc[yield_data.index == hist_date]
+                        if not hist_data.empty:
+                            fig.add_trace(
+                                go.Scatter(
+                                    x=maturities,
+                                    y=hist_data.iloc[0].values,
+                                    mode="lines",
+                                    name=(
+                                        f"{months_back}M ago "
+                                        f"({hist_date.strftime('%Y-%m-%d')})"
+                                    ),
+                                    line=dict(color=color, width=2, dash="dash"),
+                                    opacity=alpha,
+                                    hovertemplate="<b>%{fullData.name}</b><br>"
+                                    + "Maturity: %{x}<br>"
+                                    + "Yield: %{y:.2f}%<br>"
+                                    + "<extra></extra>",
+                                )
+                            )
+
+            # Get theme-appropriate colors
+            theme_colors = self.get_theme_colors()
+
+            # Update layout
+            title = "US Treasury Yield Curve"
+            layout_props = {
+                "title": title,
+                "xaxis_title": "Maturity",
+                "yaxis_title": "Yield (%)",
+                "hovermode": "x unified",
+                "showlegend": True,
+                "height": 400,
+                "margin": dict(l=50, r=50, t=80, b=50),
+                "plot_bgcolor": theme_colors["plot_bgcolor"],
+                "paper_bgcolor": theme_colors["paper_bgcolor"],
+                "hoverlabel": dict(
+                    bgcolor=theme_colors["hover_bgcolor"],
+                    bordercolor=theme_colors["hover_bordercolor"],
+                    font_size=14,
+                    font_color="white",
+                ),
+            }
+
+            # Only add font_color if it's not None
+            if theme_colors["text_color"] is not None:
+                layout_props["font_color"] = theme_colors["text_color"]
+
+            fig.update_layout(**layout_props)
+
+            # Update axes
+            fig.update_xaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+                # Set explicit order for maturity labels
+                categoryorder="array",
+                categoryarray=maturities,
+            )
+            fig.update_yaxes(
+                showgrid=True,
+                gridwidth=1,
+                gridcolor=theme_colors["grid_color"],
+                showline=True,
+                linewidth=1,
+                linecolor=theme_colors["line_color"],
+            )
+
+            async with self:
+                self.chart_figure_yield = fig
+                yield rx.toast.success("Yield curve chart updated successfully")
+
+        except Exception as e:
+            # Chart generation error - wrap in ChartException
+            raise ChartException(
+                chart_type="yield_curve",
+                message=f"Failed to generate yield curve chart: {e}",
+                user_message=(
+                    "Failed to generate yield curve chart. "
+                    "Please try refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_yield = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def run_workflows(self):
         """Load initial chart data."""
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
+        yield MarketState.update_yield_chart
 
 
 def plots_fear_and_greed_index() -> rx.Component:
@@ -550,8 +727,16 @@ def plots_buffet_indicator() -> rx.Component:
 
 
 def plots_yield_curve() -> rx.Component:
-    """Yield curve plot."""
-    return rx.box(rx.text("Yield curve plot"))
+    """US Treasury yield curve plot."""
+    return rx.cond(
+        MarketState.loading_yield,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_yield,
+            width="100%",
+            height="400px",
+        ),
+    )
 
 
 def plots_vix_index() -> rx.Component:

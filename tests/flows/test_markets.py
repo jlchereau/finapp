@@ -15,6 +15,8 @@ from app.flows.markets import (
     BuffetIndicatorWorkflow,
     fetch_vix_data,
     VIXWorkflow,
+    fetch_yield_curve_data,
+    YieldCurveWorkflow,
 )
 
 
@@ -642,3 +644,334 @@ async def test_vix_workflow_moving_average_integration():
             assert (
                 abs(actual - expected) < 0.01
             ), f"MA mismatch at index {i}: expected {expected}, got {actual}"
+
+
+# Yield Curve Tests
+
+
+@pytest.fixture
+def sample_yield_curve_data():
+    """Create sample yield curve data from FRED."""
+    # Create 30 days of yield curve data
+    dates = pd.date_range(start="2024-01-01", periods=30, freq="D")
+
+    # Typical yield curve shape with longer maturities having higher yields
+    yield_values = {
+        "1M": [4.5 + i * 0.01 for i in range(30)],  # 1-month rates
+        "3M": [4.7 + i * 0.01 for i in range(30)],  # 3-month rates
+        "6M": [4.8 + i * 0.01 for i in range(30)],  # 6-month rates
+        "1Y": [4.9 + i * 0.01 for i in range(30)],  # 1-year rates
+        "2Y": [5.0 + i * 0.01 for i in range(30)],  # 2-year rates
+        "5Y": [5.2 + i * 0.01 for i in range(30)],  # 5-year rates
+        "10Y": [5.5 + i * 0.01 for i in range(30)],  # 10-year rates
+        "30Y": [5.8 + i * 0.01 for i in range(30)],  # 30-year rates
+    }
+
+    return pd.DataFrame(yield_values, index=dates)
+
+
+@pytest.fixture
+def sample_yield_curve_result():
+    """Create a sample yield curve result dictionary."""
+    data = pd.DataFrame(
+        {
+            "1M": [4.5, 4.6, 4.7],
+            "3M": [4.7, 4.8, 4.9],
+            "6M": [4.8, 4.9, 5.0],
+            "1Y": [4.9, 5.0, 5.1],
+            "2Y": [5.0, 5.1, 5.2],
+            "5Y": [5.2, 5.3, 5.4],
+            "10Y": [5.5, 5.6, 5.7],
+            "30Y": [5.8, 5.9, 6.0],
+        },
+        index=pd.date_range(start="2024-01-01", periods=3, freq="D"),
+    )
+
+    return {
+        "data": data,
+        "base_date": datetime(2024, 1, 1),
+        "latest_date": data.index[-1],
+        "maturities": list(data.columns),
+        "data_points": len(data),
+    }
+
+
+@pytest.mark.asyncio
+async def test_fetch_yield_curve_data_success(sample_yield_curve_data):
+    """Test successful yield curve data fetch and processing."""
+    # Setup mock provider result
+    fred_result = MagicMock()
+    fred_result.success = True
+    fred_result.data = sample_yield_curve_data
+
+    # Mock the FRED provider
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        # Setup provider mock
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(
+            return_value=fred_result.data
+        )
+        mock_fred.return_value = mock_fred_instance
+
+        # Test the function
+        base_date = datetime(2024, 1, 1)
+        result = await fetch_yield_curve_data(base_date)
+
+        # Verify results
+        assert "data" in result
+        assert "base_date" in result
+        assert "latest_date" in result
+        assert "maturities" in result
+        assert "data_points" in result
+
+        data = result["data"]
+        assert not data.empty
+        assert len(data.columns) == 8  # 8 Treasury maturities
+        assert all(
+            maturity in data.columns
+            for maturity in ["1M", "3M", "6M", "1Y", "2Y", "5Y", "10Y", "30Y"]
+        )
+
+        # Verify data structure
+        maturities = result["maturities"]
+        assert len(maturities) == 8
+        assert maturities == ["1M", "3M", "6M", "1Y", "2Y", "5Y", "10Y", "30Y"]
+
+        # Verify latest date
+        latest_date = result["latest_date"]
+        assert isinstance(latest_date, (pd.Timestamp, datetime))
+
+        # Verify provider call
+        mock_fred_instance.fetch_yield_curve_data.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_fetch_yield_curve_data_fred_error():
+    """Test yield curve data fetch with FRED provider error."""
+    # Mock the FRED provider to raise exception
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(
+            side_effect=Exception("FRED API error")
+        )
+        mock_fred.return_value = mock_fred_instance
+
+        # Test the function and expect exception
+        base_date = datetime(2024, 1, 1)
+
+        with pytest.raises(Exception) as exc_info:
+            await fetch_yield_curve_data(base_date)
+
+        assert "Yield curve workflow execution failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_data_empty_handling():
+    """Test yield curve data fetch with empty data."""
+    # Setup mock provider result with empty data
+    empty_data = pd.DataFrame()
+
+    # Mock the FRED provider
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(return_value=empty_data)
+        mock_fred.return_value = mock_fred_instance
+
+        # Test the function
+        base_date = datetime(2024, 1, 1)
+
+        with pytest.raises(Exception) as exc_info:
+            await fetch_yield_curve_data(base_date)
+
+        assert "Yield curve workflow execution failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_workflow_direct():
+    """Test the YieldCurveWorkflow class directly."""
+    # Create sample yield curve data
+    yield_data = pd.DataFrame(
+        {
+            "1M": [4.5, 4.6],
+            "3M": [4.7, 4.8],
+            "6M": [4.8, 4.9],
+            "1Y": [4.9, 5.0],
+            "2Y": [5.0, 5.1],
+            "5Y": [5.2, 5.3],
+            "10Y": [5.5, 5.6],
+            "30Y": [5.8, 5.9],
+        },
+        index=pd.date_range(start="2024-01-01", periods=2, freq="D"),
+    )
+
+    # Mock the FRED provider at the workflow level
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(return_value=yield_data)
+        mock_fred.return_value = mock_fred_instance
+
+        # Test the workflow directly
+        workflow = YieldCurveWorkflow()
+        base_date = datetime(2024, 1, 1)
+
+        result = await workflow.run(base_date=base_date)
+
+        # Verify result structure
+        assert "data" in result
+        assert "base_date" in result
+        assert "latest_date" in result
+        assert "maturities" in result
+        assert "data_points" in result
+
+        # Verify data integrity
+        data = result["data"]
+        assert not data.empty
+        assert len(data) == 2  # 2 days of data
+        assert len(data.columns) == 8  # 8 maturities
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_data_filtering_by_base_date(sample_yield_curve_data):
+    """Test yield curve data is properly filtered by base date."""
+    # Mock the FRED provider
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(
+            return_value=sample_yield_curve_data
+        )
+        mock_fred.return_value = mock_fred_instance
+
+        # Test with a base date that should filter the data
+        base_date = datetime(2024, 1, 15)  # Middle of sample data
+        result = await fetch_yield_curve_data(base_date)
+
+        data = result["data"]
+
+        # Verify all dates in result are >= base_date
+        filtered_dates = data.index[data.index >= pd.Timestamp(base_date)]
+        assert len(filtered_dates) > 0
+        assert all(date >= pd.Timestamp(base_date) for date in data.index)
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_provider_failure():
+    """Test yield curve workflow handles provider instantiation failure."""
+    # Mock provider creation to fail
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred.side_effect = Exception("Provider creation failed")
+
+        base_date = datetime(2024, 1, 1)
+
+        with pytest.raises(Exception) as exc_info:
+            await fetch_yield_curve_data(base_date)
+
+        assert "Provider creation failed" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_maturities_order(sample_yield_curve_data):
+    """Test that yield curve maturities are returned in correct order."""
+    # Mock the FRED provider
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(
+            return_value=sample_yield_curve_data
+        )
+        mock_fred.return_value = mock_fred_instance
+
+        base_date = datetime(2024, 1, 1)
+        result = await fetch_yield_curve_data(base_date)
+
+        maturities = result["maturities"]
+        expected_order = ["1M", "3M", "6M", "1Y", "2Y", "5Y", "10Y", "30Y"]
+
+        assert maturities == expected_order
+
+        # Verify data columns are also in correct order
+        data = result["data"]
+        assert list(data.columns) == expected_order
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_data_values_realistic(sample_yield_curve_data):
+    """Test that yield curve data values are within realistic ranges."""
+    # Mock the FRED provider
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(
+            return_value=sample_yield_curve_data
+        )
+        mock_fred.return_value = mock_fred_instance
+
+        base_date = datetime(2024, 1, 1)
+        result = await fetch_yield_curve_data(base_date)
+
+        data = result["data"]
+
+        # Verify all yield values are reasonable (0% to 20%)
+        for column in data.columns:
+            values = data[column].dropna()
+            assert all(
+                0 <= val <= 20 for val in values
+            ), f"Unrealistic yield values in {column}"
+
+        # Verify typical yield curve shape (longer maturities generally higher)
+        latest_row = data.iloc[-1]
+        assert (
+            latest_row["1M"] <= latest_row["30Y"]
+        ), "Yield curve should generally be upward sloping"
+
+
+@pytest.mark.asyncio
+async def test_yield_curve_workflow_integration():
+    """Test full yield curve workflow integration."""
+    # Create realistic sample data
+    yield_data = pd.DataFrame(
+        {
+            "1M": [4.5, 4.6, 4.7],
+            "3M": [4.7, 4.8, 4.9],
+            "6M": [4.8, 4.9, 5.0],
+            "1Y": [4.9, 5.0, 5.1],
+            "2Y": [5.0, 5.1, 5.2],
+            "5Y": [5.2, 5.3, 5.4],
+            "10Y": [5.5, 5.6, 5.7],
+            "30Y": [5.8, 5.9, 6.0],
+        },
+        index=pd.date_range(start="2024-01-01", periods=3, freq="D"),
+    )
+
+    # Mock the FRED provider at the workflow level
+    with patch("app.flows.markets.create_fred_series_provider") as mock_fred:
+        mock_fred_instance = AsyncMock()
+        mock_fred_instance.fetch_yield_curve_data = AsyncMock(return_value=yield_data)
+        mock_fred.return_value = mock_fred_instance
+
+        # Test the full workflow
+        workflow = YieldCurveWorkflow()
+        base_date = datetime(2024, 1, 1)
+
+        result = await workflow.run(base_date=base_date)
+
+        # Verify complete result structure
+        expected_keys = [
+            "data",
+            "base_date",
+            "latest_date",
+            "maturities",
+            "data_points",
+        ]
+        for key in expected_keys:
+            assert key in result, f"Missing key {key} in result"
+
+        # Verify data quality
+        data = result["data"]
+        assert isinstance(data, pd.DataFrame)
+        assert not data.empty
+        assert len(data.columns) == 8
+
+        # Verify latest date is properly set
+        latest_date = result["latest_date"]
+        assert latest_date == data.index.max()
+
+        # Verify data points count
+        assert result["data_points"] == len(data)

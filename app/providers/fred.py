@@ -6,6 +6,7 @@ See:
 - https://fred.stlouisfed.org/docs/api/fred/
 """
 
+import asyncio
 import httpx
 import pandas as pd
 from pandas import DataFrame
@@ -19,6 +20,18 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
+
+# Yield curve series mapping (FRED series ID to maturity label)
+YIELD_CURVE_SERIES = {
+    "DGS1MO": "1M",  # 1-Month Treasury Constant Maturity Rate
+    "DGS3MO": "3M",  # 3-Month Treasury Constant Maturity Rate
+    "DGS6MO": "6M",  # 6-Month Treasury Constant Maturity Rate
+    "DGS1": "1Y",  # 1-Year Treasury Constant Maturity Rate
+    "DGS2": "2Y",  # 2-Year Treasury Constant Maturity Rate
+    "DGS5": "5Y",  # 5-Year Treasury Constant Maturity Rate
+    "DGS10": "10Y",  # 10-Year Treasury Constant Maturity Rate
+    "DGS30": "30Y",  # 30-Year Treasury Constant Maturity Rate
+}
 
 
 class FredSeriesProvider(BaseProvider[DataFrame]):
@@ -188,6 +201,99 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
                 f"Retriable error for series {series_id}: {type(e).__name__}: {e}"
             )
             raise RetriableProviderException(str(e)) from e
+
+    @cache
+    async def fetch_yield_curve_data(self, query: str | None = None, **kwargs) -> DataFrame:
+        """
+        Fetch all yield curve series data concurrently and return as
+        structured DataFrame.
+
+        This method fetches multiple FRED series for Treasury yield curve data and
+        combines them into a single DataFrame with columns for each maturity.
+
+        Args:
+            query: Not used for yield curve (fetches predefined series)
+            **kwargs: Additional parameters passed to individual series fetches:
+                - observation_start: Start date in YYYY-MM-DD format
+                - observation_end: End date in YYYY-MM-DD format
+                - frequency: Data frequency (d for daily)
+                - limit: Maximum number of observations
+
+        Returns:
+            DataFrame with DatetimeIndex and columns for each maturity
+            (1M, 3M, 6M, 1Y, 2Y, 5Y, 10Y, 30Y)
+            Values are in percentage (e.g., 5.25 for 5.25%)
+
+        Raises:
+            Exception: If no valid data is retrieved from any series
+        """
+        self.logger.debug("Fetching yield curve data for all maturities")
+
+        # Create tasks for concurrent fetching
+        tasks = []
+        series_ids = list(YIELD_CURVE_SERIES.keys())
+
+        for series_id in series_ids:
+            task = self._fetch_data(series_id, **kwargs)
+            tasks.append(task)
+
+        # Execute all requests concurrently
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        except Exception as e:
+            self.logger.error(f"Failed to fetch yield curve data: {e}")
+            raise RetriableProviderException(
+                f"Yield curve data fetch failed: {e}"
+            ) from e
+
+        # Process results and combine into single DataFrame
+        combined_data = {}
+        successful_series = 0
+
+        for i, result in enumerate(results):
+            series_id = series_ids[i]
+            maturity_label = YIELD_CURVE_SERIES[series_id]
+
+            if isinstance(result, Exception):
+                self.logger.warning(f"Failed to fetch series {series_id}: {result}")
+                continue
+
+            if isinstance(result, DataFrame) and not result.empty:
+                # Add series data with maturity label as column name
+                combined_data[maturity_label] = result["value"]
+                successful_series += 1
+                self.logger.debug(
+                    f"Successfully fetched {len(result)} observations "
+                    f"for {maturity_label}"
+                )
+            else:
+                self.logger.warning(f"Empty data returned for series {series_id}")
+
+        if not combined_data:
+            self.logger.error("No yield curve data retrieved from any series")
+            raise NonRetriableProviderException("No yield curve data available")
+
+        # Create combined DataFrame
+        df = pd.DataFrame(combined_data)
+        df.index.name = "date"
+
+        # Sort columns by maturity order (1M, 3M, 6M, 1Y, 2Y, 5Y, 10Y, 30Y)
+        maturity_order = ["1M", "3M", "6M", "1Y", "2Y", "5Y", "10Y", "30Y"]
+        available_maturities = [m for m in maturity_order if m in df.columns]
+        df = df[available_maturities]
+
+        # Sort by date
+        df = df.sort_index()
+
+        # Fill forward missing values (common for treasury data)
+        df = df.ffill()
+
+        self.logger.info(
+            f"Successfully combined yield curve data: {len(df)} dates, "
+            f"{len(df.columns)} maturities ({successful_series} series)"
+        )
+
+        return df
 
 
 # Factory function for easy provider creation
