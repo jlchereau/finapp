@@ -22,6 +22,9 @@ from app.lib.charts import (
     RSIChartConfig,
     create_comparison_chart,
 )
+from app.lib.metrics import (
+    show_metrics_as_badge,
+)
 from app.lib.periods import (
     get_period_options,
     calculate_base_date,
@@ -561,11 +564,55 @@ def left_sidebar() -> rx.Component:
     )
 
 
+def metrics_valuation() -> rx.Component:
+    """Metrics valuation section."""
+    return rx.table.root(
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Metrics"),
+                # one column per ticker, on line per metric
+                rx.table.column_header_cell("AMZN"),
+                rx.table.column_header_cell("GOOG"),
+            ),
+        ),
+        rx.table.body(
+            rx.table.row(
+                rx.table.row_header_cell("Quote"),
+                rx.table.cell(show_metrics_as_badge(154.5, 125.2, 145.3)),
+                rx.table.cell(show_metrics_as_badge(2729.3, 3500.1, 4600.5)),
+            ),
+            rx.table.row(
+                rx.table.row_header_cell("DCF"),
+                rx.table.cell(show_metrics_as_badge(154.5, 125.2, 145.3)),
+                rx.table.cell(show_metrics_as_badge(2729.3, 3500.1, 4600.5)),
+            ),
+        ),
+        width="100%",
+    )
+
+
+def metrics_graham() -> rx.Component:
+    return rx.text("Graham metrics - coming soon...", color="gray")
+
+
 def metrics_tab_content() -> rx.Component:
     """Metrics tab - cleared for simplification."""
-    return rx.center(
-        rx.text("Metrics tab cleared - ready for new implementation", color="gray"),
-        height="400px",
+    return rx.box(
+        rx.section(
+            rx.heading("Valuation", size="5"),
+            rx.divider(),
+            metrics_valuation(),
+            padding_left="1rem",
+            padding_right="1rem",
+        ),
+        rx.section(
+            rx.heading("Graham", size="5"),
+            rx.divider(),
+            metrics_graham(),
+            padding_left="1rem",
+            padding_right="1rem",
+        ),
+        width="100%",
     )
 
 

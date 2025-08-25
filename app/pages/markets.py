@@ -9,6 +9,17 @@ import pandas as pd
 import reflex as rx
 import plotly.graph_objects as go
 
+from app.lib.charts import (
+    ChartConfig,
+    TimeSeriesChartConfig,
+    ThresholdLine,
+    MARKET_COLORS,
+    create_timeseries_chart,
+    add_main_series,
+    add_threshold_lines,
+    add_trend_display,
+    add_historical_curves,
+)
 from app.flows.markets import (
     fetch_buffet_indicator_data,
     fetch_vix_data,
@@ -181,165 +192,51 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         f"Loaded Buffet Indicator data: {buffet_data.shape[0]} quarters"
                     )
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Use pre-calculated trend data (calculated on full dataset in workflow)
-            # This ensures trend lines represent full historical context
-
-            # Add trend lines first (so they appear behind the main line)
-            if trend_data is not None:
-                # Main trend line
-                fig.add_trace(
-                    go.Scatter(
-                        x=trend_data["dates"],
-                        y=trend_data["trend"],
-                        mode="lines",
-                        name="Exponential Trend",
-                        line=dict(color="rgba(128,128,128,0.7)", width=2, dash="dash"),
-                        hovertemplate="<b>Exponential Trend</b><br>"
-                        # + "Date: %{x}<br>"
-                        + "Value: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-
-                # +/- 2 std dev bands (outer)
-                fig.add_trace(
-                    go.Scatter(
-                        x=trend_data["dates"],
-                        y=trend_data["plus2_std"],
-                        mode="lines",
-                        name="+2 Std Dev",
-                        line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
-                        hoverinfo="skip",
-                        # hovertemplate="<b>+2 Std Dev</b><br>"
-                        # + "Date: %{x}<br>"
-                        # "Value: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=trend_data["dates"],
-                        y=trend_data["minus2_std"],
-                        mode="lines",
-                        name="-2 Std Dev",
-                        line=dict(color="rgba(128,128,128,0.5)", width=1, dash="dash"),
-                        showlegend=False,  # Don't show in legend to avoid duplication
-                        hoverinfo="skip",
-                        # hovertemplate="<b>-2 Std Dev</b><br>"
-                        # + "Date: %{x}<br>"
-                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-
-                # +/- 1 std dev bands (inner)
-                fig.add_trace(
-                    go.Scatter(
-                        x=trend_data["dates"],
-                        y=trend_data["plus1_std"],
-                        mode="lines",
-                        name="+1 Std Dev",
-                        line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
-                        hoverinfo="skip",
-                        # hovertemplate="<b>+1 Std Dev</b><br>"
-                        # + "Date: %{x}<br>"
-                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-                fig.add_trace(
-                    go.Scatter(
-                        x=trend_data["dates"],
-                        y=trend_data["minus1_std"],
-                        mode="lines",
-                        name="-1 Std Dev",
-                        line=dict(color="rgba(128,128,128,0.6)", width=1, dash="dash"),
-                        showlegend=False,  # Don't show in legend to avoid duplication
-                        hoverinfo="skip",
-                        # hovertemplate="<b>-1 Std Dev</b><br>"
-                        # + "Date: %{x}<br>"
-                        # + "Value: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-
-            # Plot Buffet Indicator (on top of trend lines)
-            fig.add_trace(
-                go.Scatter(
-                    x=buffet_data.index,
-                    y=buffet_data["Buffet_Indicator"],
-                    mode="lines+markers",
-                    name="Buffet Indicator",
-                    line=dict(color="#2563eb", width=3),
-                    marker=dict(size=4),
-                    hovertemplate="<b>Buffet Indicator</b><br>"
-                    # + "Date: %{x}<br>"
-                    + "Value: %{y:.1f}<br>" + "<extra></extra>",
-                )
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="Buffet Indicator (Market Cap / GDP)",
+                yaxis_title="Buffet Indicator (%)",
+                hover_format="Value: %{y:.1f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
             )
 
-            # Add reference lines
-            fig.add_hline(
-                y=100,
-                line_dash="dash",
-                line_color="orange",
-                opacity=0.7,
-                annotation_text="Historical Average (~100)",
-                annotation_position="bottom right",
-            )
-            fig.add_hline(
-                y=130,
-                line_dash="dash",
-                line_color="red",
-                opacity=0.7,
-                annotation_text="Overvalued (>130)",
-                annotation_position="top right",
-            )
-
-            # Get theme-appropriate colors
+            # Get theme colors
             theme_colors = self.get_theme_colors()
 
-            # Update layout
-            title = "Buffet Indicator (Market Cap / GDP)"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "Buffet Indicator (%)",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 400,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                buffet_data,
+                config,
+                theme_colors,
+                "Buffet_Indicator",
+                include_main_series=False,
+            )
+
+            # Add background elements first (trend lines and thresholds)
+            # Add pre-calculated trend data (preserves full dataset calculations)
+            if trend_data is not None:
+                add_trend_display(fig, trend_data)
+
+            # Add threshold lines with semantic colors
+            thresholds = [
+                ThresholdLine(
+                    value=130,
+                    color=MARKET_COLORS["danger"],
+                    label="Overvalued (>130)",
+                    position="top right",
                 ),
-            }
+                ThresholdLine(
+                    value=100,
+                    color=MARKET_COLORS["warning"],
+                    label="Historical Average (~100)",
+                    position="bottom right",
+                ),
+            ]
+            add_threshold_lines(fig, thresholds)
 
-            # Only add font_color if it's not None
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            # Add main data series on top (drawn last, appears on top)
+            add_main_series(fig, buffet_data, config, "Buffet_Indicator")
 
             async with self:
                 self.chart_figure_buffet = fig
@@ -403,112 +300,62 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                     f"Loaded VIX data: {vix_data.shape[0]} data points"
                 )
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Plot VIX data
-            fig.add_trace(
-                go.Scatter(
-                    x=vix_data.index,
-                    y=vix_data["VIX"],
-                    mode="lines",
-                    name="VIX (Volatility Index)",
-                    line=dict(color="#2563eb", width=2),  # Blue color for volatility
-                    hovertemplate="<b>VIX</b><br>"
-                    + "Value: %{y:.2f}<br>"
-                    + "<extra></extra>",
-                )
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="VIX (CBOE Volatility Index)",
+                yaxis_title="VIX Level",
+                hover_format="Value: %{y:.2f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
             )
 
-            # Add 50-day moving average if available
-            if "VIX_MA50" in vix_data.columns and not vix_data["VIX_MA50"].isna().all():
-                fig.add_trace(
-                    go.Scatter(
-                        x=vix_data.index,
-                        y=vix_data["VIX_MA50"],
-                        mode="lines",
-                        name="50-Day Moving Average",
-                        line=dict(
-                            color="#f59e0b", width=2, dash="dot"
-                        ),  # Amber dotted line
-                        hovertemplate="<b>50-Day MA</b><br>"
-                        + "Value: %{y:.2f}<br>"
-                        + "<extra></extra>",
-                    )
-                )
-
-            # Add reference lines
-            fig.add_hline(
-                y=historical_mean,
-                line_dash="dash",
-                line_color="orange",
-                opacity=0.7,
-                annotation_text=f"Historical Mean (~{historical_mean:.1f})",
-                annotation_position="bottom right",
-            )
-            fig.add_hline(
-                y=10,
-                line_dash="dash",
-                line_color="green",
-                opacity=0.7,
-                annotation_text="Low Volatility (10)",
-                annotation_position="top left",
-            )
-            fig.add_hline(
-                y=30,
-                line_dash="dash",
-                line_color="red",
-                opacity=0.7,
-                annotation_text="High Volatility (30)",
-                annotation_position="top right",
-            )
-
-            # Get theme-appropriate colors
+            # Get theme colors
             theme_colors = self.get_theme_colors()
 
-            # Update layout
-            title = "VIX (CBOE Volatility Index)"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "VIX Level",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 400,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                vix_data, config, theme_colors, "VIX", include_main_series=False
+            )
+
+            # Add background elements first (moving averages and thresholds)
+            # Add 50-day moving average as historical curve if available
+            if "VIX_MA50" in vix_data.columns and not vix_data["VIX_MA50"].isna().all():
+                curves = [
+                    {
+                        "x": vix_data.index,
+                        "y": vix_data["VIX_MA50"],
+                        "name": "50-Day Moving Average",
+                        "color": MARKET_COLORS["warning"],
+                        "opacity": 0.8,
+                    }
+                ]
+                add_historical_curves(fig, curves)
+
+            # Add threshold lines with semantic colors
+            thresholds = [
+                ThresholdLine(
+                    value=30,
+                    color=MARKET_COLORS["danger"],
+                    label="High Volatility (30)",
+                    position="top right",
                 ),
-            }
+                ThresholdLine(
+                    value=historical_mean,
+                    color=MARKET_COLORS["warning"],
+                    label=f"Historical Mean (~{historical_mean:.1f})",
+                    position="bottom right",
+                ),
+                ThresholdLine(
+                    value=10,
+                    color=MARKET_COLORS["safe"],
+                    label="Low Volatility (10)",
+                    position="top left",
+                ),
+            ]
+            add_threshold_lines(fig, thresholds)
 
-            # Only add font_color if it's not None
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            # Add main VIX data series on top (drawn last, appears on top)
+            add_main_series(fig, vix_data, config, "VIX")
 
             async with self:
                 self.chart_figure_vix = fig
@@ -570,38 +417,32 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                     f"Loaded yield curve data: {yield_data.shape[0]} data points"
                 )
 
-            # Create plotly chart
+            # Create yield curve chart using chart utilities
             fig = go.Figure()
 
-            # Get the most recent yield curve (latest available date)
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Store main series data for adding later
+            main_series_data = None
             if latest_date:
                 latest_data = yield_data.loc[yield_data.index == latest_date]
                 if not latest_data.empty:
-                    fig.add_trace(
-                        go.Scatter(
-                            x=maturities,
-                            y=latest_data.iloc[0].values,
-                            mode="lines+markers",
-                            name=f"Yield Curve ({latest_date.strftime('%Y-%m-%d')})",
-                            line=dict(color="blue", width=3),
-                            marker=dict(size=8, color="blue"),
-                            hovertemplate="<b>%{fullData.name}</b><br>"
-                            + "Maturity: %{x}<br>"
-                            + "Yield: %{y:.2f}%<br>"
-                            + "<extra></extra>",
-                        )
-                    )
+                    main_series_data = {
+                        "x": maturities,
+                        "y": latest_data.iloc[0].values,
+                        "date": latest_date,
+                    }
 
-            # Add historical perspective if we have enough data
+            # Add historical curves with semantic colors (background elements first)
             if len(yield_data) > 1 and latest_date is not None:
-                # Add a few historical curves for context
-                # (e.g., 1 year ago, 6 months ago)
                 historical_dates = yield_data.index.sort_values(ascending=False)
 
-                # Find dates approximately 1 year and 6 months ago
-                for months_back, color, alpha in [
-                    (12, "gray", 0.5),
-                    (6, "orange", 0.7),
+                curves = []
+                # Find dates approximately 6 months and 12 months ago
+                for months_back, color, name in [
+                    (6, MARKET_COLORS["warning"], "6M ago"),
+                    (12, MARKET_COLORS["trend"], "12M ago"),
                 ]:
                     target_date = latest_date - pd.DateOffset(months=months_back)
                     closest_date = historical_dates[historical_dates <= target_date]
@@ -610,54 +451,69 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                         hist_date = closest_date[0]
                         hist_data = yield_data.loc[yield_data.index == hist_date]
                         if not hist_data.empty:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=maturities,
-                                    y=hist_data.iloc[0].values,
-                                    mode="lines",
-                                    name=(
-                                        f"{months_back}M ago "
-                                        f"({hist_date.strftime('%Y-%m-%d')})"
-                                    ),
-                                    line=dict(color=color, width=2, dash="dash"),
-                                    opacity=alpha,
-                                    hovertemplate="<b>%{fullData.name}</b><br>"
-                                    + "Maturity: %{x}<br>"
-                                    + "Yield: %{y:.2f}%<br>"
-                                    + "<extra></extra>",
-                                )
+                            curves.append(
+                                {
+                                    "x": maturities,
+                                    "y": hist_data.iloc[0].values,
+                                    "name": f"{name} "
+                                    f"({hist_date.strftime('%Y-%m-%d')})",
+                                    "color": color,
+                                    "opacity": 0.7,
+                                }
                             )
 
-            # Get theme-appropriate colors
-            theme_colors = self.get_theme_colors()
+                add_historical_curves(fig, curves)
 
-            # Update layout
-            title = "US Treasury Yield Curve"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Maturity",
-                "yaxis_title": "Yield (%)",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 400,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
-                ),
-            }
+            # Add the current yield curve on top (drawn last, appears on top)
+            if main_series_data:
+                fig.add_trace(
+                    go.Scatter(
+                        x=main_series_data["x"],
+                        y=main_series_data["y"],
+                        mode="lines+markers",
+                        name=f"Current "
+                        f"({main_series_data['date'].strftime('%Y-%m-%d')})",
+                        line={"color": MARKET_COLORS["primary"], "width": 3},
+                        marker={"size": 6, "color": MARKET_COLORS["primary"]},
+                        hovertemplate="<b>Current Yield Curve</b><br>"
+                        + "Maturity: %{x}<br>"
+                        + "Yield: %{y:.2f}%<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Apply chart configuration and theme
+            config = ChartConfig(
+                title="US Treasury Yield Curve",
+                yaxis_title="Yield (%)",
+                hover_format="Yield: %{y:.2f}%<br>",
+                height=400,
+            )
+
+            # Apply theme manually since this is a custom chart type
+            fig.update_layout(
+                title=config.title,
+                xaxis_title="Maturity",
+                yaxis_title=config.yaxis_title,
+                hovermode="x unified",
+                showlegend=True,
+                height=config.height,
+                margin={"l": 50, "r": 50, "t": 80, "b": 50},
+                plot_bgcolor=theme_colors["plot_bgcolor"],
+                paper_bgcolor=theme_colors["paper_bgcolor"],
+                hoverlabel={
+                    "bgcolor": theme_colors["hover_bgcolor"],
+                    "bordercolor": theme_colors["hover_bordercolor"],
+                    "font_size": 14,
+                    "font_color": "white",
+                },
+            )
 
             # Only add font_color if it's not None
             if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
+                fig.update_layout(font_color=theme_colors["text_color"])
 
-            fig.update_layout(**layout_props)
-
-            # Update axes
+            # Update axes with theme colors and maturity ordering
             fig.update_xaxes(
                 showgrid=True,
                 gridwidth=1,
@@ -665,7 +521,6 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 showline=True,
                 linewidth=1,
                 linecolor=theme_colors["line_color"],
-                # Set explicit order for maturity labels
                 categoryorder="array",
                 categoryarray=maturities,
             )
