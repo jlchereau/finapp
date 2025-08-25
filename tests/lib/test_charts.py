@@ -8,12 +8,12 @@ import plotly.graph_objects as go
 
 from app.lib.charts import (
     ChartConfig,
-    RSIChartConfig,
     ThresholdLine,
     TimeSeriesChartConfig,
     MARKET_COLORS,
     LINE_STYLES,
     get_default_chart_colors,
+    get_default_theme_colors,
     create_comparison_chart,
     create_timeseries_chart,
     add_main_series,
@@ -136,37 +136,44 @@ class TestChartConfig:
         assert config.height == 400
         assert config.yaxis_range == [0, 100]
 
-    def test_rsi_chart_config_creation(self):
-        """Test RSIChartConfig creation."""
-        config = RSIChartConfig("RSI Test")
+    def test_rsi_chart_config_with_timeseries(self):
+        """Test RSI chart configuration using TimeSeriesChartConfig."""
+        config = TimeSeriesChartConfig(
+            title="RSI Test",
+            yaxis_title="RSI",
+            hover_format="RSI: %{y:.1f}<br>",
+            height=300,
+            yaxis_range=[0, 100],
+        )
 
         assert config.title == "RSI Test"
         assert config.yaxis_title == "RSI"
         assert config.hover_format == "RSI: %{y:.1f}<br>"
         assert config.yaxis_range == [0, 100]
-        assert config.reference_lines is not None
-        assert len(config.reference_lines) == 2
+        assert config.height == 300
 
-        # Test reference lines
-        ref_lines = config.reference_lines
-        assert ref_lines[0]["y"] == 70
-        assert ref_lines[0]["annotation_text"] == "Overbought (70)"
-        assert ref_lines[1]["y"] == 30
-        assert ref_lines[1]["annotation_text"] == "Oversold (30)"
+    def test_rsi_threshold_lines(self):
+        """Test RSI threshold line creation for overbought/oversold levels."""
+        overbought_line = ThresholdLine(
+            value=70,
+            color=MARKET_COLORS["danger"],
+            label="Overbought (70)",
+        )
+        oversold_line = ThresholdLine(
+            value=30,
+            color=MARKET_COLORS["safe"],
+            label="Oversold (30)",
+        )
 
-    def test_rsi_chart_config_overbought_oversold(self):
-        """Test RSI level detection methods."""
-        config = RSIChartConfig()
+        # Test overbought threshold
+        assert overbought_line.value == 70
+        assert overbought_line.label == "Overbought (70)"
+        assert overbought_line.color == MARKET_COLORS["danger"]
 
-        # Test overbought detection
-        assert config.is_overbought_level(70) is True
-        assert config.is_overbought_level(75) is True
-        assert config.is_overbought_level(69.9) is False
-
-        # Test oversold detection
-        assert config.is_oversold_level(30) is True
-        assert config.is_oversold_level(25) is True
-        assert config.is_oversold_level(30.1) is False
+        # Test oversold threshold
+        assert oversold_line.value == 30
+        assert oversold_line.label == "Oversold (30)"
+        assert oversold_line.color == MARKET_COLORS["safe"]
 
 
 class TestThresholdLine:
@@ -286,6 +293,26 @@ class TestChartColors:
         assert "#1f77b4" in colors  # First color
         assert "#e377c2" in colors  # Last color
 
+    def test_get_default_theme_colors(self):
+        """Test default theme colors function."""
+        colors = get_default_theme_colors()
+
+        assert isinstance(colors, dict)
+        assert "plot_bgcolor" in colors
+        assert "paper_bgcolor" in colors
+        assert "grid_color" in colors
+        assert "line_color" in colors
+        assert "text_color" in colors
+        assert "hover_bgcolor" in colors
+        assert "hover_bordercolor" in colors
+
+        # Test that backgrounds are transparent
+        assert colors["plot_bgcolor"] == "rgba(0,0,0,0)"
+        assert colors["paper_bgcolor"] == "rgba(0,0,0,0)"
+
+        # Test that text_color is None for theme compatibility
+        assert colors["text_color"] is None
+
 
 class TestChartCreation:
     """Test chart creation functions."""
@@ -323,21 +350,34 @@ class TestChartCreation:
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 0
 
-    def test_create_rsi_chart_with_reference_lines(self, sample_data, theme_colors):
-        """Test RSI chart creation with reference lines."""
-        config = RSIChartConfig()
+    def test_create_rsi_chart_with_threshold_lines(self, sample_data, theme_colors):
+        """Test RSI chart creation with threshold lines using TimeSeriesChartConfig."""
+        config = TimeSeriesChartConfig(
+            title="RSI",
+            yaxis_title="RSI",
+            hover_format="RSI: %{y:.1f}<br>",
+            height=300,
+            yaxis_range=[0, 100],
+        )
         fig = create_comparison_chart(
             sample_data["rsi"],
             config,
             theme_colors,
         )
 
-        # Should have 3 ticker traces + 2 reference lines
-        assert len(fig.data) >= 3
+        # Add RSI threshold lines
+        thresholds = [
+            ThresholdLine(70, MARKET_COLORS["danger"], "Overbought (70)"),
+            ThresholdLine(30, MARKET_COLORS["safe"], "Oversold (30)"),
+        ]
+        add_threshold_lines(fig, thresholds)
 
-        # Check that reference lines were added
-        assert config.reference_lines is not None
-        assert len(config.reference_lines) == 2
+        # Should have 3 ticker traces
+        assert len(fig.data) == 3
+
+        # Verify proper configuration
+        assert config.yaxis_range == [0, 100]
+        assert config.title == "RSI"
 
 
 class TestThemeApplication:
@@ -396,7 +436,13 @@ class TestIntegration:
             ChartConfig("Returns", "Return (%)", "Return: %{y:.2f}%<br>"),
             ChartConfig("Volatility", "Volatility (%)", "Volatility: %{y:.2f}%<br>"),
             ChartConfig("Volume", "Volume", "Volume: %{y:,.0f}<br>"),
-            RSIChartConfig(),
+            TimeSeriesChartConfig(
+                title="RSI",
+                yaxis_title="RSI",
+                hover_format="RSI: %{y:.1f}<br>",
+                height=300,
+                yaxis_range=[0, 100],
+            ),
         ]
         data_types = ["returns", "volatility", "volume", "rsi"]
 
@@ -506,6 +552,26 @@ class TestTimeSeriesCharts:
         assert trace.mode == "lines"  # Trend style has no markers
         assert trace.line.dash == "dash"  # Trend style is dashed
 
+    def test_create_timeseries_chart_with_solid_style(self, sample_data, theme_colors):
+        """Test time-series chart with solid line styling (no markers)."""
+        config = TimeSeriesChartConfig(
+            title="VIX Solid",
+            yaxis_title="Volatility",
+            hover_format="VIX: %{y:.2f}<br>",
+            primary_style="solid",
+        )
+        fig = create_timeseries_chart(
+            sample_data["vix"],
+            config,
+            theme_colors,
+            "vix",
+        )
+
+        trace = fig.data[0]
+        assert trace.mode == "lines"  # Solid style has no markers
+        assert trace.line.dash == "solid"  # Solid style is solid line
+        assert trace.line.width == 2  # Solid style has width 2
+
     def test_create_timeseries_chart_no_main_series(self, sample_data, theme_colors):
         """Test creating time-series chart without main series."""
         config = TimeSeriesChartConfig(
@@ -583,7 +649,7 @@ class TestThresholdLines:
         # Note: add_hline with layer="below" adds to layout.shapes
         assert isinstance(fig, go.Figure)
         # Check that shapes were added (threshold lines become shapes)
-        if hasattr(fig.layout, 'shapes') and fig.layout.shapes:
+        if hasattr(fig.layout, "shapes") and fig.layout.shapes:
             # At least one shape should exist for the threshold lines
             assert len(fig.layout.shapes) >= 1
 
@@ -790,9 +856,7 @@ class TestIntegrationTimeSeriesCharts:
         )
 
         # Add background elements (thresholds, trends, historical)
-        thresholds = [
-            ThresholdLine(100.0, MARKET_COLORS["warning"], "Background Line")
-        ]
+        thresholds = [ThresholdLine(100.0, MARKET_COLORS["warning"], "Background Line")]
         add_threshold_lines(fig, thresholds)
 
         curves = [
@@ -812,4 +876,4 @@ class TestIntegrationTimeSeriesCharts:
         main_trace = fig.data[-1]  # Last trace
         assert main_trace.name == "Drawing Order Test"
         assert main_trace.line.color == MARKET_COLORS["primary"]
-        assert main_trace.line.width == 3  # Primary style has thicker line
+        assert main_trace.line.width == 2  # Primary style has width 2

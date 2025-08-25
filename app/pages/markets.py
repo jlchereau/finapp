@@ -19,6 +19,7 @@ from app.lib.charts import (
     add_threshold_lines,
     add_trend_display,
     add_historical_curves,
+    get_default_theme_colors,
 )
 from app.flows.markets import (
     fetch_buffet_indicator_data,
@@ -60,21 +61,16 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
 
     def get_theme_colors(self):
         """Get neutral colors that work well in both themes."""
-        # Use transparent backgrounds and neutral colors that adapt to theme
-        return {
-            "plot_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
-            "paper_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
-            "grid_color": "rgba(128,128,128,0.3)",  # Semi-transparent gray
-            "line_color": "rgba(128,128,128,0.6)",  # Semi-transparent gray
-            "text_color": None,  # Let Plotly use default which respects theme
-            "hover_bgcolor": "rgba(0,0,0,0.8)",  # Semi-transparent dark background
-            "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
-        }
+        return get_default_theme_colors()
 
     def set_base_date(self, option: str):
-        """Set base date option and update charts."""
+        """Set base date option and update all market charts."""
         self.base_date_option = option
         yield rx.toast.info(f"Changed time period to {option}")
+        yield from self.update_all_charts()
+
+    def update_all_charts(self):
+        """Update all market charts."""
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
         yield MarketState.update_yield_chart
@@ -307,6 +303,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 hover_format="Value: %{y:.2f}<br>",
                 height=400,
                 primary_color=MARKET_COLORS["primary"],
+                primary_style="solid",  # Solid line without markers
             )
 
             # Get theme colors

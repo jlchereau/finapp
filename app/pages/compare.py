@@ -19,8 +19,12 @@ from app.flows.compare import (
 from app.lib.exceptions import DataProcessingException, ChartException
 from app.lib.charts import (
     ChartConfig,
-    RSIChartConfig,
+    TimeSeriesChartConfig,
+    ThresholdLine,
+    MARKET_COLORS,
     create_comparison_chart,
+    add_threshold_lines,
+    get_default_theme_colors,
 )
 from app.lib.metrics import (
     show_metrics_as_badge,
@@ -60,18 +64,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
     loading_volume: bool = False
     loading_rsi: bool = False
 
-    def get_theme_colors(self):
-        """Get neutral colors that work well in both themes."""
-        # Use transparent backgrounds and neutral colors that adapt to theme
-        return {
-            "plot_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
-            "paper_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
-            "grid_color": "rgba(128,128,128,0.3)",  # Semi-transparent gray
-            "line_color": "rgba(128,128,128,0.6)",  # Semi-transparent gray
-            "text_color": None,  # Let Plotly use default which respects theme
-            "hover_bgcolor": "rgba(0,0,0,0.8)",  # Semi-transparent dark background
-            "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
-        }
+    # get_theme_colors() method moved to app.lib.charts.get_default_theme_colors()
 
     async def get_returns_data(
         self, tickers: List[str], base_date: datetime
@@ -277,7 +270,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 yaxis_title="Return (%)",
                 hover_format="Return: %{y:.2f}%<br>",
             )
-            theme_colors = self.get_theme_colors()
+            theme_colors = get_default_theme_colors()
             fig = create_comparison_chart(returns_data, config, theme_colors)
 
             async with self:
@@ -335,7 +328,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 yaxis_title="Volatility (%)",
                 hover_format="Volatility: %{y:.2f}%<br>",
             )
-            theme_colors = self.get_theme_colors()
+            theme_colors = get_default_theme_colors()
             fig = create_comparison_chart(volatility_data, config, theme_colors)
 
             async with self:
@@ -389,7 +382,7 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 yaxis_title="Volume",
                 hover_format="Volume: %{y:,.0f}<br>",
             )
-            theme_colors = self.get_theme_colors()
+            theme_colors = get_default_theme_colors()
             fig = create_comparison_chart(volume_data, config, theme_colors)
 
             async with self:
@@ -436,10 +429,33 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     self.chart_figure_rsi = go.Figure()
                 return
 
-            # Create chart using reusable function
-            config = RSIChartConfig()
-            theme_colors = self.get_theme_colors()
+            # Create chart using reusable function with RSI-specific configuration
+            config = TimeSeriesChartConfig(
+                title="RSI",
+                yaxis_title="RSI",
+                hover_format="RSI: %{y:.1f}<br>",
+                height=300,  # Comparison charts are shorter
+                yaxis_range=[0, 100],  # RSI is bounded 0-100
+            )
+            theme_colors = get_default_theme_colors()
             fig = create_comparison_chart(rsi_data, config, theme_colors)
+
+            # Add RSI threshold lines for overbought/oversold levels
+            thresholds = [
+                ThresholdLine(
+                    value=70,
+                    color=MARKET_COLORS["danger"],
+                    label="Overbought (70)",
+                    position="top right",
+                ),
+                ThresholdLine(
+                    value=30,
+                    color=MARKET_COLORS["safe"],
+                    label="Oversold (30)",
+                    position="bottom right",
+                ),
+            ]
+            add_threshold_lines(fig, thresholds)
 
             async with self:
                 self.chart_figure_rsi = fig

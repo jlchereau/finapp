@@ -21,9 +21,10 @@ MARKET_COLORS = {
 # Line styles for different indicator types
 LINE_STYLES = {
     "threshold": {"width": 1, "dash": "solid"},  # Thin solid for thresholds
-    "trend": {"width": 2, "dash": "dash"},  # Dashed for trend lines
+    "trend": {"width": 1, "dash": "dash"},  # Dashed for trend lines
     "historical": {"width": 2, "dash": "dot"},  # Dotted for historical curves
-    "primary": {"width": 3, "dash": "solid"},  # Thick solid for main metric
+    "primary": {"width": 2, "dash": "solid"},  # Thick solid for main metric
+    "solid": {"width": 2, "dash": "solid"},  # Solid line without markers
 }
 
 
@@ -37,42 +38,6 @@ class ChartConfig:
     height: int = 300
     yaxis_range: Optional[List[float]] = None
     reference_lines: Optional[List[Dict[str, Any]]] = None
-
-
-class RSIChartConfig(ChartConfig):
-    """Configuration for RSI charts with reference lines."""
-
-    def __init__(self, title: str = "RSI"):
-        super().__init__(
-            title=title,
-            yaxis_title="RSI",
-            hover_format="RSI: %{y:.1f}<br>",
-            yaxis_range=[0, 100],
-            reference_lines=[
-                {
-                    "y": 70,
-                    "line_dash": "dash",
-                    "line_color": "red",
-                    "opacity": 0.7,
-                    "annotation_text": "Overbought (70)",
-                },
-                {
-                    "y": 30,
-                    "line_dash": "dash",
-                    "line_color": "green",
-                    "opacity": 0.7,
-                    "annotation_text": "Oversold (30)",
-                },
-            ],
-        )
-
-    def is_overbought_level(self, value: float) -> bool:
-        """Check if RSI value indicates overbought condition (>= 70)."""
-        return value >= 70
-
-    def is_oversold_level(self, value: float) -> bool:
-        """Check if RSI value indicates oversold condition (<= 30)."""
-        return value <= 30
 
 
 @dataclass
@@ -109,12 +74,14 @@ class TimeSeriesChartConfig(ChartConfig):
         height: int = 400,  # Markets charts are typically taller
         primary_color: str = MARKET_COLORS["primary"],
         primary_style: str = "primary",
+        yaxis_range: Optional[List[float]] = None,
     ):
         super().__init__(
             title=title,
             yaxis_title=yaxis_title,
             hover_format=hover_format,
             height=height,
+            yaxis_range=yaxis_range,
         )
         self.primary_color = primary_color
         self.primary_style = primary_style
@@ -131,6 +98,27 @@ def get_default_chart_colors() -> List[str]:
         "#8c564b",
         "#e377c2",
     ]
+
+
+def get_default_theme_colors() -> Dict[str, Any]:
+    """
+    Get neutral theme colors that work well in both light and dark themes.
+
+    Returns:
+        Dictionary with plot styling colors optimized for theme compatibility:
+        - Transparent backgrounds that inherit from page theme
+        - Semi-transparent grays for grid lines and borders
+        - None for text_color to let Plotly use theme-appropriate defaults
+    """
+    return {
+        "plot_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
+        "paper_bgcolor": "rgba(0,0,0,0)",  # Transparent - inherits page background
+        "grid_color": "rgba(128,128,128,0.3)",  # Semi-transparent gray
+        "line_color": "rgba(128,128,128,0.6)",  # Semi-transparent gray
+        "text_color": None,  # Let Plotly use default which respects theme
+        "hover_bgcolor": "rgba(0,0,0,0.8)",  # Semi-transparent dark background
+        "hover_bordercolor": "rgba(128,128,128,0.8)",  # Semi-transparent border
+    }
 
 
 def create_comparison_chart(
