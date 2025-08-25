@@ -49,6 +49,14 @@ class YieldCurveEvent(Event):
     base_date: datetime
 
 
+class CurrencyEvent(Event):
+    """Event emitted when currency data is fetched."""
+
+    usdeur_data: pd.DataFrame
+    gbpeur_data: pd.DataFrame
+    base_date: datetime
+
+
 class BuffetIndicatorWorkflow(Workflow):
     """
     Workflow that fetches data for the Buffet Indicator calculation.
@@ -619,6 +627,217 @@ class YieldCurveWorkflow(Workflow):
             ) from e
 
 
+class CurrencyWorkflow(Workflow):
+    """
+    Workflow that fetches currency exchange rate data.
+
+    This workflow fetches EUR/USD and EUR/GBP exchange rates from Yahoo Finance
+    to display major currency pairs against the Euro.
+
+    The workflow:
+    - Fetches EURUSD=X and EURGBP=X data from Yahoo Finance in parallel
+    - Normalizes and aligns the data on common dates
+    - Applies base_date filtering for display
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_currency_data(self, ev: StartEvent) -> CurrencyEvent:
+        """
+        Fetch currency exchange rate data from Yahoo Finance.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            CurrencyEvent with EUR/USD and EUR/GBP data
+        """
+        base_date = ev.base_date
+
+        logger.debug(f"CurrencyWorkflow: Fetching currency data from {base_date}")
+
+        # Create tasks for parallel execution
+        usdeur_task = self.yahoo_provider.get_data("EUR=X")  # USD/EUR
+        gbpeur_task = self.yahoo_provider.get_data("GBPEUR=X")  # GBP/EUR
+
+        # Execute tasks in parallel
+        results = await asyncio.gather(usdeur_task, gbpeur_task, return_exceptions=True)
+
+        usdeur_result, gbpeur_result = results
+
+        # Process USD/EUR data
+        if isinstance(usdeur_result, Exception):
+            logger.error(f"Failed to fetch USD/EUR data: {usdeur_result}")
+            raise usdeur_result
+
+        if not (hasattr(usdeur_result, "success") and usdeur_result.success):
+            error_msg = getattr(
+                usdeur_result, "error_message", "Unknown USD/EUR fetch error"
+            )
+            logger.error(f"USD/EUR provider failed: {error_msg}")
+            raise Exception(f"USD/EUR data fetch failed: {error_msg}")
+
+        usdeur_data = usdeur_result.data
+        if usdeur_data.empty:
+            logger.error("Empty USD/EUR data returned")
+            raise Exception("No USD/EUR data available")
+
+        logger.debug(
+            f"USD/EUR data: {len(usdeur_data)} rows, "
+            f"range: {usdeur_data.index.min()} to {usdeur_data.index.max()}"
+        )
+
+        # Process GBP/EUR data
+        if isinstance(gbpeur_result, Exception):
+            logger.error(f"Failed to fetch GBP/EUR data: {gbpeur_result}")
+            raise gbpeur_result
+
+        if not (hasattr(gbpeur_result, "success") and gbpeur_result.success):
+            error_msg = getattr(
+                gbpeur_result, "error_message", "Unknown GBP/EUR fetch error"
+            )
+            logger.error(f"GBP/EUR provider failed: {error_msg}")
+            raise Exception(f"GBP/EUR data fetch failed: {error_msg}")
+
+        gbpeur_data = gbpeur_result.data
+        if gbpeur_data.empty:
+            logger.error("Empty GBP/EUR data returned")
+            raise Exception("No GBP/EUR data available")
+
+        logger.debug(
+            f"GBP/EUR data: {len(gbpeur_data)} rows, "
+            f"range: {gbpeur_data.index.min()} to {gbpeur_data.index.max()}"
+        )
+
+        return CurrencyEvent(
+            usdeur_data=usdeur_data, gbpeur_data=gbpeur_data, base_date=base_date
+        )
+
+    @step
+    async def process_currency_data(self, ev: CurrencyEvent) -> StopEvent:
+        """
+        Process and combine currency data.
+
+        Args:
+            ev: CurrencyEvent with USD/EUR and GBP/EUR data
+
+        Returns:
+            StopEvent with processed currency data
+        """
+        usdeur_data = ev.usdeur_data
+        gbpeur_data = ev.gbpeur_data
+        base_date = ev.base_date
+
+        logger.debug("CurrencyWorkflow: Processing currency data")
+
+        try:
+            # Extract close prices from USD/EUR data
+            if "Close" in usdeur_data.columns:
+                usdeur_close = usdeur_data["Close"].dropna()
+            elif "Adj Close" in usdeur_data.columns:
+                usdeur_close = usdeur_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in USD/EUR data")
+                raise Exception("No Close price data available for USD/EUR")
+
+            if usdeur_close.empty:
+                logger.error("No USD/EUR close price data available")
+                raise Exception("No USD/EUR data available")
+
+            # Extract close prices from GBP/EUR data
+            if "Close" in gbpeur_data.columns:
+                gbpeur_close = gbpeur_data["Close"].dropna()
+            elif "Adj Close" in gbpeur_data.columns:
+                gbpeur_close = gbpeur_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in GBP/EUR data")
+                raise Exception("No Close price data available for GBP/EUR")
+
+            if gbpeur_close.empty:
+                logger.error("No GBP/EUR close price data available")
+                raise Exception("No GBP/EUR data available")
+
+            # Normalize timezones to ensure proper alignment
+            if usdeur_close.index.tz is not None:
+                usdeur_close_naive = usdeur_close.tz_localize(None)
+            else:
+                usdeur_close_naive = usdeur_close
+
+            if gbpeur_close.index.tz is not None:
+                gbpeur_close_naive = gbpeur_close.tz_localize(None)
+            else:
+                gbpeur_close_naive = gbpeur_close
+
+            # Create combined DataFrame with aligned dates
+            # Use outer join to get all available dates from both series
+            result_df = pd.DataFrame(
+                {
+                    "USD_EUR": usdeur_close_naive,
+                    "GBP_EUR": gbpeur_close_naive,
+                }
+            )
+
+            # Forward fill missing values for alignment
+            # (currency markets may have different holidays)
+            result_df = result_df.ffill().dropna()
+
+            if result_df.empty:
+                logger.error("No overlapping currency data after alignment")
+                raise Exception("No overlapping currency data available")
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(
+                    f"No currency data after base_date {base_date} for display"
+                )
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["USD_EUR", "GBP_EUR"])
+
+            logger.info(
+                f"Currency processing completed: {len(display_data)} data points "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_usdeur": (
+                        display_data["USD_EUR"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "latest_gbpeur": (
+                        display_data["GBP_EUR"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing currency data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="CurrencyWorkflow",
+                step="process_currency_data",
+                message=f"Currency data processing failed: {e}",
+                user_message="Failed to process currency data. Please try again later.",
+                context={"base_date": str(base_date)},
+            ) from e
+
+
 @apply_flow_cache
 async def fetch_buffet_indicator_data(
     base_date: datetime, original_period: str = "1Y"
@@ -771,6 +990,55 @@ async def fetch_vix_data(base_date: datetime) -> Dict[str, Any]:
             message=f"VIX workflow execution failed: {e}",
             user_message=(
                 "Failed to fetch VIX data due to a system error. Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_currency_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process currency exchange rate data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with USD/EUR and GBP/EUR rates
+        - base_date: The base date used
+        - latest_usdeur: Most recent USD/EUR rate
+        - latest_gbpeur: Most recent GBP/EUR rate
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting currency data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = CurrencyWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Currency workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Currency workflow result missing .result attribute, returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Currency workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_currency_data",
+            step="workflow_execution",
+            message=f"Currency workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch currency data due to a system error. "
+                "Please try again."
             ),
             context={"base_date": str(base_date)},
         ) from e

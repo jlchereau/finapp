@@ -234,6 +234,39 @@ The `DEBUG_LEVEL` setting controls logging verbosity:
 - **No individual fixtures needed**: Global cache isolation eliminates the need for individual test fixtures
 - **New test files**: Automatically inherit cache isolation without any special configuration
 
+## Exception Architecture
+
+FinApp uses a clean 3-layer exception architecture with clear separation of concerns:
+
+### **Layer 1: Providers** (`app/providers/`)
+- `RetriableProviderException`: Transient provider errors that can be retried (inherit from FinAppException)
+- `NonRetriableProviderException`: Permanent provider errors that should not be retried (inherit from FinAppException)
+- **Usage**: Raised by data providers for external API failures
+- **Features**: Include error IDs, user messages, and context for debugging
+
+### **Layer 2: Workflows** (`app/flows/`)
+- `WorkflowException`: High-level workflow execution failures (inherit from FinAppException)
+- **Usage**: Catch provider exceptions and internal logic failures, wrap everything in WorkflowException
+- **Pattern**: `try/catch` → `raise WorkflowException(workflow="name", step="step", message="...")`
+- **Internal failures**: Use generic `Exception` for internal data validation, caught by workflow wrapper
+
+### **Layer 3: Pages** (`app/pages/`)
+- `PageInputException`: Page-level input validation errors (inherit from FinAppException)
+- `PageOutputException`: Page-level output/rendering failures (inherit from FinAppException)
+- **Usage**: Input validation, chart generation, data rendering failures
+- **Pattern**: Replace with `output_type` instead of `chart_type` or `operation`
+
+### **Base Exception** (`app/lib/exceptions.py`)
+- `FinAppException`: Base class with error_id, user_message, technical message, context
+- **Features**: UUID error tracking, structured logging via to_dict(), user-friendly messages
+
+### **Exception Usage Guidelines**
+- **Clear boundaries**: Each layer handles its specific concerns
+- **No redundancy**: Removed DataFetchException and DataProcessingException
+- **Consistent naming**: PageInputException/PageOutputException for page scope
+- **Proper inheritance**: All custom exceptions inherit from FinAppException
+- **Context tracking**: All exceptions include relevant context for debugging
+
 ## Key Notes
 - Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between coverage and maintainability.
 - Virtual environment is located at `.venv/`. Accordingly the environment should be activated using `source .venv/bin/activate` or commands should be run with the `.venv/bin/` prefix (see Makefile).

@@ -15,7 +15,7 @@ from workflows.events import Event, StartEvent, StopEvent
 from app.providers.yahoo import create_yahoo_history_provider
 from app.lib.logger import logger
 from app.lib.finance import calculate_volatility, calculate_rsi
-from app.lib.exceptions import DataFetchException, WorkflowException
+from app.lib.exceptions import WorkflowException
 from app.flows.cache import apply_flow_cache
 
 
@@ -363,9 +363,9 @@ async def fetch_raw_ticker_data(
 
         # Check if we have any successful data
         if not successful_data:
-            raise DataFetchException(
-                provider="yahoo",
-                query=f"tickers={tickers}",
+            raise WorkflowException(
+                workflow="fetch_raw_ticker_data",
+                step="data_validation",
                 message=f"Failed to fetch data for all {len(tickers)} tickers",
                 user_message=(
                     "Unable to fetch data for any of the selected tickers. "
@@ -477,9 +477,9 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
 
         # Check if we have any successful data
         if not successful_tickers:
-            raise DataFetchException(
-                provider="yahoo",
-                query=f"returns_data for {tickers}",
+            raise WorkflowException(
+                workflow="fetch_returns_data",
+                step="data_validation",
                 message=(
                     f"Failed to process returns data for all {len(tickers)} tickers"
                 ),

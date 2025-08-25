@@ -4,11 +4,9 @@ Unit tests for custom exception classes.
 
 from app.lib.exceptions import (
     FinAppException,
-    DataFetchException,
-    DataProcessingException,
     WorkflowException,
-    UserInputException,
-    ChartException,
+    PageInputException,
+    PageOutputException,
 )
 
 
@@ -59,49 +57,6 @@ class TestFinAppException:
         assert result["exception_type"] == "FinAppException"
 
 
-class TestDataFetchException:
-    """Test cases for DataFetchException."""
-
-    def test_data_fetch_exception_defaults(self):
-        """Test DataFetchException with default user message."""
-        exc = DataFetchException(
-            provider="test_provider", query="test_query", message="Provider failed"
-        )
-
-        assert exc.provider == "test_provider"
-        assert exc.query == "test_query"
-        assert exc.message == "Provider failed"
-        assert "test_provider" in exc.user_message
-        assert exc.context["provider"] == "test_provider"
-        assert exc.context["query"] == "test_query"
-
-    def test_data_fetch_exception_custom_message(self):
-        """Test DataFetchException with custom user message."""
-        exc = DataFetchException(
-            provider="yahoo",
-            query="AAPL",
-            message="API rate limited",
-            user_message="Custom user message",
-        )
-
-        assert exc.user_message == "Custom user message"
-
-
-class TestDataProcessingException:
-    """Test cases for DataProcessingException."""
-
-    def test_data_processing_exception_defaults(self):
-        """Test DataProcessingException with default user message."""
-        exc = DataProcessingException(
-            operation="normalize_data", message="Normalization failed"
-        )
-
-        assert exc.operation == "normalize_data"
-        assert exc.message == "Normalization failed"
-        assert "normalize_data" in exc.user_message
-        assert exc.context["operation"] == "normalize_data"
-
-
 class TestWorkflowException:
     """Test cases for WorkflowException."""
 
@@ -119,12 +74,12 @@ class TestWorkflowException:
         assert exc.context["step"] == "data_fetch"
 
 
-class TestUserInputException:
-    """Test cases for UserInputException."""
+class TestPageInputException:
+    """Test cases for PageInputException."""
 
-    def test_user_input_exception_defaults(self):
-        """Test UserInputException with default user message."""
-        exc = UserInputException(
+    def test_page_input_exception_defaults(self):
+        """Test PageInputException with default user message."""
+        exc = PageInputException(
             field="ticker", value="INVALID", message="Invalid ticker format"
         )
 
@@ -136,14 +91,16 @@ class TestUserInputException:
         assert exc.context["value"] == "INVALID"
 
 
-class TestChartException:
-    """Test cases for ChartException."""
+class TestPageOutputException:
+    """Test cases for PageOutputException."""
 
-    def test_chart_exception_defaults(self):
-        """Test ChartException with default user message."""
-        exc = ChartException(chart_type="returns", message="Chart rendering failed")
+    def test_page_output_exception_defaults(self):
+        """Test PageOutputException with default user message."""
+        exc = PageOutputException(
+            output_type="returns chart", message="Chart rendering failed"
+        )
 
-        assert exc.chart_type == "returns"
+        assert exc.output_type == "returns chart"
         assert exc.message == "Chart rendering failed"
         assert "returns chart" in exc.user_message
-        assert exc.context["chart_type"] == "returns"
+        assert exc.context["output_type"] == "returns chart"

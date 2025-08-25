@@ -22,14 +22,33 @@ from pandas import DataFrame
 from pydantic import BaseModel, Field
 
 from app.lib.logger import logger
+from app.lib.exceptions import FinAppException
 
 
-class NonRetriableProviderException(Exception):
+class NonRetriableProviderException(FinAppException):
     """Indicates a provider error that should not be retried."""
 
+    def __init__(self, message: str, provider: str = None, **kwargs):
+        super().__init__(
+            message=message,
+            user_message="Data source error. Please try again later.",
+            context={"provider": provider, "retriable": False},
+            **kwargs,
+        )
+        self.provider = provider
 
-class RetriableProviderException(Exception):
+
+class RetriableProviderException(FinAppException):
     """Indicates a transient provider error that can be retried."""
+
+    def __init__(self, message: str, provider: str = None, **kwargs):
+        super().__init__(
+            message=message,
+            user_message="Temporary data source issue. Please try again in a moment.",
+            context={"provider": provider, "retriable": True},
+            **kwargs,
+        )
+        self.provider = provider
 
 
 # Type variables for generic typing

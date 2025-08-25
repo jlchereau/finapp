@@ -25,8 +25,9 @@ from app.flows.markets import (
     fetch_buffet_indicator_data,
     fetch_vix_data,
     fetch_yield_curve_data,
+    fetch_currency_data,
 )
-from app.lib.exceptions import DataProcessingException, ChartException
+from app.lib.exceptions import PageOutputException
 from app.lib.periods import (
     get_period_options,
     calculate_base_date,
@@ -49,11 +50,13 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
     chart_figure_buffet: go.Figure = go.Figure()
     chart_figure_vix: go.Figure = go.Figure()
     chart_figure_yield: go.Figure = go.Figure()
+    chart_figure_currency: go.Figure = go.Figure()
 
     # Loading state
     loading_buffet: bool = False
     loading_vix: bool = False
     loading_yield: bool = False
+    loading_currency: bool = False
 
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
@@ -74,6 +77,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
         yield MarketState.update_yield_chart
+        yield MarketState.update_currency_chart
 
     async def get_buffet_data(
         self, base_date: datetime
@@ -93,8 +97,8 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         }
 
         if buffet_data is None or buffet_data.empty:
-            raise DataProcessingException(
-                operation="fetch_buffet_indicator_data",
+            raise PageOutputException(
+                output_type="Buffet Indicator data",
                 message=f"No Buffet Indicator data returned for base_date: {base_date}",
                 user_message=(
                     "Unable to fetch Buffet Indicator data. Please try a different "
@@ -117,8 +121,8 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         vix_data = result.get("data")
 
         if vix_data is None or vix_data.empty:
-            raise DataProcessingException(
-                operation="fetch_vix_data",
+            raise PageOutputException(
+                output_type="VIX data",
                 message=f"No VIX data returned for base_date: {base_date}",
                 user_message=(
                     "Unable to fetch VIX data. Please try a different time period."
@@ -130,6 +134,29 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             )
 
         return vix_data
+
+    async def get_currency_data(self, base_date: datetime) -> pd.DataFrame:
+        """Get currency data using workflow."""
+        # Use the markets workflow to fetch currency data
+        result = await fetch_currency_data(base_date)
+
+        # Extract the DataFrame
+        currency_data = result.get("data")
+
+        if currency_data is None or currency_data.empty:
+            raise PageOutputException(
+                output_type="currency data",
+                message=f"No currency data returned for base_date: {base_date}",
+                user_message=(
+                    "Unable to fetch currency data. Please try a different time period."
+                ),
+                context={
+                    "base_date": str(base_date),
+                    "base_date_option": self.base_date_option,
+                },
+            )
+
+        return currency_data
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
@@ -239,9 +266,9 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 yield rx.toast.success("Buffet Indicator chart updated successfully")
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="buffet_indicator",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="Buffet Indicator chart",
                 message=f"Failed to generate Buffet Indicator chart: {e}",
                 user_message=(
                     "Failed to generate Buffet Indicator chart. Please try "
@@ -359,9 +386,9 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 yield rx.toast.success("VIX chart updated successfully")
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="vix",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="VIX chart",
                 message=f"Failed to generate VIX chart: {e}",
                 user_message=(
                     "Failed to generate VIX chart. Please try refreshing the data."
@@ -535,9 +562,9 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 yield rx.toast.success("Yield curve chart updated successfully")
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="yield_curve",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="yield curve chart",
                 message=f"Failed to generate yield curve chart: {e}",
                 user_message=(
                     "Failed to generate yield curve chart. "
@@ -550,11 +577,176 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 self.loading_yield = False
 
     @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_currency_chart(self):
+        """Update the currency exchange rate chart using background processing."""
+        async with self:
+            self.loading_currency = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("currency")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get currency data
+            currency_result = await fetch_currency_data(base_date)
+            currency_data = currency_result.get("data")
+
+            if currency_data is None or currency_data.empty:
+                async with self:
+                    self.chart_figure_currency = go.Figure()
+                    yield rx.toast.warning(
+                        "No currency data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded currency data: {currency_data.shape[0]} data points"
+                )
+
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="Currency Exchange Rates",
+                yaxis_title="Exchange Rate",
+                hover_format="Rate: %{y:.4f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
+                primary_style="solid",  # Solid line without markers
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                currency_data,
+                config,
+                theme_colors,
+                "USD_EUR",
+                include_main_series=False,
+            )
+
+            # Add USD/EUR series (main currency pair)
+            if (
+                "USD_EUR" in currency_data.columns
+                and not currency_data["USD_EUR"].isna().all()
+            ):
+                fig.add_trace(
+                    go.Scatter(
+                        x=currency_data.index,
+                        y=currency_data["USD_EUR"],
+                        mode="lines",
+                        name="USD/EUR",
+                        line={"color": MARKET_COLORS["primary"], "width": 2},
+                        hovertemplate="<b>USD/EUR</b><br>"
+                        + "Rate: %{y:.4f}<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            # Add GBP/EUR series (secondary currency pair)
+            if (
+                "GBP_EUR" in currency_data.columns
+                and not currency_data["GBP_EUR"].isna().all()
+            ):
+                fig.add_trace(
+                    go.Scatter(
+                        x=currency_data.index,
+                        y=currency_data["GBP_EUR"],
+                        mode="lines",
+                        name="GBP/EUR",
+                        line={"color": MARKET_COLORS["warning"], "width": 2},
+                        hovertemplate="<b>GBP/EUR</b><br>"
+                        + "Rate: %{y:.4f}<br>"
+                        + "<extra></extra>",
+                    )
+                )
+
+            async with self:
+                self.chart_figure_currency = fig
+                yield rx.toast.success("Currency chart updated successfully")
+
+        except Exception as e:
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="currency chart",
+                message=f"Failed to generate currency chart: {e}",
+                user_message=(
+                    "Failed to generate currency chart. Please try refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_currency = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def run_workflows(self):
         """Load initial chart data."""
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
         yield MarketState.update_yield_chart
+        yield MarketState.update_currency_chart
+
+
+def plots_currencies() -> rx.Component:
+    """Currency exchange rates plot (USD/EUR and GBP/EUR)."""
+    return rx.cond(
+        MarketState.loading_currency,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_currency,
+            width="100%",
+            height="400px",
+        ),
+    )
+
+
+def plots_msci_world() -> rx.Component:
+    """MSCI World plot."""
+    return rx.box(rx.text("MSCI World plot"))
+
+
+def tabs_overview() -> rx.Component:
+    """Overview tab content."""
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Period:", font_weight="bold"),
+            rx.select(
+                MarketState.base_date_options,
+                value=MarketState.base_date_option,
+                on_change=MarketState.set_base_date,
+            ),
+            spacing="2",
+            align="center",
+            justify="start",
+        ),
+        rx.hstack(
+            rx.grid(
+                rx.card(plots_currencies()),
+                rx.card(plots_msci_world()),
+                rx.card("Card 3"),
+                rx.card("Card 4"),
+                columns="2",
+                spacing="3",
+                width="70%",
+            ),
+            rx.card(rx.text("News feed"), width="30%"),
+            width="100%",
+        ),
+    )
 
 
 def plots_fear_and_greed_index() -> rx.Component:
@@ -604,22 +796,6 @@ def plots_vix_index() -> rx.Component:
     )
 
 
-def tabs_summary() -> rx.Component:
-    """Summary tab content."""
-    return rx.hstack(
-        rx.grid(
-            rx.card("Card 1"),
-            rx.card("Card 2"),
-            rx.card("Card 3"),
-            rx.card("Card 4"),
-            columns="2",
-            spacing="3",
-            width="70%",
-        ),
-        rx.card(rx.text("News feed"), width="30%"),
-    )
-
-
 def tabs_us() -> rx.Component:
     """US tab content."""
     return rx.vstack(
@@ -648,14 +824,27 @@ def tabs_us() -> rx.Component:
 
 def tabs_eu() -> rx.Component:
     """Europe tab content."""
-    return rx.grid(
-        rx.card("Card 1"),
-        rx.card("Card 2"),
-        rx.card("Card 3"),
-        rx.card("Card 4"),
-        columns="2",
-        spacing="3",
-        width="100%",
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Period:", font_weight="bold"),
+            rx.select(
+                MarketState.base_date_options,
+                value=MarketState.base_date_option,
+                on_change=MarketState.set_base_date,
+            ),
+            spacing="2",
+            align="center",
+            justify="start",
+        ),
+        rx.grid(
+            rx.card("Card 1"),
+            rx.card("Card 2"),
+            rx.card("Card 3"),
+            rx.card("Card 4"),
+            columns="2",
+            spacing="3",
+            width="100%",
+        ),
     )
 
 
@@ -676,7 +865,7 @@ def page():
                 rx.tabs.trigger("Europe", value="eu"),
                 # Emerging markets
             ),
-            rx.tabs.content(tabs_summary(), value="summary", padding_top="1rem"),
+            rx.tabs.content(tabs_overview(), value="summary", padding_top="1rem"),
             rx.tabs.content(tabs_us(), value="us", padding_top="1rem"),
             rx.tabs.content(tabs_eu(), value="eu", padding_top="1rem"),
             value=MarketState.active_tab,

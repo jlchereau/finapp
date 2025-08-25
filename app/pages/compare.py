@@ -16,7 +16,7 @@ from app.flows.compare import (
     fetch_volume_data,
     fetch_rsi_data,
 )
-from app.lib.exceptions import DataProcessingException, ChartException
+from app.lib.exceptions import PageOutputException
 from app.lib.charts import (
     ChartConfig,
     TimeSeriesChartConfig,
@@ -80,8 +80,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         normalized_data = result.get("data")
 
         if normalized_data is None or normalized_data.empty:
-            raise DataProcessingException(
-                operation="normalize_returns_data",
+            raise PageOutputException(
+                output_type="returns data",
                 message=f"No normalized returns data returned for tickers: {tickers}",
                 user_message=(
                     "Unable to fetch returns data. Please check the selected tickers "
@@ -103,8 +103,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         volatility_data = result.get("data")
 
         if volatility_data is None or volatility_data.empty:
-            raise DataProcessingException(
-                operation="fetch_volatility_data",
+            raise PageOutputException(
+                output_type="volatility data",
                 message=f"No volatility data returned for tickers: {tickers}",
                 user_message=(
                     "Unable to fetch volatility data. Please check the selected "
@@ -126,8 +126,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         volume_data = result.get("data")
 
         if volume_data is None or volume_data.empty:
-            raise DataProcessingException(
-                operation="fetch_volume_data",
+            raise PageOutputException(
+                output_type="volume data",
                 message=f"No volume data returned for tickers: {tickers}",
                 user_message=(
                     "Unable to fetch volume data. Please check the selected tickers "
@@ -149,8 +149,8 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         rsi_data = result.get("data")
 
         if rsi_data is None or rsi_data.empty:
-            raise DataProcessingException(
-                operation="fetch_rsi_data",
+            raise PageOutputException(
+                output_type="RSI data",
                 message=f"No RSI data returned for tickers: {tickers}",
                 user_message=(
                     "Unable to fetch RSI data. Please check the selected tickers "
@@ -280,9 +280,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 )
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="returns",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="returns chart",
                 message=f"Failed to generate returns chart: {e}",
                 user_message=(
                     "Failed to generate returns chart. Please try refreshing the data."
@@ -335,9 +335,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 self.chart_figure_volatility = fig
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="volatility",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="volatility chart",
                 message=f"Failed to generate volatility chart: {e}",
                 user_message=(
                     "Failed to generate volatility chart. Please try refreshing "
@@ -389,9 +389,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 self.chart_figure_volume = fig
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="volume",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="volume chart",
                 message=f"Failed to generate volume chart: {e}",
                 user_message=(
                     "Failed to generate volume chart. Please try refreshing the data."
@@ -461,9 +461,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                 self.chart_figure_rsi = fig
 
         except Exception as e:
-            # Chart generation error - wrap in ChartException
-            raise ChartException(
-                chart_type="rsi",
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="RSI chart",
                 message=f"Failed to generate RSI chart: {e}",
                 user_message=(
                     "Failed to generate RSI chart. Please try refreshing the data."

@@ -44,58 +44,6 @@ class FinAppException(Exception):
         }
 
 
-class DataFetchException(FinAppException):
-    """Exception raised when data fetching from external providers fails."""
-
-    def __init__(
-        self,
-        provider: str,
-        query: str,
-        message: str,
-        user_message: Optional[str] = None,
-        **kwargs,
-    ):
-        if user_message is None:
-            user_message = (
-                f"Failed to fetch data from {provider}. Please try again later."
-            )
-
-        context = {"provider": provider, "query": query}
-        context.update(kwargs.get("context", {}))
-
-        super().__init__(
-            message=message,
-            user_message=user_message,
-            context=context,
-            **{k: v for k, v in kwargs.items() if k != "context"},
-        )
-        self.provider = provider
-        self.query = query
-
-
-class DataProcessingException(FinAppException):
-    """Exception raised when data processing or transformation fails."""
-
-    def __init__(
-        self, operation: str, message: str, user_message: Optional[str] = None, **kwargs
-    ):
-        if user_message is None:
-            user_message = (
-                f"Data processing failed during {operation}. Please check your inputs."
-            )
-
-        context = {"operation": operation}
-        context.update(kwargs.get("context", {}))
-
-        super().__init__(
-            message=message,
-            user_message=user_message,
-            context=context,
-            **{k: v for k, v in kwargs.items() if k != "context"},
-        )
-        self.operation = operation
-
-
 class WorkflowException(FinAppException):
     """Exception raised when workflow execution fails."""
 
@@ -125,8 +73,8 @@ class WorkflowException(FinAppException):
         self.step = step
 
 
-class UserInputException(FinAppException):
-    """Exception raised for user input validation errors."""
+class PageInputException(FinAppException):
+    """Exception raised for page-level input validation errors."""
 
     def __init__(
         self,
@@ -154,23 +102,22 @@ class UserInputException(FinAppException):
         self.value = value
 
 
-class ChartException(FinAppException):
-    """Exception raised when chart generation fails."""
+class PageOutputException(FinAppException):
+    """Exception raised when page output/rendering fails."""
 
     def __init__(
         self,
-        chart_type: str,
+        output_type: str,
         message: str,
         user_message: Optional[str] = None,
         **kwargs,
     ):
         if user_message is None:
             user_message = (
-                f"Failed to generate {chart_type} chart. "
-                "Please try refreshing the data."
+                f"Failed to generate {output_type}. Please try refreshing the data."
             )
 
-        context = {"chart_type": chart_type}
+        context = {"output_type": output_type}
         context.update(kwargs.get("context", {}))
 
         super().__init__(
@@ -179,4 +126,4 @@ class ChartException(FinAppException):
             context=context,
             **{k: v for k, v in kwargs.items() if k != "context"},
         )
-        self.chart_type = chart_type
+        self.output_type = output_type

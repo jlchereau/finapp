@@ -17,6 +17,8 @@ from app.flows.markets import (
     VIXWorkflow,
     fetch_yield_curve_data,
     YieldCurveWorkflow,
+    fetch_currency_data,
+    CurrencyWorkflow,
 )
 
 
@@ -972,6 +974,427 @@ async def test_yield_curve_workflow_integration():
         # Verify latest date is properly set
         latest_date = result["latest_date"]
         assert latest_date == data.index.max()
+
+        # Verify data points count
+        assert result["data_points"] == len(data)
+
+
+# Currency Tests
+
+
+@pytest.fixture
+def sample_usdeur_data():
+    """Create sample USD/EUR data."""
+    dates = pd.date_range(start="2020-01-01", periods=365, freq="D")
+    # Create realistic USD/EUR values (typically 0.7-0.9 range)
+    usdeur_values = [0.8 + 0.1 * (i % 100) / 100 for i in range(365)]
+    return pd.DataFrame(
+        {
+            "Open": [v - 0.01 for v in usdeur_values],
+            "High": [v + 0.02 for v in usdeur_values],
+            "Low": [v - 0.02 for v in usdeur_values],
+            "Close": usdeur_values,
+            "Adj Close": usdeur_values,
+            "Volume": [1000000 + i * 1000 for i in range(365)],
+        },
+        index=dates,
+    )
+
+
+@pytest.fixture
+def sample_gbpeur_data():
+    """Create sample GBP/EUR data."""
+    dates = pd.date_range(start="2020-01-01", periods=365, freq="D")
+    # Create realistic GBP/EUR values (typically 1.1-1.3 range)
+    gbpeur_values = [1.15 + 0.15 * (i % 80) / 80 for i in range(365)]
+    return pd.DataFrame(
+        {
+            "Open": [v - 0.01 for v in gbpeur_values],
+            "High": [v + 0.02 for v in gbpeur_values],
+            "Low": [v - 0.02 for v in gbpeur_values],
+            "Close": gbpeur_values,
+            "Adj Close": gbpeur_values,
+            "Volume": [500000 + i * 500 for i in range(365)],
+        },
+        index=dates,
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_currency_data_success(sample_usdeur_data, sample_gbpeur_data):
+    """Test successful currency data fetch and processing."""
+    # Setup mock provider results
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = sample_usdeur_data
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = sample_gbpeur_data
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        # Setup provider mock
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the function
+        base_date = datetime(2020, 1, 1)
+        result = await fetch_currency_data(base_date)
+
+        # Verify results
+        assert "data" in result
+        assert "base_date" in result
+        assert "latest_usdeur" in result
+        assert "latest_gbpeur" in result
+        assert "data_points" in result
+
+        data = result["data"]
+        assert not data.empty
+        assert "USD_EUR" in data.columns
+        assert "GBP_EUR" in data.columns
+
+        # Verify latest values are set
+        latest_usdeur = result["latest_usdeur"]
+        latest_gbpeur = result["latest_gbpeur"]
+        assert isinstance(latest_usdeur, float)
+        assert isinstance(latest_gbpeur, float)
+        assert 0.6 <= latest_usdeur <= 1.0  # Reasonable USD/EUR range
+        assert 1.0 <= latest_gbpeur <= 1.4  # Reasonable GBP/EUR range
+
+        # Verify provider calls
+        assert mock_yahoo_instance.get_data.call_count == 2
+        mock_yahoo_instance.get_data.assert_any_call("EUR=X")
+        mock_yahoo_instance.get_data.assert_any_call("GBPEUR=X")
+
+
+@pytest.mark.asyncio
+async def test_currency_workflow_direct():
+    """Test the CurrencyWorkflow class directly."""
+    # Create sample currency data
+    usdeur_data = pd.DataFrame(
+        {
+            "Close": [0.85, 0.86, 0.87, 0.88, 0.89],
+            "Volume": [1000000] * 5,
+        },
+        index=pd.date_range(start="2020-01-01", periods=5, freq="D"),
+    )
+
+    gbpeur_data = pd.DataFrame(
+        {
+            "Close": [1.16, 1.17, 1.18, 1.19, 1.20],
+            "Volume": [500000] * 5,
+        },
+        index=pd.date_range(start="2020-01-01", periods=5, freq="D"),
+    )
+
+    # Mock provider results
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = usdeur_data
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = gbpeur_data
+
+    # Mock the provider at the class level
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the workflow directly
+        workflow = CurrencyWorkflow()
+        base_date = datetime(2020, 1, 1)
+
+        result = await workflow.run(base_date=base_date)
+
+        # Verify results
+        assert "data" in result
+        assert "latest_usdeur" in result
+        assert "latest_gbpeur" in result
+
+        data = result["data"]
+        assert not data.empty
+        assert len(data) == 5  # Should have 5 days of data
+        assert "USD_EUR" in data.columns
+        assert "GBP_EUR" in data.columns
+
+        # Verify latest values
+        latest_usdeur = result["latest_usdeur"]
+        latest_gbpeur = result["latest_gbpeur"]
+        assert abs(latest_usdeur - 0.89) < 0.01
+        assert abs(latest_gbpeur - 1.20) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_currency_data_filtering_by_base_date(
+    sample_usdeur_data, sample_gbpeur_data
+):
+    """Test that currency data is properly filtered by base_date."""
+    # Setup mock provider results
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = sample_usdeur_data
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = sample_gbpeur_data
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test with different base dates
+        base_date = datetime(2020, 6, 1)  # Mid-year
+        result = await fetch_currency_data(base_date)
+
+        data = result["data"]
+        assert not data.empty
+
+        # All data should be from base_date onwards
+        assert data.index.min() >= pd.to_datetime(base_date.date())
+
+        # Should be less than full dataset
+        assert len(data) < len(sample_usdeur_data)
+
+
+@pytest.mark.asyncio
+async def test_currency_data_yahoo_error():
+    """Test handling of Yahoo Finance errors for currency data."""
+    # Test the error handling within the workflow
+    workflow = CurrencyWorkflow()
+
+    # Mock the Yahoo provider to fail
+    with patch.object(workflow, "yahoo_provider") as mock_yahoo:
+        mock_yahoo.get_data = AsyncMock(
+            side_effect=Exception("Yahoo currency API error")
+        )
+
+        # Test the workflow directly
+        try:
+            await workflow.run(base_date=datetime(2020, 1, 1))
+            assert False, "Expected exception to be raised"
+        except Exception as e:
+            assert "Yahoo currency API error" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_currency_data_empty_handling():
+    """Test handling of empty currency data."""
+    # Setup mock provider results with empty data
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = pd.DataFrame()  # Empty DataFrame
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = pd.DataFrame()  # Empty DataFrame
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the workflow directly
+        workflow = CurrencyWorkflow()
+        try:
+            await workflow.run(base_date=datetime(2020, 1, 1))
+            assert False, "Expected exception to be raised"
+        except Exception as e:
+            assert "No USD/EUR data available" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_currency_provider_failure():
+    """Test handling of currency provider failure."""
+    # Setup mock provider result with failure
+    usdeur_result = MagicMock()
+    usdeur_result.success = False
+    usdeur_result.error_message = "USD/EUR provider failed"
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = pd.DataFrame({"Close": [1.15]}, index=[datetime(2020, 1, 1)])
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the workflow directly
+        workflow = CurrencyWorkflow()
+        try:
+            await workflow.run(base_date=datetime(2020, 1, 1))
+            assert False, "Expected exception to be raised"
+        except Exception as e:
+            assert "USD/EUR data fetch failed" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_currency_calculation_accuracy(sample_usdeur_data, sample_gbpeur_data):
+    """Test the accuracy of currency data alignment and processing."""
+    # Setup mock provider results
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = sample_usdeur_data
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = sample_gbpeur_data
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the function
+        base_date = datetime(2020, 1, 1)
+        result = await fetch_currency_data(base_date)
+
+        # Verify alignment accuracy
+        data = result["data"]
+
+        # Both currencies should have same index (aligned dates)
+        assert len(data["USD_EUR"].dropna()) > 0
+        assert len(data["GBP_EUR"].dropna()) > 0
+
+        # Verify exchange rate value ranges are realistic
+        usd_eur_values = data["USD_EUR"].dropna()
+        gbp_eur_values = data["GBP_EUR"].dropna()
+
+        # USD/EUR typically between 0.6 and 1.0
+        assert all(0.5 <= val <= 1.1 for val in usd_eur_values)
+
+        # GBP/EUR typically between 1.0 and 1.4
+        assert all(0.9 <= val <= 1.5 for val in gbp_eur_values)
+
+
+@pytest.mark.asyncio
+async def test_currency_no_close_price_data():
+    """Test handling when currency data has no Close price column."""
+    # Create USD/EUR data without Close price
+    usdeur_data = pd.DataFrame(
+        {
+            "Open": [0.85, 0.86, 0.87],
+            "High": [0.86, 0.87, 0.88],
+            "Low": [0.84, 0.85, 0.86],
+            "Volume": [1000000] * 3,
+        },
+        index=pd.date_range(start="2020-01-01", periods=3, freq="D"),
+    )
+
+    gbpeur_data = pd.DataFrame(
+        {
+            "Close": [1.15, 1.16, 1.17],
+            "Volume": [500000] * 3,
+        },
+        index=pd.date_range(start="2020-01-01", periods=3, freq="D"),
+    )
+
+    # Mock provider results
+    usdeur_result = MagicMock()
+    usdeur_result.success = True
+    usdeur_result.data = usdeur_data
+
+    gbpeur_result = MagicMock()
+    gbpeur_result.success = True
+    gbpeur_result.data = gbpeur_data
+
+    # Mock the provider
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[usdeur_result, gbpeur_result]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the workflow directly
+        workflow = CurrencyWorkflow()
+        try:
+            await workflow.run(base_date=datetime(2020, 1, 1))
+            assert False, "Expected exception to be raised"
+        except Exception as e:
+            assert "No Close price data available for USD/EUR" in str(e)
+
+
+@pytest.mark.asyncio
+async def test_currency_workflow_integration():
+    """Test full currency workflow integration."""
+    # Create realistic sample data
+    usdeur_data = pd.DataFrame(
+        {
+            "Close": [0.85, 0.86, 0.87],
+            "Volume": [1000000] * 3,
+        },
+        index=pd.date_range(start="2020-01-01", periods=3, freq="D"),
+    )
+
+    gbpeur_data = pd.DataFrame(
+        {
+            "Close": [1.15, 1.16, 1.17],
+            "Volume": [500000] * 3,
+        },
+        index=pd.date_range(start="2020-01-01", periods=3, freq="D"),
+    )
+
+    # Mock the provider at the workflow level
+    with patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo:
+        mock_yahoo_instance = AsyncMock()
+        mock_yahoo_instance.get_data = AsyncMock(
+            side_effect=[
+                MagicMock(success=True, data=usdeur_data),
+                MagicMock(success=True, data=gbpeur_data),
+            ]
+        )
+        mock_yahoo.return_value = mock_yahoo_instance
+
+        # Test the full workflow
+        workflow = CurrencyWorkflow()
+        base_date = datetime(2020, 1, 1)
+
+        result = await workflow.run(base_date=base_date)
+
+        # Verify complete result structure
+        expected_keys = [
+            "data",
+            "base_date",
+            "latest_usdeur",
+            "latest_gbpeur",
+            "data_points",
+        ]
+        for key in expected_keys:
+            assert key in result, f"Missing key {key} in result"
+
+        # Verify data quality
+        data = result["data"]
+        assert isinstance(data, pd.DataFrame)
+        assert not data.empty
+        assert len(data.columns) == 2
+
+        # Verify latest values are properly set
+        latest_usdeur = result["latest_usdeur"]
+        latest_gbpeur = result["latest_gbpeur"]
+        assert abs(latest_usdeur - 0.87) < 0.01
+        assert abs(latest_gbpeur - 1.17) < 0.01
 
         # Verify data points count
         assert result["data_points"] == len(data)
