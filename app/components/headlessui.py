@@ -22,4 +22,4 @@ class HeadlessUIComponent(NoSSRComponent):
     library = "@headlessui/react"
 
     # Any additional libraries needed to use the component.
-    lib_dependencies: list[str] = ["@heroicons/react"]
+    lib_dependencies: list[str] = ["@heroicons/react", "clsx"]

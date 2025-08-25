@@ -17,6 +17,11 @@ from app.flows.compare import (
     fetch_rsi_data,
 )
 from app.lib.exceptions import DataProcessingException, ChartException
+from app.lib.charts import (
+    ChartConfig,
+    RSIChartConfig,
+    create_comparison_chart,
+)
 from app.lib.periods import (
     get_period_options,
     calculate_base_date,
@@ -263,81 +268,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     f"{returns_data.shape[1]} tickers"
                 )
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Plot each ticker
-            colors = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-                "#e377c2",
-            ]
-
-            for i, ticker in enumerate(returns_data.columns):
-                color = colors[i % len(colors)]
-                fig.add_trace(
-                    go.Scatter(
-                        x=returns_data.index,
-                        y=returns_data[ticker],
-                        mode="lines",
-                        name=ticker,
-                        line=dict(color=color, width=2),
-                        hovertemplate=f"<b>{ticker}</b><br>"
-                        # + "Date: %{x}<br>"
-                        + "Return: %{y:.2f}%<br>" + "<extra></extra>",
-                    )
-                )
-
-            # Get theme-appropriate colors
+            # Create chart using reusable function
+            config = ChartConfig(
+                title="Returns",
+                yaxis_title="Return (%)",
+                hover_format="Return: %{y:.2f}%<br>",
+            )
             theme_colors = self.get_theme_colors()
-
-            # Update layout
-            title = f"Returns Comparison ({', '.join(self.selected_tickers)})"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "Return (%)",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 300,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",  # White text on dark background
-                ),
-            }
-
-            # Only add font_color if it's not None
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            fig = create_comparison_chart(returns_data, config, theme_colors)
 
             async with self:
                 self.chart_figure_returns = fig
@@ -388,80 +326,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     self.chart_figure_volatility = go.Figure()
                 return
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Plot each ticker
-            colors = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-                "#e377c2",
-            ]
-
-            for i, ticker in enumerate(volatility_data.columns):
-                color = colors[i % len(colors)]
-                fig.add_trace(
-                    go.Scatter(
-                        x=volatility_data.index,
-                        y=volatility_data[ticker],
-                        mode="lines",
-                        name=ticker,
-                        line=dict(color=color, width=2),
-                        hovertemplate=f"<b>{ticker}</b><br>"
-                        # + "Date: %{x}<br>"
-                        + "Volatility: %{y:.2f}%<br>" + "<extra></extra>",
-                    )
-                )
-
-            # Get theme-appropriate colors
+            # Create chart using reusable function
+            config = ChartConfig(
+                title="Volatility",
+                yaxis_title="Volatility (%)",
+                hover_format="Volatility: %{y:.2f}%<br>",
+            )
             theme_colors = self.get_theme_colors()
-
-            # Update layout
-            title = f"Volatility Comparison ({', '.join(self.selected_tickers)})"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "Volatility (%)",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 300,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
-                ),
-            }
-
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            fig = create_comparison_chart(volatility_data, config, theme_colors)
 
             async with self:
                 self.chart_figure_volatility = fig
@@ -508,80 +380,14 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     self.chart_figure_volume = go.Figure()
                 return
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Plot each ticker
-            colors = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-                "#e377c2",
-            ]
-
-            for i, ticker in enumerate(volume_data.columns):
-                color = colors[i % len(colors)]
-                fig.add_trace(
-                    go.Scatter(
-                        x=volume_data.index,
-                        y=volume_data[ticker],
-                        mode="lines",
-                        name=ticker,
-                        line=dict(color=color, width=2),
-                        hovertemplate=f"<b>{ticker}</b><br>"
-                        # + "Date: %{x}<br>"
-                        + "Volume: %{y:,.0f}<br>" + "<extra></extra>",
-                    )
-                )
-
-            # Get theme-appropriate colors
+            # Create chart using reusable function
+            config = ChartConfig(
+                title="Volume",
+                yaxis_title="Volume",
+                hover_format="Volume: %{y:,.0f}<br>",
+            )
             theme_colors = self.get_theme_colors()
-
-            # Update layout
-            title = f"Volume Comparison ({', '.join(self.selected_tickers)})"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "Volume",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 300,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
-                ),
-            }
-
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            fig = create_comparison_chart(volume_data, config, theme_colors)
 
             async with self:
                 self.chart_figure_volume = fig
@@ -627,97 +433,10 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
                     self.chart_figure_rsi = go.Figure()
                 return
 
-            # Create plotly chart
-            fig = go.Figure()
-
-            # Plot each ticker
-            colors = [
-                "#1f77b4",
-                "#ff7f0e",
-                "#2ca02c",
-                "#d62728",
-                "#9467bd",
-                "#8c564b",
-                "#e377c2",
-            ]
-
-            for i, ticker in enumerate(rsi_data.columns):
-                color = colors[i % len(colors)]
-                fig.add_trace(
-                    go.Scatter(
-                        x=rsi_data.index,
-                        y=rsi_data[ticker],
-                        mode="lines",
-                        name=ticker,
-                        line=dict(color=color, width=2),
-                        hovertemplate=f"<b>{ticker}</b><br>"
-                        # + "Date: %{x}<br>"
-                        + "RSI: %{y:.1f}<br>" + "<extra></extra>",
-                    )
-                )
-
-            # Add reference lines for RSI
-            fig.add_hline(
-                y=70,
-                line_dash="dash",
-                line_color="red",
-                opacity=0.7,
-                annotation_text="Overbought (70)",
-            )
-            fig.add_hline(
-                y=30,
-                line_dash="dash",
-                line_color="green",
-                opacity=0.7,
-                annotation_text="Oversold (30)",
-            )
-
-            # Get theme-appropriate colors
+            # Create chart using reusable function
+            config = RSIChartConfig()
             theme_colors = self.get_theme_colors()
-
-            # Update layout
-            title = f"RSI Comparison ({', '.join(self.selected_tickers)})"
-            layout_props = {
-                "title": title,
-                "xaxis_title": "Date",
-                "yaxis_title": "RSI",
-                "hovermode": "x unified",
-                "showlegend": True,
-                "height": 300,
-                "margin": dict(l=50, r=50, t=80, b=50),
-                "plot_bgcolor": theme_colors["plot_bgcolor"],
-                "paper_bgcolor": theme_colors["paper_bgcolor"],
-                "hoverlabel": dict(
-                    bgcolor=theme_colors["hover_bgcolor"],
-                    bordercolor=theme_colors["hover_bordercolor"],
-                    font_size=14,
-                    font_color="white",
-                ),
-                "yaxis": dict(range=[0, 100]),  # RSI is always 0-100
-            }
-
-            if theme_colors["text_color"] is not None:
-                layout_props["font_color"] = theme_colors["text_color"]
-
-            fig.update_layout(**layout_props)
-
-            # Update axes
-            fig.update_xaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
-            fig.update_yaxes(
-                showgrid=True,
-                gridwidth=1,
-                gridcolor=theme_colors["grid_color"],
-                showline=True,
-                linewidth=1,
-                linecolor=theme_colors["line_color"],
-            )
+            fig = create_comparison_chart(rsi_data, config, theme_colors)
 
             async with self:
                 self.chart_figure_rsi = fig

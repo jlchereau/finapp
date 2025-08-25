@@ -487,7 +487,7 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2023, 6, 1)
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data, _, was_adjusted = ensure_minimum_data_points(
             data=data,
             original_period="2M",
             base_date=base_date,
@@ -529,7 +529,7 @@ class TestEnsureMinimumDataPoints:
         base_date = datetime(2023, 8, 1)  # Should get Oct quarter only
 
         # Test with min_points=3
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data, _, was_adjusted = ensure_minimum_data_points(
             data=data,
             original_period="1Q",
             base_date=base_date,

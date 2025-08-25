@@ -533,7 +533,7 @@ class YieldCurveWorkflow(Workflow):
             # Fetch yield curve data using the new method
             yield_data = await self.fred_provider.fetch_yield_curve_data(
                 query=None,  # Not used for yield curve data
-                observation_start=base_date.strftime("%Y-%m-%d") if base_date else None
+                observation_start=base_date.strftime("%Y-%m-%d") if base_date else None,
             )
 
             if yield_data.empty:

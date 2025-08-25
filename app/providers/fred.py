@@ -203,7 +203,9 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
             raise RetriableProviderException(str(e)) from e
 
     @cache
-    async def fetch_yield_curve_data(self, query: str | None = None, **kwargs) -> DataFrame:
+    async def fetch_yield_curve_data(
+        self, query: str | None = None, **kwargs
+    ) -> DataFrame:
         """
         Fetch all yield curve series data concurrently and return as
         structured DataFrame.
@@ -227,6 +229,7 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
         Raises:
             Exception: If no valid data is retrieved from any series
         """
+        _ = query  # Intentionally unused (fetches predefined series)
         self.logger.debug("Fetching yield curve data for all maturities")
 
         # Create tasks for concurrent fetching
