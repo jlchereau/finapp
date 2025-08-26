@@ -48,7 +48,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
     def set_num_points(self, num_points: list[int | float]):
         self.num_points = num_points[0]
-        print(self.num_points)
+        # print(self.num_points)
         self.randomize()
 
     @rx.var
