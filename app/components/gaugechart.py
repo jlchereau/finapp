@@ -10,8 +10,8 @@ ideal for displaying percentage values or progress in a sleek, modern format.
 From: https://github.com/leogaggl/reflex_gaugechart
 """
 
+from typing import Optional  # old python style, modern style uses | None
 import reflex as rx
-from typing import Optional
 
 
 class Gaugechart(rx.NoSSRComponent):
