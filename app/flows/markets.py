@@ -57,6 +57,43 @@ class CurrencyEvent(Event):
     base_date: datetime
 
 
+class PreciousMetalsEvent(Event):
+    """Event emitted when precious metals data is fetched."""
+
+    gold_data: pd.DataFrame
+    base_date: datetime
+
+
+class CryptoCurrencyEvent(Event):
+    """Event emitted when cryptocurrency data is fetched."""
+
+    bitcoin_data: pd.DataFrame
+    ethereum_data: pd.DataFrame
+    base_date: datetime
+
+
+class CrudeOilEvent(Event):
+    """Event emitted when crude oil data is fetched."""
+
+    wti_data: pd.DataFrame
+    brent_data: pd.DataFrame
+    base_date: datetime
+
+
+class BloombergCommodityEvent(Event):
+    """Event emitted when Bloomberg Commodity Index data is fetched."""
+
+    bcom_data: pd.DataFrame
+    base_date: datetime
+
+
+class MSCIWorldEvent(Event):
+    """Event emitted when MSCI World Index data is fetched."""
+
+    msci_data: pd.DataFrame
+    base_date: datetime
+
+
 class BuffetIndicatorWorkflow(Workflow):
     """
     Workflow that fetches data for the Buffet Indicator calculation.
@@ -838,6 +875,904 @@ class CurrencyWorkflow(Workflow):
             ) from e
 
 
+class PreciousMetalsWorkflow(Workflow):
+    """
+    Workflow that fetches precious metals (Gold Futures) data.
+
+    This workflow fetches gold futures data from Yahoo Finance using the GC=F ticker
+    (COMEX Gold Futures). Gold is a key commodity and safe-haven asset.
+
+    The workflow:
+    - Fetches daily gold futures data from Yahoo Finance
+    - Calculates 50-day and 200-day moving averages for trend analysis
+    - Applies base_date filtering for display
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_gold_data(self, ev: StartEvent) -> PreciousMetalsEvent:
+        """
+        Fetch gold futures data from Yahoo Finance.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            PreciousMetalsEvent with gold data
+        """
+        base_date = ev.base_date
+
+        logger.debug(f"PreciousMetalsWorkflow: Fetching gold data from {base_date}")
+
+        # Fetch Gold Futures data (COMEX)
+        gold_result = await self.yahoo_provider.get_data("GC=F")
+
+        # Process Gold data
+        if isinstance(gold_result, Exception):
+            logger.error(f"Failed to fetch gold data: {gold_result}")
+            raise gold_result
+
+        if not (hasattr(gold_result, "success") and gold_result.success):
+            error_msg = getattr(
+                gold_result, "error_message", "Unknown gold fetch error"
+            )
+            logger.error(f"Gold provider failed: {error_msg}")
+            raise Exception(f"Gold data fetch failed: {error_msg}")
+
+        gold_data = gold_result.data
+        if gold_data.empty:
+            logger.error("Empty gold data returned")
+            raise Exception("No gold data available")
+
+        logger.debug(
+            f"Gold data: {len(gold_data)} rows, "
+            f"range: {gold_data.index.min()} to {gold_data.index.max()}"
+        )
+
+        return PreciousMetalsEvent(gold_data=gold_data, base_date=base_date)
+
+    @step
+    async def process_gold_data(self, ev: PreciousMetalsEvent) -> StopEvent:
+        """
+        Process gold data and calculate statistics.
+
+        Args:
+            ev: PreciousMetalsEvent with gold data
+
+        Returns:
+            StopEvent with processed gold data and statistics
+        """
+        gold_data = ev.gold_data
+        base_date = ev.base_date
+
+        logger.debug("PreciousMetalsWorkflow: Processing gold data")
+
+        try:
+            # Extract close prices from gold data
+            if "Close" in gold_data.columns:
+                gold_close = gold_data["Close"].dropna()
+            elif "Adj Close" in gold_data.columns:
+                gold_close = gold_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in gold data")
+                raise Exception("No Close price data available for gold")
+
+            if gold_close.empty:
+                logger.error("No gold close price data available")
+                raise Exception("No gold data available")
+
+            # Normalize timezone to ensure proper filtering
+            if gold_close.index.tz is not None:
+                gold_close_naive = gold_close.tz_localize(None)
+            else:
+                gold_close_naive = gold_close
+
+            # Calculate moving averages on full dataset
+            moving_avg_50 = gold_close_naive.rolling(window=50, min_periods=50).mean()
+            moving_avg_200 = gold_close_naive.rolling(
+                window=200, min_periods=200
+            ).mean()
+
+            # Create complete result DataFrame
+            result_df = pd.DataFrame(
+                {
+                    "Gold": gold_close_naive,
+                    "Gold_MA50": moving_avg_50,
+                    "Gold_MA200": moving_avg_200,
+                },
+                index=gold_close_naive.index,
+            )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(f"No gold data after base_date {base_date} for display")
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["Gold", "Gold_MA50", "Gold_MA200"])
+
+            logger.info(
+                f"Gold processing completed: {len(display_data)} data points "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_value": (
+                        display_data["Gold"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing gold data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="PreciousMetalsWorkflow",
+                step="process_gold_data",
+                message=f"Gold data processing failed: {e}",
+                user_message="Failed to process gold data. Please try again later.",
+                context={"base_date": str(base_date)},
+            ) from e
+
+
+class CryptoCurrencyWorkflow(Workflow):
+    """
+    Workflow that fetches cryptocurrency (Bitcoin and Ethereum) data.
+    This workflow fetches Bitcoin and Ethereum price data from Yahoo Finance using
+    BTC-USD and ETH-USD tickers. These are major cryptocurrencies that provide
+    insight into the digital asset market.
+    The workflow:
+    - Fetches daily Bitcoin and Ethereum data from Yahoo Finance in parallel
+    - Applies base_date filtering for display
+    - No moving averages or trend lines per user requirements
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_crypto_data(self, ev: StartEvent) -> CryptoCurrencyEvent:
+        """
+        Fetch Bitcoin and Ethereum data from Yahoo Finance in parallel.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            CryptoCurrencyEvent with Bitcoin and Ethereum data
+        """
+        base_date = ev.base_date
+        logger.debug(f"CryptoCurrencyWorkflow: Fetching crypto data from {base_date}")
+
+        # Fetch Bitcoin and Ethereum data in parallel
+        bitcoin_task = self.yahoo_provider.get_data("BTC-USD")
+        ethereum_task = self.yahoo_provider.get_data("ETH-USD")
+
+        bitcoin_result, ethereum_result = await asyncio.gather(
+            bitcoin_task, ethereum_task, return_exceptions=True
+        )
+
+        # Process Bitcoin data
+        if isinstance(bitcoin_result, Exception):
+            logger.error(f"Failed to fetch Bitcoin data: {bitcoin_result}")
+            raise bitcoin_result
+
+        if not (hasattr(bitcoin_result, "success") and bitcoin_result.success):
+            error_msg = getattr(
+                bitcoin_result, "error_message", "Unknown Bitcoin fetch error"
+            )
+            logger.error(f"Bitcoin provider failed: {error_msg}")
+            raise Exception(f"Bitcoin data fetch failed: {error_msg}")
+
+        bitcoin_data = bitcoin_result.data
+        if bitcoin_data.empty:
+            logger.error("Empty Bitcoin data returned")
+            raise Exception("No Bitcoin data available")
+
+        # Process Ethereum data
+        if isinstance(ethereum_result, Exception):
+            logger.error(f"Failed to fetch Ethereum data: {ethereum_result}")
+            raise ethereum_result
+
+        if not (hasattr(ethereum_result, "success") and ethereum_result.success):
+            error_msg = getattr(
+                ethereum_result, "error_message", "Unknown Ethereum fetch error"
+            )
+            logger.error(f"Ethereum provider failed: {error_msg}")
+            raise Exception(f"Ethereum data fetch failed: {error_msg}")
+
+        ethereum_data = ethereum_result.data
+        if ethereum_data.empty:
+            logger.error("Empty Ethereum data returned")
+            raise Exception("No Ethereum data available")
+
+        logger.debug(
+            f"Bitcoin data: {len(bitcoin_data)} rows, "
+            f"range: {bitcoin_data.index.min()} to {bitcoin_data.index.max()}"
+        )
+        logger.debug(
+            f"Ethereum data: {len(ethereum_data)} rows, "
+            f"range: {ethereum_data.index.min()} to {ethereum_data.index.max()}"
+        )
+
+        return CryptoCurrencyEvent(
+            bitcoin_data=bitcoin_data, ethereum_data=ethereum_data, base_date=base_date
+        )
+
+    @step
+    async def process_crypto_data(self, ev: CryptoCurrencyEvent) -> StopEvent:
+        """
+        Process cryptocurrency data and prepare for display.
+
+        Args:
+            ev: CryptoCurrencyEvent with Bitcoin and Ethereum data
+
+        Returns:
+            StopEvent with processed crypto data
+        """
+        bitcoin_data = ev.bitcoin_data
+        ethereum_data = ev.ethereum_data
+        base_date = ev.base_date
+
+        logger.debug("CryptoCurrencyWorkflow: Processing crypto data")
+
+        try:
+            # Extract close prices from Bitcoin data
+            if "Close" in bitcoin_data.columns:
+                bitcoin_close = bitcoin_data["Close"].dropna()
+            elif "Adj Close" in bitcoin_data.columns:
+                bitcoin_close = bitcoin_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in Bitcoin data")
+                raise Exception("No Close price data available for Bitcoin")
+
+            if bitcoin_close.empty:
+                logger.error("No Bitcoin close price data available")
+                raise Exception("No Bitcoin data available")
+
+            # Extract close prices from Ethereum data
+            if "Close" in ethereum_data.columns:
+                ethereum_close = ethereum_data["Close"].dropna()
+            elif "Adj Close" in ethereum_data.columns:
+                ethereum_close = ethereum_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in Ethereum data")
+                raise Exception("No Close price data available for Ethereum")
+
+            if ethereum_close.empty:
+                logger.error("No Ethereum close price data available")
+                raise Exception("No Ethereum data available")
+
+            # Normalize timezone to ensure proper filtering
+            if bitcoin_close.index.tz is not None:
+                bitcoin_close_naive = bitcoin_close.tz_localize(None)
+            else:
+                bitcoin_close_naive = bitcoin_close
+
+            if ethereum_close.index.tz is not None:
+                ethereum_close_naive = ethereum_close.tz_localize(None)
+            else:
+                ethereum_close_naive = ethereum_close
+
+            # Combine data into single DataFrame for comparison chart
+            # Align data to common dates
+            common_dates = bitcoin_close_naive.index.intersection(
+                ethereum_close_naive.index
+            )
+
+            if common_dates.empty:
+                logger.warning("No common dates between Bitcoin and Ethereum data")
+                result_df = pd.DataFrame(columns=["BTC", "ETH"])
+            else:
+                result_df = pd.DataFrame(
+                    {
+                        "BTC": bitcoin_close_naive.reindex(common_dates),
+                        "ETH": ethereum_close_naive.reindex(common_dates),
+                    },
+                    index=common_dates,
+                )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(
+                    f"No crypto data after base_date {base_date} for display"
+                )
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["BTC", "ETH"])
+
+            logger.info(
+                f"Crypto processing completed: {len(display_data)} data points "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_btc": (
+                        display_data["BTC"].iloc[-1] if not display_data.empty else None
+                    ),
+                    "latest_eth": (
+                        display_data["ETH"].iloc[-1] if not display_data.empty else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing crypto data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="CryptoCurrencyWorkflow",
+                step="process_crypto_data",
+                message=f"Crypto data processing failed: {e}",
+                user_message="Failed to process crypto data. Please try again later.",
+                context={"base_date": str(base_date)},
+            ) from e
+
+
+class CrudeOilWorkflow(Workflow):
+    """
+    Workflow that fetches crude oil (WTI and Brent) price data.
+    This workflow fetches crude oil price data from Yahoo Finance using
+    CL=F and BZ=F tickers. These are the major crude oil benchmarks.
+    The workflow:
+    - Fetches daily WTI and Brent data from Yahoo Finance in parallel
+    - Applies base_date filtering for display
+    - No moving averages or trend lines per user requirements
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_crude_oil_data(self, ev: StartEvent) -> CrudeOilEvent:
+        """
+        Fetch WTI and Brent crude oil data from Yahoo Finance in parallel.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            CrudeOilEvent with WTI and Brent data
+        """
+        base_date = ev.base_date
+        logger.debug(f"CrudeOilWorkflow: Fetching crude oil data from {base_date}")
+
+        # Fetch WTI and Brent data in parallel
+        wti_task = self.yahoo_provider.get_data("CL=F")  # WTI Crude Oil
+        brent_task = self.yahoo_provider.get_data("BZ=F")  # Brent Crude Oil
+
+        wti_result, brent_result = await asyncio.gather(
+            wti_task, brent_task, return_exceptions=True
+        )
+
+        # Process WTI data
+        if isinstance(wti_result, Exception):
+            logger.error(f"Failed to fetch WTI data: {wti_result}")
+            raise wti_result
+
+        if not (hasattr(wti_result, "success") and wti_result.success):
+            error_msg = getattr(wti_result, "error_message", "Unknown WTI fetch error")
+            logger.error(f"WTI provider failed: {error_msg}")
+            raise Exception(f"WTI data fetch failed: {error_msg}")
+
+        wti_data = wti_result.data
+        if wti_data.empty:
+            logger.error("Empty WTI data returned")
+            raise Exception("No WTI data available")
+
+        # Process Brent data
+        if isinstance(brent_result, Exception):
+            logger.error(f"Failed to fetch Brent data: {brent_result}")
+            raise brent_result
+
+        if not (hasattr(brent_result, "success") and brent_result.success):
+            error_msg = getattr(
+                brent_result, "error_message", "Unknown Brent fetch error"
+            )
+            logger.error(f"Brent provider failed: {error_msg}")
+            raise Exception(f"Brent data fetch failed: {error_msg}")
+
+        brent_data = brent_result.data
+        if brent_data.empty:
+            logger.error("Empty Brent data returned")
+            raise Exception("No Brent data available")
+
+        logger.debug(
+            f"WTI data: {len(wti_data)} rows, "
+            f"range: {wti_data.index.min()} to {wti_data.index.max()}"
+        )
+        logger.debug(
+            f"Brent data: {len(brent_data)} rows, "
+            f"range: {brent_data.index.min()} to {brent_data.index.max()}"
+        )
+
+        return CrudeOilEvent(
+            wti_data=wti_data, brent_data=brent_data, base_date=base_date
+        )
+
+    @step
+    async def process_crude_oil_data(self, ev: CrudeOilEvent) -> StopEvent:
+        """
+        Process crude oil data and prepare for display.
+
+        Args:
+            ev: CrudeOilEvent with WTI and Brent data
+
+        Returns:
+            StopEvent with processed crude oil data
+        """
+        wti_data = ev.wti_data
+        brent_data = ev.brent_data
+        base_date = ev.base_date
+
+        logger.debug("CrudeOilWorkflow: Processing crude oil data")
+
+        try:
+            # Extract close prices from WTI data
+            if "Close" in wti_data.columns:
+                wti_close = wti_data["Close"].dropna()
+            elif "Adj Close" in wti_data.columns:
+                wti_close = wti_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in WTI data")
+                raise Exception("No Close price data available for WTI")
+
+            if wti_close.empty:
+                logger.error("No WTI close price data available")
+                raise Exception("No WTI data available")
+
+            # Extract close prices from Brent data
+            if "Close" in brent_data.columns:
+                brent_close = brent_data["Close"].dropna()
+            elif "Adj Close" in brent_data.columns:
+                brent_close = brent_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in Brent data")
+                raise Exception("No Close price data available for Brent")
+
+            if brent_close.empty:
+                logger.error("No Brent close price data available")
+                raise Exception("No Brent data available")
+
+            # Normalize timezone to ensure proper filtering
+            if wti_close.index.tz is not None:
+                wti_close_naive = wti_close.tz_localize(None)
+            else:
+                wti_close_naive = wti_close
+
+            if brent_close.index.tz is not None:
+                brent_close_naive = brent_close.tz_localize(None)
+            else:
+                brent_close_naive = brent_close
+
+            # Combine data into single DataFrame for comparison chart
+            # Align data to common dates
+            common_dates = wti_close_naive.index.intersection(brent_close_naive.index)
+
+            if common_dates.empty:
+                logger.warning("No common dates between WTI and Brent data")
+                result_df = pd.DataFrame(columns=["WTI", "Brent"])
+            else:
+                result_df = pd.DataFrame(
+                    {
+                        "WTI": wti_close_naive.reindex(common_dates),
+                        "Brent": brent_close_naive.reindex(common_dates),
+                    },
+                    index=common_dates,
+                )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(
+                    f"No crude oil data after base_date {base_date} for display"
+                )
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["WTI", "Brent"])
+
+            logger.info(
+                f"Crude oil processing completed: {len(display_data)} data points "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_wti": (
+                        display_data["WTI"].iloc[-1] if not display_data.empty else None
+                    ),
+                    "latest_brent": (
+                        display_data["Brent"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing crude oil data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="CrudeOilWorkflow",
+                step="process_crude_oil_data",
+                message=f"Crude oil data processing failed: {e}",
+                user_message=(
+                    "Failed to process crude oil data. Please try again later."
+                ),
+                context={"base_date": str(base_date)},
+            ) from e
+
+
+class BloombergCommodityWorkflow(Workflow):
+    """
+    Workflow that fetches Bloomberg Commodity Index (^BCOM) data.
+
+    This workflow fetches the Bloomberg Commodity Index from Yahoo Finance using
+    the ^BCOM ticker. The index tracks the performance of a diversified basket of
+    commodity futures contracts.
+
+    The workflow:
+    - Fetches daily ^BCOM data from Yahoo Finance
+    - Calculates 50-day and 200-day moving averages on full dataset
+    - Applies base_date filtering for display
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_bcom_data(self, ev: StartEvent) -> BloombergCommodityEvent:
+        """
+        Fetch Bloomberg Commodity Index data from Yahoo Finance.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            BloombergCommodityEvent with ^BCOM data
+        """
+        base_date = ev.base_date
+        logger.debug(
+            f"BloombergCommodityWorkflow: Fetching ^BCOM data from {base_date}"
+        )
+
+        # Fetch Bloomberg Commodity Index data
+        bcom_result = await self.yahoo_provider.get_data("^BCOM")
+
+        # Process ^BCOM data
+        if isinstance(bcom_result, Exception):
+            logger.error(f"Failed to fetch ^BCOM data: {bcom_result}")
+            raise bcom_result
+
+        if not (hasattr(bcom_result, "success") and bcom_result.success):
+            error_msg = getattr(
+                bcom_result, "error_message", "Unknown ^BCOM fetch error"
+            )
+            logger.error(f"^BCOM provider failed: {error_msg}")
+            raise Exception(f"^BCOM data fetch failed: {error_msg}")
+
+        bcom_data = bcom_result.data
+        if bcom_data.empty:
+            logger.error("Empty ^BCOM data returned")
+            raise Exception("No ^BCOM data available")
+
+        logger.debug(
+            f"^BCOM data: {len(bcom_data)} rows, "
+            f"range: {bcom_data.index.min()} to {bcom_data.index.max()}"
+        )
+
+        return BloombergCommodityEvent(bcom_data=bcom_data, base_date=base_date)
+
+    @step
+    async def process_bcom_data(self, ev: BloombergCommodityEvent) -> StopEvent:
+        """
+        Process Bloomberg Commodity Index data and calculate moving averages.
+
+        Args:
+            ev: BloombergCommodityEvent with ^BCOM data
+
+        Returns:
+            StopEvent with processed ^BCOM data and moving averages
+        """
+        bcom_data = ev.bcom_data
+        base_date = ev.base_date
+
+        logger.debug("BloombergCommodityWorkflow: Processing ^BCOM data")
+
+        try:
+            # Extract close prices from ^BCOM data
+            if "Close" in bcom_data.columns:
+                bcom_close = bcom_data["Close"].dropna()
+            elif "Adj Close" in bcom_data.columns:
+                bcom_close = bcom_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in ^BCOM data")
+                raise Exception("No Close price data available for ^BCOM")
+
+            if bcom_close.empty:
+                logger.error("No ^BCOM close price data available")
+                raise Exception("No ^BCOM data available")
+
+            # Normalize timezone to ensure proper filtering
+            if bcom_close.index.tz is not None:
+                bcom_close_naive = bcom_close.tz_localize(None)
+            else:
+                bcom_close_naive = bcom_close
+
+            # Calculate moving averages on full dataset
+            moving_avg_50 = bcom_close_naive.rolling(window=50, min_periods=50).mean()
+            moving_avg_200 = bcom_close_naive.rolling(
+                window=200, min_periods=200
+            ).mean()
+
+            # Create complete result DataFrame
+            result_df = pd.DataFrame(
+                {
+                    "BCOM": bcom_close_naive,
+                    "BCOM_MA50": moving_avg_50,
+                    "BCOM_MA200": moving_avg_200,
+                },
+                index=bcom_close_naive.index,
+            )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(f"No ^BCOM data after base_date {base_date} for display")
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(columns=["BCOM", "BCOM_MA50", "BCOM_MA200"])
+
+            logger.info(
+                f"Bloomberg Commodity processing completed: {len(display_data)} "
+                f"data points from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_value": (
+                        display_data["BCOM"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing ^BCOM data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="BloombergCommodityWorkflow",
+                step="process_bcom_data",
+                message=f"Bloomberg Commodity data processing failed: {e}",
+                user_message=(
+                    "Failed to process Bloomberg Commodity Index data. "
+                    "Please try again later."
+                ),
+                context={"base_date": str(base_date)},
+            ) from e
+
+
+class MSCIWorldWorkflow(Workflow):
+    """
+    Workflow that fetches MSCI World Index data.
+
+    This workflow fetches MSCI World Index data from Yahoo Finance using
+    the ^990100-USD-STRD ticker. The MSCI World Index is a broad global
+    equity index that captures large and mid cap representation across
+    23 Developed Markets countries.
+
+    The workflow:
+    - Fetches daily MSCI World Index data from Yahoo Finance
+    - Calculates 50-day and 200-day moving averages on full dataset
+    - Calculates Bollinger Bands (20-day MA ± 2 std dev)
+    - Applies base_date filtering for display
+    """
+
+    def __init__(self):
+        """Initialize workflow with Yahoo provider."""
+        super().__init__()
+        # Create provider
+        self.yahoo_provider = create_yahoo_history_provider(
+            period="max", timeout=30.0, retries=2
+        )
+
+    @step
+    async def fetch_msci_data(self, ev: StartEvent) -> MSCIWorldEvent:
+        """
+        Fetch MSCI World Index data from Yahoo Finance.
+
+        Args:
+            ev.base_date: Start date for data fetching
+
+        Returns:
+            MSCIWorldEvent with MSCI World data
+        """
+        base_date = ev.base_date
+        logger.debug(f"MSCIWorldWorkflow: Fetching MSCI World data from {base_date}")
+
+        # Fetch MSCI World Index data
+        msci_result = await self.yahoo_provider.get_data("^990100-USD-STRD")
+
+        # Process MSCI data
+        if isinstance(msci_result, Exception):
+            logger.error(f"Failed to fetch MSCI World data: {msci_result}")
+            raise msci_result
+
+        if not (hasattr(msci_result, "success") and msci_result.success):
+            error_msg = getattr(
+                msci_result, "error_message", "Unknown MSCI World fetch error"
+            )
+            logger.error(f"MSCI World provider failed: {error_msg}")
+            raise Exception(f"MSCI World data fetch failed: {error_msg}")
+
+        msci_data = msci_result.data
+        if msci_data.empty:
+            logger.error("Empty MSCI World data returned")
+            raise Exception("No MSCI World data available")
+
+        logger.debug(
+            f"MSCI World data: {len(msci_data)} rows, "
+            f"range: {msci_data.index.min()} to {msci_data.index.max()}"
+        )
+
+        return MSCIWorldEvent(msci_data=msci_data, base_date=base_date)
+
+    @step
+    async def process_msci_data(self, ev: MSCIWorldEvent) -> StopEvent:
+        """
+        Process MSCI World data and calculate technical indicators.
+
+        Args:
+            ev: MSCIWorldEvent with MSCI World data
+
+        Returns:
+            StopEvent with processed MSCI World data and indicators
+        """
+        msci_data = ev.msci_data
+        base_date = ev.base_date
+
+        logger.debug("MSCIWorldWorkflow: Processing MSCI World data")
+
+        try:
+            # Extract close prices from MSCI World data
+            if "Close" in msci_data.columns:
+                msci_close = msci_data["Close"].dropna()
+            elif "Adj Close" in msci_data.columns:
+                msci_close = msci_data["Adj Close"].dropna()
+            else:
+                logger.error("No Close price data in MSCI World data")
+                raise Exception("No Close price data available for MSCI World")
+
+            if msci_close.empty:
+                logger.error("No MSCI World close price data available")
+                raise Exception("No MSCI World data available")
+
+            # Normalize timezone to ensure proper filtering
+            if msci_close.index.tz is not None:
+                msci_close_naive = msci_close.tz_localize(None)
+            else:
+                msci_close_naive = msci_close
+
+            # Calculate moving averages on full dataset
+            moving_avg_50 = msci_close_naive.rolling(window=50, min_periods=50).mean()
+            moving_avg_200 = msci_close_naive.rolling(
+                window=200, min_periods=200
+            ).mean()
+
+            # Calculate Bollinger Bands (20-day MA ± 2 standard deviations)
+            rolling_mean = msci_close_naive.rolling(window=20, min_periods=20).mean()
+            rolling_std = msci_close_naive.rolling(window=20, min_periods=20).std()
+            bollinger_upper = rolling_mean + (rolling_std * 2)
+            bollinger_lower = rolling_mean - (rolling_std * 2)
+
+            # Create complete result DataFrame
+            result_df = pd.DataFrame(
+                {
+                    "MSCI_World": msci_close_naive,
+                    "MSCI_MA50": moving_avg_50,
+                    "MSCI_MA200": moving_avg_200,
+                    "MSCI_BB_Upper": bollinger_upper,
+                    "MSCI_BB_Lower": bollinger_lower,
+                    "MSCI_BB_Mid": rolling_mean,
+                },
+                index=msci_close_naive.index,
+            )
+
+            # Filter by base_date for display purposes
+            base_date_pd = pd.to_datetime(base_date.date())
+            display_data = result_df[result_df.index >= base_date_pd]
+
+            if display_data.empty:
+                logger.warning(
+                    f"No MSCI World data after base_date {base_date} for display"
+                )
+                # Return empty result but don't error - this is just a display filter
+                display_data = pd.DataFrame(
+                    columns=[
+                        "MSCI_World",
+                        "MSCI_MA50",
+                        "MSCI_MA200",
+                        "MSCI_BB_Upper",
+                        "MSCI_BB_Lower",
+                        "MSCI_BB_Mid",
+                    ]
+                )
+
+            logger.info(
+                f"MSCI World processing completed: {len(display_data)} data points "
+                f"from {base_date}"
+            )
+
+            return StopEvent(
+                result={
+                    "data": display_data,
+                    "base_date": base_date,
+                    "latest_value": (
+                        display_data["MSCI_World"].iloc[-1]
+                        if not display_data.empty
+                        else None
+                    ),
+                    "data_points": len(display_data),
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing MSCI World data: {e}")
+            # Re-raise as WorkflowException for better handling
+            raise WorkflowException(
+                workflow="MSCIWorldWorkflow",
+                step="process_msci_data",
+                message=f"MSCI World data processing failed: {e}",
+                user_message=(
+                    "Failed to process MSCI World data. Please try again later."
+                ),
+                context={"base_date": str(base_date)},
+            ) from e
+
+
 @apply_flow_cache
 async def fetch_buffet_indicator_data(
     base_date: datetime, original_period: str = "1Y"
@@ -1038,6 +1973,254 @@ async def fetch_currency_data(base_date: datetime) -> Dict[str, Any]:
             message=f"Currency workflow execution failed: {e}",
             user_message=(
                 "Failed to fetch currency data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_precious_metals_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process precious metals (Gold Futures) data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with gold values and moving average
+        - base_date: The base date used
+        - latest_value: Most recent gold price
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting precious metals data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = PreciousMetalsWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Precious metals workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Precious metals workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Precious metals workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_precious_metals_data",
+            step="workflow_execution",
+            message=f"Precious metals workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch precious metals data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_crypto_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process cryptocurrency (Bitcoin and Ethereum) data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with Bitcoin and Ethereum values
+        - base_date: The base date used
+        - latest_btc: Most recent Bitcoin price
+        - latest_eth: Most recent Ethereum price
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting cryptocurrency data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = CryptoCurrencyWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Cryptocurrency workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Cryptocurrency workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Cryptocurrency workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_crypto_data",
+            step="workflow_execution",
+            message=f"Cryptocurrency workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch cryptocurrency data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_crude_oil_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process crude oil (WTI and Brent) data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with WTI and Brent values
+        - base_date: The base date used
+        - latest_wti: Most recent WTI price
+        - latest_brent: Most recent Brent price
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting crude oil data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = CrudeOilWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Crude oil workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Crude oil workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Crude oil workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_crude_oil_data",
+            step="workflow_execution",
+            message=f"Crude oil workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch crude oil data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_bloomberg_commodity_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process Bloomberg Commodity Index (^BCOM) data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with BCOM values and moving averages
+        - base_date: The base date used
+        - latest_value: Most recent BCOM value
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting Bloomberg Commodity data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = BloombergCommodityWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("Bloomberg Commodity workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "Bloomberg Commodity workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"Bloomberg Commodity workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_bloomberg_commodity_data",
+            step="workflow_execution",
+            message=f"Bloomberg Commodity workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch Bloomberg Commodity Index data due to a system error. "
+                "Please try again."
+            ),
+            context={"base_date": str(base_date)},
+        ) from e
+
+
+@apply_flow_cache
+async def fetch_msci_world_data(base_date: datetime) -> Dict[str, Any]:
+    """
+    Fetch and process MSCI World Index data.
+
+    Args:
+        base_date: Start date for historical data
+
+    Returns:
+        Dictionary containing:
+        - data: pandas DataFrame with MSCI World values, moving averages,
+          and Bollinger bands
+        - base_date: The base date used
+        - latest_value: Most recent MSCI World value
+        - data_points: Number of data points
+    """
+    try:
+        logger.info(f"Starting MSCI World data fetch from {base_date}")
+
+        # Create and run workflow
+        workflow = MSCIWorldWorkflow()
+        result = await workflow.run(base_date=base_date)
+
+        logger.info("MSCI World workflow completed successfully")
+
+        # Extract result data from workflow result
+        if hasattr(result, "result"):
+            return result.result
+        else:
+            logger.warning(
+                "MSCI World workflow result missing .result attribute, "
+                "returning directly"
+            )
+            return result
+
+    except Exception as e:
+        logger.error(f"MSCI World workflow failed: {e}")
+        # Re-raise as WorkflowException for better handling
+        raise WorkflowException(
+            workflow="fetch_msci_world_data",
+            step="workflow_execution",
+            message=f"MSCI World workflow execution failed: {e}",
+            user_message=(
+                "Failed to fetch MSCI World data due to a system error. "
                 "Please try again."
             ),
             context={"base_date": str(base_date)},

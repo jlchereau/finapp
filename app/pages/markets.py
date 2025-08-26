@@ -26,6 +26,11 @@ from app.flows.markets import (
     fetch_vix_data,
     fetch_yield_curve_data,
     fetch_currency_data,
+    fetch_precious_metals_data,
+    fetch_crypto_data,
+    fetch_crude_oil_data,
+    fetch_bloomberg_commodity_data,
+    fetch_msci_world_data,
 )
 from app.lib.exceptions import PageOutputException
 from app.lib.periods import (
@@ -40,7 +45,7 @@ from app.templates.template import template
 class MarketState(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
 
-    active_tab: str = "summary"
+    active_tab: str = "overview"
 
     # Chart settings
     base_date_option: str = "10Y"
@@ -51,12 +56,22 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
     chart_figure_vix: go.Figure = go.Figure()
     chart_figure_yield: go.Figure = go.Figure()
     chart_figure_currency: go.Figure = go.Figure()
+    chart_figure_precious_metals: go.Figure = go.Figure()
+    chart_figure_crypto: go.Figure = go.Figure()
+    chart_figure_crude_oil: go.Figure = go.Figure()
+    chart_figure_bloomberg_commodity: go.Figure = go.Figure()
+    chart_figure_msci_world: go.Figure = go.Figure()
 
     # Loading state
     loading_buffet: bool = False
     loading_vix: bool = False
     loading_yield: bool = False
     loading_currency: bool = False
+    loading_precious_metals: bool = False
+    loading_crypto: bool = False
+    loading_crude_oil: bool = False
+    loading_bloomberg_commodity: bool = False
+    loading_msci_world: bool = False
 
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
@@ -78,6 +93,11 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
         yield MarketState.update_vix_chart
         yield MarketState.update_yield_chart
         yield MarketState.update_currency_chart
+        yield MarketState.update_precious_metals_chart
+        yield MarketState.update_crypto_chart
+        yield MarketState.update_crude_oil_chart
+        yield MarketState.update_bloomberg_commodity_chart
+        yield MarketState.update_msci_world_chart
 
     async def get_buffet_data(
         self, base_date: datetime
@@ -693,12 +713,555 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
                 self.loading_currency = False
 
     @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_precious_metals_chart(self):
+        """Update the precious metals (Gold Futures) chart in background."""
+        async with self:
+            self.loading_precious_metals = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("precious_metals")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get precious metals data
+            precious_metals_result = await fetch_precious_metals_data(base_date)
+            precious_metals_data = precious_metals_result.get("data")
+
+            if precious_metals_data is None or precious_metals_data.empty:
+                async with self:
+                    self.chart_figure_precious_metals = go.Figure()
+                    yield rx.toast.warning(
+                        "No precious metals data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded gold data: {precious_metals_data.shape[0]} data points"
+                )
+
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="Gold Futures (COMEX)",
+                yaxis_title="Price (USD/oz)",
+                hover_format="Price: %{y:.2f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
+                primary_style="solid",  # Solid line without markers
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                precious_metals_data,
+                config,
+                theme_colors,
+                "Gold",
+                include_main_series=False,
+            )
+
+            # Add background elements first (moving averages)
+            curves = []
+
+            # Add 50-day moving average if available
+            if (
+                "Gold_MA50" in precious_metals_data.columns
+                and not precious_metals_data["Gold_MA50"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": precious_metals_data.index,
+                        "y": precious_metals_data["Gold_MA50"],
+                        "name": "50-Day Moving Average",
+                        "color": MARKET_COLORS["warning"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add 200-day moving average if available
+            if (
+                "Gold_MA200" in precious_metals_data.columns
+                and not precious_metals_data["Gold_MA200"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": precious_metals_data.index,
+                        "y": precious_metals_data["Gold_MA200"],
+                        "name": "200-Day Moving Average",
+                        "color": MARKET_COLORS["safe"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add moving averages as historical curves
+            if curves:
+                add_historical_curves(fig, curves)
+
+            # Add main gold data series on top (drawn last, appears on top)
+            add_main_series(fig, precious_metals_data, config, "Gold")
+
+            async with self:
+                self.chart_figure_precious_metals = fig
+                yield rx.toast.success("Gold chart updated successfully")
+
+        except Exception as e:
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="precious metals chart",
+                message=f"Failed to generate precious metals chart: {e}",
+                user_message=(
+                    "Failed to generate precious metals chart. Please try "
+                    "refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_precious_metals = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_bloomberg_commodity_chart(self):
+        """Update the Bloomberg Commodity Index chart in background."""
+        async with self:
+            self.loading_bloomberg_commodity = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("bloomberg_commodity")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get Bloomberg Commodity Index data
+            bloomberg_result = await fetch_bloomberg_commodity_data(base_date)
+            bloomberg_data = bloomberg_result.get("data")
+
+            if bloomberg_data is None or bloomberg_data.empty:
+                async with self:
+                    self.chart_figure_bloomberg_commodity = go.Figure()
+                    yield rx.toast.warning(
+                        "No Bloomberg Commodity Index data available for selected "
+                        "date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded Bloomberg Commodity Index data: "
+                    f"{bloomberg_data.shape[0]} data points"
+                )
+
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="Bloomberg Commodity Index (^BCOM)",
+                yaxis_title="Index Value",
+                hover_format="Value: %{y:.2f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
+                primary_style="solid",  # Solid line without markers
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                bloomberg_data,
+                config,
+                theme_colors,
+                "BCOM",
+                include_main_series=False,
+            )
+
+            # Add background elements first (moving averages)
+            curves = []
+
+            # Add 50-day moving average if available
+            if (
+                "BCOM_MA50" in bloomberg_data.columns
+                and not bloomberg_data["BCOM_MA50"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": bloomberg_data.index,
+                        "y": bloomberg_data["BCOM_MA50"],
+                        "name": "50-Day Moving Average",
+                        "color": MARKET_COLORS["warning"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add 200-day moving average if available
+            if (
+                "BCOM_MA200" in bloomberg_data.columns
+                and not bloomberg_data["BCOM_MA200"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": bloomberg_data.index,
+                        "y": bloomberg_data["BCOM_MA200"],
+                        "name": "200-Day Moving Average",
+                        "color": MARKET_COLORS["safe"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add moving averages as historical curves
+            if curves:
+                add_historical_curves(fig, curves)
+
+            # Add main Bloomberg Commodity Index data series on top
+            add_main_series(fig, bloomberg_data, config, "BCOM")
+
+            async with self:
+                self.chart_figure_bloomberg_commodity = fig
+                yield rx.toast.success(
+                    "Bloomberg Commodity Index chart updated successfully"
+                )
+
+        except Exception as e:
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="Bloomberg Commodity Index chart",
+                message=f"Failed to generate Bloomberg Commodity Index chart: {e}",
+                user_message=(
+                    "Failed to generate Bloomberg Commodity Index chart. Please try "
+                    "refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_bloomberg_commodity = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_msci_world_chart(self):
+        """Update the MSCI World Index chart using background processing."""
+        async with self:
+            self.loading_msci_world = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("msci_world")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get MSCI World data
+            msci_result = await fetch_msci_world_data(base_date)
+            msci_data = msci_result.get("data")
+
+            if msci_data is None or msci_data.empty:
+                async with self:
+                    self.chart_figure_msci_world = go.Figure()
+                    yield rx.toast.warning(
+                        "No MSCI World data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded MSCI World data: {msci_data.shape[0]} data points"
+                )
+
+            # Create time-series chart using utility functions
+            config = TimeSeriesChartConfig(
+                title="MSCI World Index",
+                yaxis_title="Index Value (USD)",
+                hover_format="Value: %{y:.2f}<br>",
+                height=400,
+                primary_color=MARKET_COLORS["primary"],
+                primary_style="solid",  # Solid line without markers
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Create empty chart with theme (no main series yet)
+            fig = create_timeseries_chart(
+                msci_data,
+                config,
+                theme_colors,
+                "MSCI_World",
+                include_main_series=False,
+            )
+
+            # Add background elements first (moving averages and Bollinger bands)
+            curves = []
+
+            # Add 50-day moving average if available
+            if (
+                "MSCI_MA50" in msci_data.columns
+                and not msci_data["MSCI_MA50"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": msci_data.index,
+                        "y": msci_data["MSCI_MA50"],
+                        "name": "50-Day Moving Average",
+                        "color": MARKET_COLORS["warning"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add 200-day moving average if available
+            if (
+                "MSCI_MA200" in msci_data.columns
+                and not msci_data["MSCI_MA200"].isna().all()
+            ):
+                curves.append(
+                    {
+                        "x": msci_data.index,
+                        "y": msci_data["MSCI_MA200"],
+                        "name": "200-Day Moving Average",
+                        "color": MARKET_COLORS["safe"],
+                        "opacity": 0.8,
+                    }
+                )
+
+            # Add Bollinger Bands as dashed light-grey lines
+            if (
+                "MSCI_BB_Upper" in msci_data.columns
+                and not msci_data["MSCI_BB_Upper"].isna().all()
+            ):
+                curves.extend(
+                    [
+                        {
+                            "x": msci_data.index,
+                            "y": msci_data["MSCI_BB_Upper"],
+                            "name": "Bollinger Upper",
+                            "color": "rgba(128,128,128,0.5)",
+                            "opacity": 0.6,
+                        },
+                        {
+                            "x": msci_data.index,
+                            "y": msci_data["MSCI_BB_Lower"],
+                            "name": "Bollinger Lower",
+                            "color": "rgba(128,128,128,0.5)",
+                            "opacity": 0.6,
+                        },
+                    ]
+                )
+
+            # Add all curves as historical curves
+            if curves:
+                add_historical_curves(fig, curves)
+
+            # Add main MSCI World data series on top (drawn last, appears on top)
+            add_main_series(fig, msci_data, config, "MSCI_World")
+
+            async with self:
+                self.chart_figure_msci_world = fig
+                yield rx.toast.success("MSCI World chart updated successfully")
+
+        except Exception as e:
+            # Chart generation error - wrap in PageOutputException
+            raise PageOutputException(
+                output_type="MSCI World chart",
+                message=f"Failed to generate MSCI World chart: {e}",
+                user_message=(
+                    "Failed to generate MSCI World chart. "
+                    "Please try refreshing the data."
+                ),
+                context={"base_date_option": self.base_date_option, "error": str(e)},
+            ) from e
+        finally:
+            async with self:
+                self.loading_msci_world = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_crypto_chart(self):
+        """Update the cryptocurrency (Bitcoin and Ethereum) chart in background."""
+        async with self:
+            self.loading_crypto = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("crypto")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get cryptocurrency data
+            crypto_result = await fetch_crypto_data(base_date)
+            crypto_data = crypto_result.get("data")
+
+            if crypto_data is None or crypto_data.empty:
+                async with self:
+                    self.chart_figure_crypto = go.Figure()
+                    yield rx.toast.warning(
+                        "No cryptocurrency data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded crypto data: {crypto_data.shape[0]} data points"
+                )
+
+            # Create comparison chart configuration
+            config = ChartConfig(
+                title="Cryptocurrency Prices",
+                yaxis_title="Price (USD)",
+                hover_format="Price: %{y:.2f}<br>",
+                height=400,
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Create comparison chart for Bitcoin vs Ethereum
+            from app.lib.charts import create_comparison_chart
+
+            fig = create_comparison_chart(crypto_data, config, theme_colors)
+
+            async with self:
+                self.chart_figure_crypto = fig
+                yield rx.toast.success("Cryptocurrency chart updated successfully")
+
+        except Exception as e:
+            async with self:
+                self.chart_figure_crypto = go.Figure()
+                yield rx.toast.error(f"Failed to update crypto chart: {str(e)}")
+            # Re-raise as PageOutputException for better handling
+            raise PageOutputException(
+                output_type="crypto_chart",
+                message=f"Failed to generate cryptocurrency chart: {e}",
+                user_message="Failed to load cryptocurrency chart. Please try again.",
+                context={"base_date_option": self.base_date_option},
+            ) from e
+        finally:
+            async with self:
+                self.loading_crypto = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
+    async def update_crude_oil_chart(self):
+        """Update the crude oil (WTI and Brent) chart in background."""
+        async with self:
+            self.loading_crude_oil = True
+
+        try:
+            # Calculate base date
+            base_date = self._get_base_date()
+            if base_date is None:
+                # For MAX option, use appropriate fallback date
+                base_date = get_max_fallback_date("crude_oil")
+            else:
+                base_date = datetime.strptime(base_date, "%Y-%m-%d")
+
+            async with self:
+                message = format_date_range_message(
+                    self.base_date_option,
+                    base_date if self.base_date_option != "MAX" else None,
+                )
+                yield rx.toast.info(message)
+
+            # Get crude oil data
+            crude_oil_result = await fetch_crude_oil_data(base_date)
+            crude_oil_data = crude_oil_result.get("data")
+
+            if crude_oil_data is None or crude_oil_data.empty:
+                async with self:
+                    self.chart_figure_crude_oil = go.Figure()
+                    yield rx.toast.warning(
+                        "No crude oil data available for selected date range"
+                    )
+                return
+
+            # Log successful data fetch
+            async with self:
+                yield rx.toast.success(
+                    f"Loaded crude oil data: {crude_oil_data.shape[0]} data points"
+                )
+
+            # Create comparison chart configuration
+            config = ChartConfig(
+                title="Crude Oil Prices",
+                yaxis_title="Price (USD/bbl)",
+                hover_format="Price: %{y:.2f}<br>",
+                height=400,
+            )
+
+            # Get theme colors
+            theme_colors = self.get_theme_colors()
+
+            # Import create_comparison_chart here to avoid circular imports
+            from app.lib.charts import create_comparison_chart
+
+            # Create the chart
+            fig = create_comparison_chart(crude_oil_data, config, theme_colors)
+
+            async with self:
+                self.chart_figure_crude_oil = fig
+                yield rx.toast.success("Crude oil chart updated successfully")
+
+        except Exception as e:
+            raise PageOutputException(
+                output_type="crude_oil_chart",
+                message=f"Failed to generate crude oil chart: {e}",
+                user_message="Failed to load crude oil chart. Please try again.",
+                context={"base_date_option": self.base_date_option},
+            ) from e
+        finally:
+            async with self:
+                self.loading_crude_oil = False
+
+    @rx.event(background=True)  # pylint: disable=not-callable
     async def run_workflows(self):
         """Load initial chart data."""
         yield MarketState.update_buffet_chart
         yield MarketState.update_vix_chart
         yield MarketState.update_yield_chart
         yield MarketState.update_currency_chart
+        yield MarketState.update_precious_metals_chart
+        yield MarketState.update_crypto_chart
+        yield MarketState.update_crude_oil_chart
+        yield MarketState.update_bloomberg_commodity_chart
+        yield MarketState.update_msci_world_chart
 
 
 def plots_currencies() -> rx.Component:
@@ -715,8 +1278,16 @@ def plots_currencies() -> rx.Component:
 
 
 def plots_msci_world() -> rx.Component:
-    """MSCI World plot."""
-    return rx.box(rx.text("MSCI World plot"))
+    """MSCI World Index plot with moving averages and Bollinger bands."""
+    return rx.cond(
+        MarketState.loading_msci_world,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_msci_world,
+            width="100%",
+            height="400px",
+        ),
+    )
 
 
 def tabs_overview() -> rx.Component:
@@ -848,6 +1419,84 @@ def tabs_eu() -> rx.Component:
     )
 
 
+def plots_precious_metals() -> rx.Component:
+    """Precious Metals plot (Gold Futures)."""
+    return rx.cond(
+        MarketState.loading_precious_metals,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_precious_metals,
+            width="100%",
+            height="400px",
+        ),
+    )
+
+
+def plots_crypto_currencies() -> rx.Component:
+    """Cryptocurrency prices plot (Bitcoin and Ethereum)."""
+    return rx.cond(
+        MarketState.loading_crypto,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_crypto,
+            width="100%",
+            height="400px",
+        ),
+    )
+
+
+def plots_crude_oil() -> rx.Component:
+    """Crude oil prices plot (WTI and Brent)."""
+    return rx.cond(
+        MarketState.loading_crude_oil,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_crude_oil,
+            width="100%",
+            height="400px",
+        ),
+    )
+
+
+def plots_commodity_index() -> rx.Component:
+    """Bloomberg Commodity Index plot."""
+    return rx.cond(
+        MarketState.loading_bloomberg_commodity,
+        rx.center(rx.spinner(), height="400px"),
+        rx.plotly(
+            data=MarketState.chart_figure_bloomberg_commodity,
+            width="100%",
+            height="400px",
+        ),
+    )
+
+
+def tabs_commodities() -> rx.Component:
+    """Commodities tab content."""
+    return rx.vstack(
+        rx.hstack(
+            rx.text("Period:", font_weight="bold"),
+            rx.select(
+                MarketState.base_date_options,
+                value=MarketState.base_date_option,
+                on_change=MarketState.set_base_date,
+            ),
+            spacing="2",
+            align="center",
+            justify="start",
+        ),
+        rx.grid(
+            rx.card(plots_precious_metals()),
+            rx.card(plots_crypto_currencies()),
+            rx.card(plots_crude_oil()),
+            rx.card(plots_commodity_index()),
+            columns="2",
+            spacing="3",
+            width="100%",
+        ),
+    )
+
+
 # pylint: disable=not-callable
 @rx.page(
     route="/markets",
@@ -860,14 +1509,18 @@ def page():
         rx.heading("Markets", size="6", margin_bottom="1rem"),
         rx.tabs.root(
             rx.tabs.list(
-                rx.tabs.trigger("Summary", value="summary"),
+                rx.tabs.trigger("Overview", value="overview"),
                 rx.tabs.trigger("US", value="us"),
                 rx.tabs.trigger("Europe", value="eu"),
+                rx.tabs.trigger("Commodities", value="commodities"),
                 # Emerging markets
             ),
-            rx.tabs.content(tabs_overview(), value="summary", padding_top="1rem"),
+            rx.tabs.content(tabs_overview(), value="overview", padding_top="1rem"),
             rx.tabs.content(tabs_us(), value="us", padding_top="1rem"),
             rx.tabs.content(tabs_eu(), value="eu", padding_top="1rem"),
+            rx.tabs.content(
+                tabs_commodities(), value="commodities", padding_top="1rem"
+            ),
             value=MarketState.active_tab,
             on_change=MarketState.set_active_tab,
             width="100%",
