@@ -6,6 +6,11 @@ install:
 build:
 	.venv/bin/reflex compile
 
+# export frontend and backend (beware API_URL)
+# https://reflex.dev/docs/hosting/self-hosting/
+export:
+	.venv/bin/reflex export
+
 reset:
 	rm -rf .web
 

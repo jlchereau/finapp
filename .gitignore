@@ -15,3 +15,7 @@ temp/
 # Coverage artifacts
 .coverage
 htmlcov/
+
+# Export
+frontend.zip
+backend.zip
