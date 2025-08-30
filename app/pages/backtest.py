@@ -11,7 +11,9 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 
 # pylint: disable=not-callable
-@rx.page(route="/backtest")  # pyright: ignore[reportArgumentType]
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable]
+@rx.page(route="/backtest")
 @template
 def page():
     """The backtest page."""

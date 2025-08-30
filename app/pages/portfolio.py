@@ -9,7 +9,9 @@ class PortfolioState(rx.State):  # pylint: disable=inherit-non-class
 
 
 # pylint: disable=not-callable
-@rx.page(route="/portfolio")  # pyright: ignore[reportArgumentType]
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable]
+@rx.page(route="/portfolio")
 @template
 def page():
     """The portfolio page."""

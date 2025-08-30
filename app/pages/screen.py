@@ -22,16 +22,19 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         "Katelyn Rohan",
     ]
 
+    # pyrefly: ignore[not-callable]
     @rx.event
     def set_text(self, value: str) -> None:
         """Set the text."""
         self.text = value
 
+    # pyrefly: ignore[not-callable]
     @rx.event
     def set_selected(self, value: str) -> None:
         """Set selected value."""
         self.selected = value
 
+    # pyrefly: ignore[not-callable]
     @rx.event
     def set_searched(self, value: str | None) -> None:
         """Set searched value."""
@@ -39,7 +42,9 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 
 # pylint: disable=not-callable
-@rx.page(route="/screen")  # pyright: ignore[reportArgumentType]
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable]
+@rx.page(route="/screen")
 @template
 def page():
     """The screen page."""

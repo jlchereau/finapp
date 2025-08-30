@@ -122,41 +122,41 @@ def log_grid() -> rx.Component:
 
 def confirm_delete_dialog() -> rx.Component:
     """Delete confirmation dialog."""
-    return (
-        rx.alert_dialog.root(
-            rx.alert_dialog.content(
-                rx.alert_dialog.title("Delete Cache"),
-                rx.alert_dialog.description(
-                    f"Are you sure you want to delete the cache folder "
-                    f"'{State.selected_cache}'? This action cannot be undone."
-                ),
-                rx.flex(
-                    rx.alert_dialog.cancel(
-                        rx.button(
-                            "Cancel",
-                            variant="soft",
-                            on_click=State.cancel_delete,
-                        )
-                    ),
-                    rx.alert_dialog.action(
-                        rx.button(
-                            "Delete",
-                            variant="solid",
-                            color="red",
-                            on_click=State.confirm_delete,
-                        )
-                    ),
-                    spacing="3",
-                    justify="end",
-                ),
+    return rx.alert_dialog.root(
+        rx.alert_dialog.content(
+            rx.alert_dialog.title("Delete Cache"),
+            rx.alert_dialog.description(
+                f"Are you sure you want to delete the cache folder "
+                f"'{State.selected_cache}'? This action cannot be undone."
             ),
-            open=State.show_delete_dialog,
+            rx.flex(
+                rx.alert_dialog.cancel(
+                    rx.button(
+                        "Cancel",
+                        variant="soft",
+                        on_click=State.cancel_delete,
+                    )
+                ),
+                rx.alert_dialog.action(
+                    rx.button(
+                        "Delete",
+                        variant="solid",
+                        color="red",
+                        on_click=State.confirm_delete,
+                    )
+                ),
+                spacing="3",
+                justify="end",
+            ),
         ),
+        open=State.show_delete_dialog,
     )
 
 
 # pylint: disable=not-callable
-@rx.page(route="/cache", on_load=State.on_load)  # pyright: ignore[reportArgumentType]
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable]
+@rx.page(route="/cache", on_load=State.on_load)
 @template
 def page():
     """The cache management page."""
