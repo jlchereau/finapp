@@ -1,7 +1,6 @@
-install:
-	.venv/bin/pip install -U pip &&\
-	.venv/bin/pip install -r requirements-dev.txt &&\
-	.venv/bin/pip install -U twsapi/IBJts/source/pythonclient
+# update code agents
+agents:
+	npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex
 
 build:
 	.venv/bin/reflex compile
@@ -11,6 +10,28 @@ build:
 export:
 	.venv/bin/reflex export
 
+# flake8 will auto-read .flake8
+flake8:
+	.venv/bin/flake8 app/ tests/ *.py
+
+# format using black
+format:
+	.venv/bin/black app/ tests/ *.py
+
+# install dev environment
+install:
+	.venv/bin/pip install -U pip &&\
+	.venv/bin/pip install -r requirements-dev.txt &&\
+	.venv/bin/pip install -U twsapi/IBJts/source/pythonclient
+
+# lint with pylint
+pylint:
+	.venv/bin/pylint --disable=R,C app/ tests/ *.py
+
+pyrefly:
+	.venv/bin/pyrefly check
+
+# reset frontend (nextJS application)
 reset:
 	rm -rf .web
 
@@ -23,24 +44,12 @@ run:
 	@sleep 1
 	REFLEX_ENV_FILE=.env .venv/bin/reflex run
 
+# run unit tests
 test:
 	.venv/bin/python -m pytest -vv tests/
 
-format:
-	.venv/bin/black app/ tests/ *.py
+# lint with flake8, pylint and pyrefly
+lint: flake8 pylint pyrefly
 
-pylint:
-	.venv/bin/pylint --disable=R,C app/ tests/ *.py
-
-# flake8 will auto-read .flake8
-flake8:
-	.venv/bin/flake8 app/ tests/ *.py
-
-# lint with flake8 and pylint
-lint: flake8 pylint
-
+# Run all
 all: install format lint test
-
-# update code agents
-agents:
-	npm install -g @anthropic-ai/claude-code @google/gemini-cli @openai/codex

@@ -4,6 +4,7 @@ flake8
 ipykernel
 pylint
 pylint-per-file-ignores
+pyrefly
 pytest
 pytest-asyncio
 pytest-cov

@@ -17,18 +17,17 @@ numpy
 orjson
 pandas
 pybind11
-matplotlib
-# mosek
 plotly
-pyarrow
+pyarrow  # to open parquet files in pandas
 riskfolio-lib
 scikit-learn
-# TA-Lib
+TA-Lib
 yfinance
 reflex
 # https://pypi.org/org/Reflex/ for other components
 # reflex-global-hotkey
 # reflex-monaco
 # reflex-motion
-reflex-pyplot
+# reflex-pyplot  # if using matplotlib
 # reflex-resizable-panels
+xlrd  # to open Excel files in pandas
