@@ -53,19 +53,25 @@ class MarketState(rx.State):
     active_tab: rx.Field[str] = rx.field("overview")
 
     # Chart settings
-    base_date_option: rx.Field[str] = rx.field(get_period_default())
-    base_date_options: rx.Field[List[str]] = rx.field(get_period_options())
+    base_date_option: rx.Field[str] = rx.field(default_factory=get_period_default)
+    base_date_options: rx.Field[List[str]] = rx.field(
+        default_factory=get_period_options
+    )
 
     # Chart data
-    chart_figure_buffet: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_vix: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_yield: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_currency: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_precious_metals: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_crypto: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_crude_oil: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_bloomberg_commodity: rx.Field[go.Figure] = rx.field(go.Figure())
-    chart_figure_msci_world: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_buffet: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_vix: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_yield: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_currency: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_precious_metals: rx.Field[go.Figure] = rx.field(
+        default_factory=go.Figure
+    )
+    chart_figure_crypto: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_crude_oil: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_bloomberg_commodity: rx.Field[go.Figure] = rx.field(
+        default_factory=go.Figure
+    )
+    chart_figure_msci_world: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
 
     # Loading state
     loading_buffet: rx.Field[bool] = rx.field(False)

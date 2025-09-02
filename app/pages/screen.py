@@ -10,17 +10,19 @@ from app.components.querybuilder import querybuilder, Field
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
 
-    text: str = ""
-    selected: str = ""
-    searched: str | None = None
+    text: rx.Field[str] = rx.field("")
+    selected: rx.Field[str] = rx.field("")
+    searched: rx.Field[str | None] = rx.field(None)
 
-    options = [
-        "Durward Reynolds",
-        "Kenton Towne",
-        "Therese Wunsch",
-        "Benedict Kessler",
-        "Katelyn Rohan",
-    ]
+    options: rx.Field[list[str]] = rx.field(
+        default_factory=lambda: [
+            "Durward Reynolds",
+            "Kenton Towne",
+            "Therese Wunsch",
+            "Benedict Kessler",
+            "Katelyn Rohan",
+        ]
+    )
 
     # pyrefly: ignore[not-callable]
     @rx.event

@@ -9,19 +9,21 @@ from app.templates.template import template
 class State(rx.State):  # pylint: disable=inherit-non-class
     """The app state."""
 
-    cache_dirs: List[str] = []
-    selected_cache: str = ""
-    log_data: List[Dict[str, Any]] = []
-    log_columns: List[str] = [
-        "timestamp",
-        "level",
-        "message",
-        "context",
-        "file",
-        "function",
-    ]
-    show_delete_dialog: bool = False
-    is_loading: bool = False
+    cache_dirs: rx.Field[List[str]] = rx.field(default_factory=list)
+    selected_cache: rx.Field[str] = rx.field("")
+    log_data: rx.Field[List[Dict[str, Any]]] = rx.field(default_factory=list)
+    log_columns: rx.Field[List[str]] = rx.field(
+        default_factory=lambda: [
+            "timestamp",
+            "level",
+            "message",
+            "context",
+            "file",
+            "function",
+        ]
+    )
+    show_delete_dialog: rx.Field[bool] = rx.field(False)
+    is_loading: rx.Field[bool] = rx.field(False)
 
     @property
     def storage(self) -> DateBasedStorage:

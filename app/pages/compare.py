@@ -1,9 +1,11 @@
+# pylint: disable=too-many-lines
 """
 Compare page - Stock comparison and analysis
 """
 
-from typing import List, Optional
 from datetime import datetime
+from random import uniform
+from typing import List, Optional
 
 import pandas as pd
 import reflex as rx
@@ -27,9 +29,13 @@ from app.lib.charts import (
     get_default_theme_colors,
 )
 from app.lib.metrics import (
-    show_metrics_as_badge,
+    show_metric_as_badge,
+    IntegerTemplate,
+    LargeCurrencyTemplate,
+    # show_metric_as_gauge,  # not yet implemented
 )
 from app.lib.periods import (
+    get_period_default,
     get_period_options,
     calculate_base_date,
     get_max_fallback_date,
@@ -38,31 +44,50 @@ from app.lib.periods import (
 from app.templates.template import template
 
 
-class CompareState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class,too-many-instance-attributes
+class CompareState(rx.State):
     """State management for the compare page."""
 
+    # Currency selection
+    currency: rx.Field[str] = rx.field("USD")
+    currencies: rx.Field[List[str]] = rx.field(
+        default_factory=lambda: ["USD", "EUR", "GBP"]
+    )
+
     # Ticker input and selection
-    ticker_input: str = ""
+    ticker_input: rx.Field[str] = rx.field("")
     # ticker_input2: str | None = None
-    selected_tickers: List[str] = []
-    favorites: List[str] = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "META", "NVDA"]
+    selected_tickers: rx.Field[List[str]] = rx.field(default_factory=list)
+    favorites: rx.Field[List[str]] = rx.field(
+        default_factory=lambda: [
+            "AAPL",
+            "MSFT",
+            "GOOGL",
+            "AMZN",
+            "TSLA",
+            "META",
+            "NVDA",
+        ]
+    )
 
     # Chart settings
-    active_tab: str = "plots"
-    base_date_option: str = "1Y"
-    base_date_options: List[str] = get_period_options()
+    active_tab: rx.Field[str] = rx.field("plots")
+    base_date_option: rx.Field[str] = rx.field(default_factory=get_period_default)
+    base_date_options: rx.Field[List[str]] = rx.field(
+        default_factory=get_period_options
+    )
 
     # Chart data
-    chart_figure_returns: go.Figure = go.Figure()
-    chart_figure_volatility: go.Figure = go.Figure()
-    chart_figure_volume: go.Figure = go.Figure()
-    chart_figure_rsi: go.Figure = go.Figure()
+    chart_figure_returns: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_volatility: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_volume: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+    chart_figure_rsi: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
 
     # Loading states
-    loading_returns: bool = False
-    loading_volatility: bool = False
-    loading_volume: bool = False
-    loading_rsi: bool = False
+    loading_returns: rx.Field[bool] = rx.field(False)
+    loading_volatility: rx.Field[bool] = rx.field(False)
+    loading_volume: rx.Field[bool] = rx.field(False)
+    loading_rsi: rx.Field[bool] = rx.field(False)
 
     # get_theme_colors() method moved to app.lib.charts.get_default_theme_colors()
 
@@ -161,6 +186,10 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
 
         return rsi_data
 
+    def set_currency(self, value: str):
+        """Set the currency for the comparison."""
+        self.currency = value
+
     def add_ticker(self):
         """Add ticker to selected list."""
         if not self.ticker_input:
@@ -216,7 +245,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         yield CompareState.update_volume_chart
         yield CompareState.update_rsi_chart
 
-    @rx.event(background=True)  # pylint: disable=not-callable
+    # pylint: disable=not-callable
+    # pyrefly: ignore[not-callable]
+    @rx.event(background=True)
     async def update_returns_chart(self):
         """Update the returns chart using background processing."""
         if not self.selected_tickers:
@@ -293,7 +324,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_returns = False
 
-    @rx.event(background=True)  # pylint: disable=not-callable
+    # pylint: disable=not-callable
+    # pyrefly: ignore[not-callable]
+    @rx.event(background=True)
     async def update_volatility_chart(self):
         """Update the volatility chart using background processing."""
         if not self.selected_tickers:
@@ -349,7 +382,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_volatility = False
 
-    @rx.event(background=True)  # pylint: disable=not-callable
+    # pylint: disable=not-callable
+    # pyrefly: ignore[not-callable]
+    @rx.event(background=True)
     async def update_volume_chart(self):
         """Update the volume chart using background processing."""
         if not self.selected_tickers:
@@ -402,7 +437,9 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_volume = False
 
-    @rx.event(background=True)  # pylint: disable=not-callable
+    # pylint: disable=not-callable
+    # pyrefly: ignore[not-callable]
+    @rx.event(background=True)
     async def update_rsi_chart(self):
         """Update the RSI chart using background processing."""
         if not self.selected_tickers:
@@ -489,6 +526,20 @@ class CompareState(rx.State):  # pylint: disable=inherit-non-class
         return base_date.strftime("%Y-%m-%d")
 
 
+def currency_input_section() -> rx.Component:
+    """Currency input section with dropdown."""
+    return rx.vstack(
+        rx.text("Currency:", font_weight="bold"),
+        rx.select(
+            CompareState.currencies,
+            value=CompareState.currency,
+            on_change=CompareState.set_currency,
+        ),
+        width="100%",
+        spacing="2",
+    )
+
+
 def ticker_input_section() -> rx.Component:
     """Ticker input section with favorites dropdown."""
     return rx.vstack(
@@ -530,7 +581,7 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
     return rx.hstack(
         rx.vstack(
             rx.text(ticker, font_weight="bold", font_size="sm"),
-            rx.text(ticker + " Inc", font_size="xs", color="gray"),
+            rx.text(ticker.to_string() + " Inc", font_size="xs", color="gray"),
             align="start",
             spacing="0",
             flex="1",
@@ -541,16 +592,22 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 rx.icon("heart", size=16),
                 size="2",
                 variant="solid",
+                # Note using a partial resolves pylint and pyright linting issues
+                # but then reflex compile fails
                 # pylint: disable=no-value-for-parameter
-                on_click=CompareState.toggle_favorite(ticker),
+                # pyrefly: ignore[missing-argument,bad-argument-type]
+                on_click=lambda _: CompareState.toggle_favorite(ticker),
             ),
             rx.button(
                 rx.icon("minus", size=16),
                 size="2",
                 variant="solid",
                 color_scheme="red",
+                # Note using a partial resolves pylint and pyright linting issues
+                # but reflex compile then fails
                 # pylint: disable=no-value-for-parameter
-                on_click=CompareState.remove_ticker(ticker),
+                # pyrefly: ignore[missing-argument,bad-argument-type]
+                on_click=lambda _: CompareState.remove_ticker(ticker),
             ),
             spacing="1",
         ),
@@ -567,6 +624,7 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
 def left_sidebar() -> rx.Component:
     """Left sidebar with ticker selection."""
     return rx.vstack(
+        currency_input_section(),
         ticker_input_section(),
         ticker_list_section(),
         width="400px",
@@ -580,51 +638,247 @@ def left_sidebar() -> rx.Component:
     )
 
 
-def metrics_valuation() -> rx.Component:
-    """Metrics valuation section."""
+def metrics_asset_valuation() -> rx.Component:
+    """Asset valuation section."""
     return rx.table.root(
         rx.table.header(
+            # Metrics column + one column per ticker
             rx.table.row(
                 rx.table.column_header_cell("Metrics"),
-                # one column per ticker, on line per metric
                 rx.table.column_header_cell("AMZN"),
                 rx.table.column_header_cell("GOOG"),
             ),
         ),
         rx.table.body(
+            # One row per metric
             rx.table.row(
                 rx.table.row_header_cell("Quote"),
-                rx.table.cell(show_metrics_as_badge(154.5, 125.2, 145.3)),
-                rx.table.cell(show_metrics_as_badge(2729.3, 3500.1, 4600.5)),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
             ),
             rx.table.row(
                 rx.table.row_header_cell("DCF"),
-                rx.table.cell(show_metrics_as_badge(154.5, 125.2, 145.3)),
-                rx.table.cell(show_metrics_as_badge(2729.3, 3500.1, 4600.5)),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+            ),
+            # ---------------------------
+            # TODO: Other valuations
+            # ---------------------------
+            # ---------------------------
+            # TODO: Discount to fair value of at least 30%, ideally 50%
+            # ---------------------------
+        ),
+        width="100%",
+    )
+
+
+def metrics_graham_indicators() -> rx.Component:
+    """
+    Graham indicators section.
+
+    Metrics can be found in Chapter 14 pages 367 and after of
+    The Intelligent Investor (4th revised edition) by Benjamin Graham.
+    """
+    integer_template = IntegerTemplate()
+    large_currency_template = LargeCurrencyTemplate()
+    return rx.table.root(
+        # Metrics column + one column per ticker
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Metrics"),
+                rx.table.column_header_cell("AMZN"),
+                rx.table.column_header_cell("GOOG"),
+            ),
+        ),
+        # One row per metric
+        rx.table.body(
+            rx.table.row(
+                rx.table.row_header_cell("Market Capitalization"),
+                # According to Graham, larger companies are generally more stable
+                # Market cap should be at least $2 billion
+                # and preferably over $5 billion
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(1000000000, 150000000000),
+                        2000000000.0,
+                        5000000000.0,
+                        large_currency_template,
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(1000000000, 150000000000),
+                        2000000000.0,
+                        5000000000.0,
+                        large_currency_template,
+                    )
+                ),
+            ),
+            rx.table.row(
+                rx.table.row_header_cell("Annual Revenue"),
+                # According to Graham, larger companies are generally more stable
+                # Annual revenue should be at least $1 billion
+                # and preferably over $3 billion
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(1000000000, 150000000000),
+                        1000000000.0,
+                        3000000000.0,
+                        large_currency_template,
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(1000000000, 150000000000),
+                        2000000000.0,
+                        5000000000.0,
+                        large_currency_template,
+                    )
+                ),
+            ),
+            rx.table.row(
+                rx.table.row_header_cell("Current Ratio"),
+                # According to Graham, a current ratio of 2 or higher is considered
+                # healthy for a strong financial condition
+                # (current assets >= 2 * current liabilities)
+                rx.table.cell(show_metric_as_badge(uniform(0, 20), 1.5, 2)),
+                rx.table.cell(show_metric_as_badge(uniform(0, 20), 1.5, 2)),
+            ),
+            # ---------------------------
+            # TODO: Long term debt does not exceed working capital (p371)
+            # (or net current assets but is this the same?)
+            # ---------------------------
+            rx.table.row(
+                rx.table.row_header_cell("Years Positive Earnings"),
+                # According to Graham, positive earnings for the past 10 years are
+                # required to demonstrate earnings stability
+                rx.table.cell(
+                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_template)
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_template)
+                ),
+            ),
+            # ---------------------------
+            # TODO: Years dividend paid (ideally 20 years)
+            # Years dividend growth
+            # ---------------------------
+            # ---------------------------
+            # TODO: EPS growth of 50% over 10 years (or 4% per year compounded)
+            # ---------------------------
+            # ---------------------------
+            # TODO: Moderate PE ratio: use current price / average earnings
+            # over the past 3 years <= 15
+            # ---------------------------
+            # ---------------------------
+            # TODO: Moderate PB ratio (= price to assets?): less than 1.5 (best)
+            # no more than 2.5 (worst)
+            # ---------------------------
+            # ---------------------------
+            # TODO: Make sure PE * PB <= 22.5
+            # ---------------------------
+        ),
+        width="100%",
+    )
+
+
+def metrics_analyst_ratings() -> rx.Component:
+    """Analyst ratings section."""
+    return rx.table.root(
+        # Metrics column + one column per ticker
+        rx.table.header(
+            rx.table.row(
+                rx.table.column_header_cell("Metrics"),
+                rx.table.column_header_cell("AMZN"),
+                rx.table.column_header_cell("GOOG"),
+            ),
+        ),
+        # One row per metric
+        rx.table.body(
+            rx.table.row(
+                rx.table.row_header_cell("Tipranks"),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+            ),
+            rx.table.row(
+                rx.table.row_header_cell("Zacks"),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
+                rx.table.cell(
+                    show_metric_as_badge(
+                        uniform(100, 150),
+                        uniform(80, 120),
+                        uniform(130, 160),
+                    )
+                ),
             ),
         ),
         width="100%",
     )
 
 
-def metrics_graham() -> rx.Component:
-    return rx.text("Graham metrics - coming soon...", color="gray")
-
-
 def metrics_tab_content() -> rx.Component:
-    """Metrics tab - cleared for simplification."""
+    """Metrics tab showing various financial metrics."""
     return rx.box(
         rx.section(
-            rx.heading("Valuation", size="5"),
+            rx.heading("Valuation", size="5", margin_bottom="1rem"),
             rx.divider(),
-            metrics_valuation(),
+            metrics_asset_valuation(),
             padding_left="1rem",
             padding_right="1rem",
         ),
         rx.section(
-            rx.heading("Graham", size="5"),
+            rx.heading("Graham Indicators", size="5", margin_bottom="1rem"),
             rx.divider(),
-            metrics_graham(),
+            metrics_graham_indicators(),
+            padding_left="1rem",
+            padding_right="1rem",
+        ),
+        rx.section(
+            rx.heading("Analyst Ratings", size="5", margin_bottom="1rem"),
+            rx.divider(),
+            metrics_analyst_ratings(),
             padding_left="1rem",
             padding_right="1rem",
         ),
@@ -638,7 +892,7 @@ def plots_asset_returns() -> rx.Component:
         CompareState.loading_returns,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
+            CompareState.selected_tickers.length() > 0,
             rx.plotly(
                 data=CompareState.chart_figure_returns,
                 width="100%",
@@ -658,7 +912,7 @@ def plots_asset_volumes() -> rx.Component:
         CompareState.loading_volume,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
+            CompareState.selected_tickers.length() > 0,
             rx.plotly(
                 data=CompareState.chart_figure_volume,
                 width="100%",
@@ -678,7 +932,7 @@ def plots_asset_relative_strength() -> rx.Component:
         CompareState.loading_rsi,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
+            CompareState.selected_tickers.length() > 0,
             rx.plotly(
                 data=CompareState.chart_figure_rsi,
                 width="100%",
@@ -698,7 +952,7 @@ def plots_asset_volatility() -> rx.Component:
         CompareState.loading_volatility,
         rx.center(rx.spinner(), height="300px"),
         rx.cond(
-            CompareState.selected_tickers.length() > 0,  # pylint: disable=no-member
+            CompareState.selected_tickers.length() > 0,
             rx.plotly(
                 data=CompareState.chart_figure_volatility,
                 width="100%",
@@ -774,6 +1028,8 @@ def main_content() -> rx.Component:
 
 
 # pylint: disable=not-callable
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable]
 @rx.page(
     route="/compare",
     on_load=CompareState.update_all_charts,  # pyright: ignore[reportArgumentType]
