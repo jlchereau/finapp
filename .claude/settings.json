@@ -2,6 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(find:*)",
+      "Bash(grep:*)",
+      "WebFetch(domain:reflex.dev)",
       "Bash(make format)",
       "Bash(make lint)",
       "Bash(make build)",
@@ -9,6 +11,7 @@
       "Bash(.venv/bin/blake:*)",
       "Bash(.venv/bin/flake8:*)",
       "Bash(.venv/bin/pylint:*)",
+      "Bash(.venv/bin/pyrefly:*)",
       "Bash(.venv/bin/python -m pytest:*)",
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_take_screenshot"
