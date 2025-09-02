@@ -5,7 +5,7 @@ load-plugins=pylint_per_file_ignores
 # Per-file ignores for test files to handle legitimate pytest patterns
 # that are not applicable to production code quality standards
 per-file-ignores =
-    /tests/:protected-access,redefined-outer-name,attribute-defined-outside-init,reimported,unused-argument,broad-exception-caught
+    tests/**:protected-access,redefined-outer-name,attribute-defined-outside-init,reimported,unused-argument,broad-exception-caught
 
 # Justification for each disabled message in test files:
 # - protected-access: Tests need to access private methods/attributes for thorough testing
