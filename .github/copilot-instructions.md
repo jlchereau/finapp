@@ -268,8 +268,9 @@ FinApp uses a clean 3-layer exception architecture with clear separation of conc
 - **Context tracking**: All exceptions include relevant context for debugging
 
 ## Key Notes
-- Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between coverage and maintainability.
+- Always maintain unit tests in line with code changes, ensuring all new features and bug fixes are covered, while striking the right balance between good coverage and high maintainability (low complexity).
 - Virtual environment is located at `.venv/`. Accordingly the environment should be activated using `source .venv/bin/activate` or commands should be run with the `.venv/bin/` prefix (see Makefile).
 - Always format, lint (and fix), build (and fix) and test (and fix) your code. Iterate with commands limited to the scope of your changes (except for format and build which are fast). Once done, run `make format`, `make lint`, `make build` and `make test` to check for regressions across the entire application.
+- Avoid hiding lint issues with `# flake8: noqa]`, `# pylint: disable=*`, `# pyright: ignore[*]` or `# pyrefly: ignore[*]` comments as this is not fixing.
 - Ask me to run `make run` to start the application, as this is a blocking command that is hard to kill properly.
-- Do not use python `tempfile`. Use workspace @temp/ (in .gitignore) for unit test storage and experimentations (it makes it easier to monitor and clear ghost files manually)
+- Do not use python `tempfile`. Use workspace @temp/ (in .gitignore) for unit test storage and experimentations (it makes it easier to monitor and clear ghost files manually).
