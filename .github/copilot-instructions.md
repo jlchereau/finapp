@@ -36,20 +36,22 @@ make run      # Run the Reflex application using '.venv/bin/reflex run'
 ### Code Quality
 ```bash
 make format   # Format code with black (app/, tests/, *.py)
-make lint     # Run pylint on app/, tests/, *.py (disable R,C categories)
+make lint     # Run flake8, pylint, and pyrefly on app/, tests/, *.py
 make all      # Run install, format, lint, test in sequence
 ```
 
-**IMPORTANT - Pylint Configuration**: 
-- Uses `pylint-per-file-ignores` plugin configured in `.pylintrc` to disable specific checks on test files
-- Test files automatically ignore `protected-access` and `redefined-outer-name` violations (common in pytest fixtures)
+**IMPORTANT - Tool Configuration**: 
+- Uses `pyproject.toml` for centralized tool configuration (black, pylint, pytest, coverage, pyrefly)
+- Pylint configured with `pylint-per-file-ignores` plugin to disable specific checks on test files
+- Test files automatically ignore `protected-access`, `redefined-outer-name`, and other pytest-specific violations
+- Flake8 uses separate `.flake8` file (v7.3.0 doesn't support pyproject.toml natively)
 - **NEVER use `# pylint: disable=*` comments in code** - these should be considered LAST RESORT only when no coding alternative exists
 - Always prefer fixing the underlying code issue rather than suppressing the warning
-- Per-file ignores in `.pylintrc` are acceptable for systematic test-specific patterns that cannot be avoided
+- Per-file ignores in `pyproject.toml` are acceptable for systematic test-specific patterns that cannot be avoided
 
 ### Testing
 ```bash
-make test     # Run pytest on app/ and tests/ directories
+make test     # Run pytest with coverage on tests/ directory (-vv verbosity)
 ```
 
 Code agents can consider these make commands as safe to execute without requiring additional confirmation, as they are designed to maintain the integrity of the codebase and ensure a smooth development workflow.
@@ -65,11 +67,11 @@ Examples at:
 
 ## Coding Guidelines
 
-Code is written in Python >=3.10 (a requirement for Reflex), leveraging Reflex components for the UI and state management. Compilation generates a React single-page application (SPA) with a python backend. Follow [documented reflex conventions](https://reflex.dev/docs) and recent Python best practices considering there is no need to support any version of Python <3.10.
+Code is written in Python >=3.12 (configured in pyproject.toml), leveraging Reflex components for the UI and state management. Compilation generates a React single-page application (SPA) with a python backend. Follow [documented reflex conventions](https://reflex.dev/docs) and recent Python best practices considering there is no need to support any version of Python <3.12.
 
 Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
-Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `pylint` for static code analysis, focusing on code quality and potential issues. Run `.venv/bin/python -m pytest` on the scope of your changes while iterating. Use `make test` to run all unit tests ensuring code correctness and functionality (can take sevaral minutes). Do not test code that does not compile.
+Use `make format` to format the code with `black`, ensuring consistent style across the codebase. Use `make lint` to run `flake8`, `pylint`, and `pyrefly` for comprehensive static code analysis, focusing on code quality and potential issues. Run `.venv/bin/python -m pytest` on the scope of your changes while iterating. Use `make test` to run all unit tests with coverage reporting ensuring code correctness and functionality (can take several minutes). Do not test code that does not compile.
 
 ## Folder Structure
 
@@ -126,7 +128,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Visualization**: matplotlib, plotly
 - **Database**: duckdb
 - **Build Tools**: pybind11
-- **Development**: black, flake8, pylint, pylint-per-file-ignores, pytest, pytest-asyncio, pytest-cov, ipykernel
+- **Development**: black, flake8, pylint, pylint-per-file-ignores, pyrefly, pytest, pytest-asyncio, pytest-cov, ipykernel
 
 ## Key Architecture Features
 
@@ -193,7 +195,7 @@ All tests are automatically isolated via global configuration:
 
 ```bash
 # Safe: Run specific test modules (automatically isolated)
-.venv/bin/python -m pytest tests/flows/test_compare.py -v
+.venv/bin/python -m pytest tests/flows/test_compare.py -vv
 
 # Safe: Run all tests (automatically isolated)
 make test
