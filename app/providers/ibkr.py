@@ -8,7 +8,8 @@ https://www.interactivebrokers.com/en/trading/ibgateway-latest.php.
 
 import asyncio
 import threading
-from pandas import DataFrame
+from decimal import Decimal
+from pandas import DataFrame, Index
 from ibapi.client import EClient
 from ibapi.wrapper import EWrapper
 from ibapi.contract import Contract
@@ -56,7 +57,7 @@ class IBKRApp(EWrapper, EClient):
         self.connected.set()
 
     def position(
-        self, account: str, contract: Contract, position: float, avgCost: float
+        self, account: str, contract: Contract, position: Decimal, avgCost: float
     ):
         """Handle position updates."""
         self.positions_data.append(
@@ -104,7 +105,9 @@ class IBKRPositionsProvider(BaseProvider[DataFrame]):
         return ProviderType.IBKR_POSITIONS
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
         Fetch positions data from the IBKR API
 
@@ -161,15 +164,17 @@ class IBKRPositionsProvider(BaseProvider[DataFrame]):
                 if not app.positions_data:
                     logger.warning("No positions data received from IBKR")
                     df_positions = DataFrame(
-                        columns=[
-                            "account",
-                            "symbol",
-                            "secType",
-                            "currency",
-                            "exchange",
-                            "position",
-                            "avgCost",
-                        ]
+                        columns=Index(
+                            [
+                                "account",
+                                "symbol",
+                                "secType",
+                                "currency",
+                                "exchange",
+                                "position",
+                                "avgCost",
+                            ]
+                        )
                     )
                 else:
                     df_positions = DataFrame(app.positions_data)
@@ -216,7 +221,9 @@ class IBKRCashProvider(BaseProvider[DataFrame]):
         return ProviderType.IBKR_CASH
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
         Fetch cash data from the IBKR API
 
@@ -275,7 +282,7 @@ class IBKRCashProvider(BaseProvider[DataFrame]):
                 # Convert to DataFrame
                 if not app.cash_data:
                     logger.warning("No cash data received from IBKR")
-                    df_cash = DataFrame(columns=["account", "currency", "value"])
+                    df_cash = DataFrame(columns=Index(["account", "currency", "value"]))
                 else:
                     df_cash = DataFrame(app.cash_data)
                     logger.info(f"Successfully retrieved {len(df_cash)} cash entries")

@@ -109,6 +109,7 @@ class TestFredSeriesProvider:
             mock_settings.FRED_API_KEY = ""
             result = await self.provider.get_data("GDPC1")
             assert not result.success
+            assert result.error_message is not None
             assert "FRED_API_KEY is required" in result.error_message
             assert result.error_code == "ValueError"
 
@@ -119,6 +120,7 @@ class TestFredSeriesProvider:
             mock_settings.FRED_API_KEY = "test_key"
             result = await self.provider.get_data(None)
             assert not result.success
+            assert result.error_message is not None
             assert "Series ID must be provided" in result.error_message
             assert result.error_code == "ValueError"
 
@@ -184,6 +186,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "RetriableProviderException"
+        assert result.error_message is not None
         assert "Invalid series ID" in result.error_message
 
     @pytest.mark.asyncio
@@ -210,6 +213,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "NonRetriableProviderException"
+        assert result.error_message is not None
         assert "No data found for series ID" in result.error_message
 
     @pytest.mark.asyncio
@@ -234,6 +238,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "NonRetriableProviderException"
+        assert result.error_message is not None
         assert "Invalid request" in result.error_message
 
     @pytest.mark.asyncio
@@ -258,6 +263,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "NonRetriableProviderException"
+        assert result.error_message is not None
         assert "Invalid FRED API key" in result.error_message
 
     @pytest.mark.asyncio
@@ -282,6 +288,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "RetriableProviderException"
+        assert result.error_message is not None
         assert "HTTP error" in result.error_message
 
     @pytest.mark.asyncio
@@ -302,6 +309,7 @@ class TestFredSeriesProvider:
 
         assert not result.success
         assert result.error_code == "RetriableProviderException"
+        assert result.error_message is not None
         assert "Network error" in result.error_message
 
     @pytest.mark.asyncio
@@ -406,6 +414,7 @@ class TestFredSeriesProvider:
         result = await self.provider.get_data()  # No query parameter
 
         assert result.success is False
+        assert result.error_message is not None
         assert "must be provided" in result.error_message.lower()
         assert result.error_code == "ValueError"
 
@@ -414,6 +423,7 @@ class TestFredSeriesProvider:
         result = self.provider.get_data_sync()  # No query parameter
 
         assert result.success is False
+        assert result.error_message is not None
         assert "must be provided" in result.error_message.lower()
         assert result.error_code == "ValueError"
 

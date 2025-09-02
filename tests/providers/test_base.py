@@ -24,7 +24,9 @@ class MockProvider(BaseProvider[DataFrame]):
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.CUSTOM
 
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> DataFrame:
         """Mock implementation that returns a simple DataFrame."""
         # Providers expect non-null query for testing; None support not simulated here
         if query == "ERROR":
@@ -275,9 +277,10 @@ class TestBaseProvider:
     @pytest.mark.asyncio
     async def test_logger_usage(self):
         """Test that logger is used properly."""
-        with patch("app.providers.base.logger.info") as mock_info, patch(
-            "app.providers.base.logger.warning"
-        ) as mock_warning:
+        with (
+            patch("app.providers.base.logger.info") as mock_info,
+            patch("app.providers.base.logger.warning") as mock_warning,
+        ):
 
             # Test successful case
             await self.provider.get_data("AAPL")

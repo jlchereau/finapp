@@ -9,6 +9,7 @@ import time
 import httpx
 from pydantic import BaseModel, Field
 
+from app.lib.logger import logger
 from .base import (
     BaseProvider,
     ProviderType,
@@ -18,7 +19,6 @@ from .base import (
 )
 from .cache import cache
 from .headers import get_random_user_agent
-from app.lib.logger import logger
 
 
 class TipranksDataModel(BaseModel):
@@ -72,7 +72,9 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
         return ProviderType.CUSTOM
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
         Fetch analyst data for a ticker from Tipranks.
 
@@ -202,7 +204,9 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
         return ProviderType.CUSTOM
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
         Fetch news sentiment data for a ticker from Tipranks.
 
@@ -255,32 +259,32 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
                     f"No Tipranks news sentiment data found for query: {query}"
                 )
 
-            # Extract and transform the data structure
+            # Extract and transform the data structure with proper type conversion
             data_dict = {
                 "ticker": ticker,
-                "companyName": json_data.get("companyName", ""),
-                "score": json_data.get("score", 0.0),
-                "sectorAverageBullishPercent": json_data.get(
-                    "sectorAverageBullishPercent", 0.0
+                "companyName": str(json_data.get("companyName", "")),
+                "score": float(json_data.get("score", 0.0)),
+                "sectorAverageBullishPercent": float(
+                    json_data.get("sectorAverageBullishPercent", 0.0)
                 ),
             }
 
-            # Extract sentiment data
+            # Extract sentiment data with proper type conversion
             sentiment = json_data.get("sentiment", {})
             data_dict.update(
                 {
-                    "bullish_percent": sentiment.get("bullishPercent", 0.0),
-                    "bearish_percent": sentiment.get("bearishPercent", 0.0),
+                    "bullish_percent": float(sentiment.get("bullishPercent", 0.0)),
+                    "bearish_percent": float(sentiment.get("bearishPercent", 0.0)),
                 }
             )
 
-            # Extract buzz data
+            # Extract buzz data with proper type conversion
             buzz = json_data.get("buzz", {})
             data_dict.update(
                 {
-                    "articles_last_week": buzz.get("articlesInLastWeek", 0),
-                    "weekly_average": buzz.get("weeklyAverage", 0.0),
-                    "buzz_score": buzz.get("buzz", 0.0),
+                    "articles_last_week": int(buzz.get("articlesInLastWeek", 0)),
+                    "weekly_average": float(buzz.get("weeklyAverage", 0.0)),
+                    "buzz_score": float(buzz.get("buzz", 0.0)),
                 }
             )
 

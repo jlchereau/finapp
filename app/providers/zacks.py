@@ -65,7 +65,9 @@ class ZacksProvider(BaseProvider[BaseModel]):
         return ProviderType.ZACKS
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
         Fetch data from Zacks API.
 

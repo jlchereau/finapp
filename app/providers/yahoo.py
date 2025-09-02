@@ -55,7 +55,9 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
         return ProviderType.YAHOO_HISTORY
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
         Fetch historical price data for a ticker from yfinance.
 
@@ -152,7 +154,9 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
         return ProviderType.YAHOO_INFO
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
         Get ticker info/fundamentals from yfinance.
 

@@ -7,6 +7,7 @@ See https://www.blackrock.com/
 
 import asyncio
 import os
+from io import StringIO
 from xml.etree import ElementTree as ET
 
 import httpx
@@ -14,6 +15,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from pandas import DataFrame
 
+from app.lib.logger import logger
 from .base import (
     BaseProvider,
     ProviderType,
@@ -22,7 +24,6 @@ from .base import (
     RetriableProviderException,
 )
 from .cache import cache
-from app.lib.logger import logger
 
 
 class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
@@ -38,7 +39,9 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         return ProviderType.BLACKROCK_HOLDINGS
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
         Fetch ETF holdings data from BlackRock website.
 
@@ -196,11 +199,15 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
             links = soup.select(selector)
             for link in links:
                 href = link.get("href")
-                if href and (
-                    "fileType=xls" in href
-                    or "fileType=csv" in href
-                    or "dataType=fund" in href
-                    or "holdings" in href.lower()
+                if (
+                    href
+                    and isinstance(href, str)
+                    and (
+                        "fileType=xls" in href
+                        or "fileType=csv" in href
+                        or "dataType=fund" in href
+                        or "holdings" in href.lower()
+                    )
                 ):
                     # Convert relative URL to absolute
                     if href.startswith("/"):
@@ -277,7 +284,6 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         Returns:
             DataFrame with holdings data
         """
-        from io import StringIO
 
         # Find the start of the actual CSV data
         lines = text_content.strip().split("\n")
@@ -296,7 +302,7 @@ class BlackrockHoldingsProvider(BaseProvider[DataFrame]):
         csv_data = "\n".join(lines[csv_start_idx:])
 
         # Parse CSV
-        df = await asyncio.to_thread(pd.read_csv, StringIO(csv_data))
+        df = await asyncio.to_thread(lambda: pd.read_csv(StringIO(csv_data)))
 
         # Add ticker column
         df["ticker"] = ticker

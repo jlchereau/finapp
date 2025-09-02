@@ -46,7 +46,9 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
         return ProviderType.FRED_SERIES
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> DataFrame:
+    # @cache loses pyrefly - no easy fix
+    # pyrefly: ignore[bad-override]
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
         Fetch economic time series data from the FRED API.
 
@@ -167,7 +169,8 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
                 )
 
             # Create DataFrame with DatetimeIndex
-            df = pd.DataFrame.from_dict(data_dict, orient="index", columns=["value"])
+            df = pd.DataFrame.from_dict(data_dict, orient="index")
+            df.columns = ["value"]
             df.index.name = "date"
             df = df.sort_index()  # Ensure chronological order
 
@@ -296,7 +299,7 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
             f"{len(df.columns)} maturities ({successful_series} series)"
         )
 
-        return df
+        return df if isinstance(df, DataFrame) else DataFrame(df)
 
 
 # Factory function for easy provider creation

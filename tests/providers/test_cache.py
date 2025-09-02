@@ -13,7 +13,9 @@ class DummyDFProvider(BaseProvider[pd.DataFrame]):
         return ProviderType.CUSTOM
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> pd.DataFrame:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> pd.DataFrame:
         """Simulate fetching a DataFrame with unique content using query"""
         return pd.DataFrame({"value": [len(query) if query else 0]})
 
@@ -27,7 +29,9 @@ class DummyModelProvider(BaseProvider[SimpleModel]):
         return ProviderType.CUSTOM
 
     @cache
-    async def _fetch_data(self, query: str | None, **kwargs) -> SimpleModel:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> SimpleModel:
         return SimpleModel(value=len(query) if query else 0)
 
 

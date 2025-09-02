@@ -416,6 +416,7 @@ class TestBlackrockHoldingsProvider:
         result = await self.provider.get_data()  # No query parameter
 
         assert result.success is False
+        assert result.error_message is not None
         assert "must be provided" in result.error_message.lower()
         assert result.error_code == "NonRetriableProviderException"
 
@@ -424,6 +425,7 @@ class TestBlackrockHoldingsProvider:
         result = self.provider.get_data_sync()  # No query parameter
 
         assert result.success is False
+        assert result.error_message is not None
         assert "must be provided" in result.error_message.lower()
         assert result.error_code == "NonRetriableProviderException"
 
@@ -583,6 +585,7 @@ class TestBlackrockProviderIntegration:
 
             results = await asyncio.gather(*tasks)
 
+            assert len(results) == 2
             assert results[0].success is True
             assert results[1].success is False
             assert "not found on BlackRock website" in (results[1].error_message or "")

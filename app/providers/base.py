@@ -15,10 +15,9 @@ Such sources are Yahoo Finance, Zacks, Interactive Brokers, etc.:
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar, Generic
+from typing import Any
 from datetime import datetime
 from enum import Enum
-from pandas import DataFrame
 from pydantic import BaseModel, Field
 
 from app.lib.logger import logger
@@ -28,7 +27,7 @@ from app.lib.exceptions import FinAppException
 class NonRetriableProviderException(FinAppException):
     """Indicates a provider error that should not be retried."""
 
-    def __init__(self, message: str, provider: str = None, **kwargs):
+    def __init__(self, message: str, provider: str | None = None, **kwargs):
         super().__init__(
             message=message,
             user_message="Data source error. Please try again later.",
@@ -41,7 +40,7 @@ class NonRetriableProviderException(FinAppException):
 class RetriableProviderException(FinAppException):
     """Indicates a transient provider error that can be retried."""
 
-    def __init__(self, message: str, provider: str = None, **kwargs):
+    def __init__(self, message: str, provider: str | None = None, **kwargs):
         super().__init__(
             message=message,
             user_message="Temporary data source issue. Please try again in a moment.",
@@ -49,10 +48,6 @@ class RetriableProviderException(FinAppException):
             **kwargs,
         )
         self.provider = provider
-
-
-# Type variables for generic typing
-T = TypeVar("T", bound=DataFrame | BaseModel)
 
 
 class ProviderType(str, Enum):
@@ -80,7 +75,7 @@ class ProviderStatus(str, Enum):
     TIMEOUT = "timeout"
 
 
-class ProviderResult(BaseModel, Generic[T]):
+class ProviderResult[T](BaseModel):
     """
     Standardized result wrapper for all provider operations.
     Provides consistent error handling and metadata across providers.
@@ -154,7 +149,7 @@ class ProviderConfig(BaseModel):
     )
 
 
-class BaseProvider(ABC, Generic[T]):
+class BaseProvider[T](ABC):
     """
     Abstract base class for all providers.
     All provider classes should inherit from this class.
@@ -194,13 +189,17 @@ class BaseProvider(ABC, Generic[T]):
         raise NotImplementedError()
 
     @abstractmethod
-    async def _fetch_data(self, query: str | None, **kwargs) -> T:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> T:
         """
         Internal method to fetch data. Must be implemented by subclasses.
         This method should contain the actual data fetching logic.
 
         Args:
             query: a query, for example a stock ticker or None if not applicable
+            *args: Variable positional arguments (used by cache decorator)
+            cache_date: Optional date for cache retrieval (used by cache decorator)
             **kwargs: Additional parameters specific to the provider
 
         Returns:
