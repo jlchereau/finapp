@@ -21,6 +21,7 @@ from app.lib.charts import (
     add_trend_display,
     add_historical_curves,
     get_default_theme_colors,
+    create_comparison_chart,
 )
 from app.flows.markets import (
     fetch_buffet_indicator_data,
@@ -35,44 +36,47 @@ from app.flows.markets import (
 )
 from app.lib.exceptions import PageOutputException
 from app.lib.periods import (
+    get_period_default,
     get_period_options,
     calculate_base_date,
     get_max_fallback_date,
     format_date_range_message,
+    format_period_adjustment_message,
 )
 from app.templates.template import template
 
 
-class MarketState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class,too-many-instance-attributes
+class MarketState(rx.State):
     """The app state."""
 
-    active_tab: str = "overview"
+    active_tab: rx.Field[str] = rx.field("overview")
 
     # Chart settings
-    base_date_option: str = "10Y"
-    base_date_options: List[str] = get_period_options()
+    base_date_option: rx.Field[str] = rx.field(get_period_default())
+    base_date_options: rx.Field[List[str]] = rx.field(get_period_options())
 
     # Chart data
-    chart_figure_buffet: go.Figure = go.Figure()
-    chart_figure_vix: go.Figure = go.Figure()
-    chart_figure_yield: go.Figure = go.Figure()
-    chart_figure_currency: go.Figure = go.Figure()
-    chart_figure_precious_metals: go.Figure = go.Figure()
-    chart_figure_crypto: go.Figure = go.Figure()
-    chart_figure_crude_oil: go.Figure = go.Figure()
-    chart_figure_bloomberg_commodity: go.Figure = go.Figure()
-    chart_figure_msci_world: go.Figure = go.Figure()
+    chart_figure_buffet: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_vix: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_yield: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_currency: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_precious_metals: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_crypto: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_crude_oil: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_bloomberg_commodity: rx.Field[go.Figure] = rx.field(go.Figure())
+    chart_figure_msci_world: rx.Field[go.Figure] = rx.field(go.Figure())
 
     # Loading state
-    loading_buffet: bool = False
-    loading_vix: bool = False
-    loading_yield: bool = False
-    loading_currency: bool = False
-    loading_precious_metals: bool = False
-    loading_crypto: bool = False
-    loading_crude_oil: bool = False
-    loading_bloomberg_commodity: bool = False
-    loading_msci_world: bool = False
+    loading_buffet: rx.Field[bool] = rx.field(False)
+    loading_vix: rx.Field[bool] = rx.field(False)
+    loading_yield: rx.Field[bool] = rx.field(False)
+    loading_currency: rx.Field[bool] = rx.field(False)
+    loading_precious_metals: rx.Field[bool] = rx.field(False)
+    loading_crypto: rx.Field[bool] = rx.field(False)
+    loading_crude_oil: rx.Field[bool] = rx.field(False)
+    loading_bloomberg_commodity: rx.Field[bool] = rx.field(False)
+    loading_msci_world: rx.Field[bool] = rx.field(False)
 
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
@@ -186,6 +190,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             return None
         return base_date.strftime("%Y-%m-%d")
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_buffet_chart(self):
         """Update the Buffet Indicator chart using background processing."""
@@ -223,8 +228,6 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             # Log successful data fetch and show adjustment message if needed
             async with self:
                 if adjustment_info["was_adjusted"]:
-                    from app.lib.periods import format_period_adjustment_message
-
                     adjustment_msg = format_period_adjustment_message(
                         adjustment_info["original_period"],
                         adjustment_info["actual_period"],
@@ -301,6 +304,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_buffet = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_vix_chart(self):
         """Update the VIX chart using background processing."""
@@ -420,7 +424,9 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_vix = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
+    # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     async def update_yield_chart(self):
         """Update the yield curve chart using background processing."""
         async with self:
@@ -597,6 +603,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_yield = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_currency_chart(self):
         """Update the currency exchange rate chart using background processing."""
@@ -713,6 +720,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_currency = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_precious_metals_chart(self):
         """Update the precious metals (Gold Futures) chart in background."""
@@ -834,6 +842,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_precious_metals = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_bloomberg_commodity_chart(self):
         """Update the Bloomberg Commodity Index chart in background."""
@@ -959,6 +968,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_bloomberg_commodity = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_msci_world_chart(self):
         """Update the MSCI World Index chart using background processing."""
@@ -1104,6 +1114,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_msci_world = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_crypto_chart(self):
         """Update the cryptocurrency (Bitcoin and Ethereum) chart in background."""
@@ -1156,8 +1167,6 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             theme_colors = self.get_theme_colors()
 
             # Create comparison chart for Bitcoin vs Ethereum
-            from app.lib.charts import create_comparison_chart
-
             fig = create_comparison_chart(crypto_data, config, theme_colors)
 
             async with self:
@@ -1179,6 +1188,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_crypto = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def update_crude_oil_chart(self):
         """Update the crude oil (WTI and Brent) chart in background."""
@@ -1230,9 +1240,6 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             # Get theme colors
             theme_colors = self.get_theme_colors()
 
-            # Import create_comparison_chart here to avoid circular imports
-            from app.lib.charts import create_comparison_chart
-
             # Create the chart
             fig = create_comparison_chart(crude_oil_data, config, theme_colors)
 
@@ -1251,6 +1258,7 @@ class MarketState(rx.State):  # pylint: disable=inherit-non-class
             async with self:
                 self.loading_crude_oil = False
 
+    # pyrefly: ignore[not-callable]
     @rx.event(background=True)  # pylint: disable=not-callable
     async def run_workflows(self):
         """Load initial chart data."""
@@ -1499,6 +1507,7 @@ def tabs_commodities() -> rx.Component:
 
 
 # pylint: disable=not-callable
+# pyrefly: ignore[not-callable]
 @rx.page(
     route="/markets",
     on_load=MarketState.run_workflows,  # pyright: ignore[reportArgumentType]
