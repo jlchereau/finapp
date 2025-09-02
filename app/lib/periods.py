@@ -7,7 +7,7 @@ for consistent time period handling across the application.
 
 from enum import Enum
 from datetime import datetime, timedelta
-from typing import Optional, List, Tuple
+from typing import List, Tuple
 import pandas as pd
 import numpy as np
 
@@ -60,9 +60,19 @@ def get_period_options() -> List[str]:
     ]
 
 
+def get_period_default() -> str:
+    """
+    Get default period option.
+
+    Returns:
+        Default period option string
+    """
+    return PeriodOption.ONE_YEAR
+
+
 def calculate_base_date(
-    period: str, reference_date: Optional[datetime] = None
-) -> Optional[datetime]:
+    period: str, reference_date: datetime | None = None
+) -> datetime | None:
     """
     Convert period option to base datetime.
 
@@ -141,22 +151,22 @@ def get_period_description(period: str) -> str:
         ValueError: If period is not recognized
     """
     descriptions = {
-        PeriodOption.ONE_WEEK: "1 Week",
-        PeriodOption.TWO_WEEKS: "2 Weeks",
-        PeriodOption.ONE_MONTH: "1 Month",
-        PeriodOption.TWO_MONTHS: "2 Months",
-        PeriodOption.ONE_QUARTER: "1 Quarter",
-        PeriodOption.TWO_QUARTERS: "2 Quarters",
-        PeriodOption.THREE_QUARTERS: "3 Quarters",
-        PeriodOption.ONE_YEAR: "1 Year",
-        PeriodOption.TWO_YEARS: "2 Years",
-        PeriodOption.THREE_YEARS: "3 Years",
-        PeriodOption.FOUR_YEARS: "4 Years",
-        PeriodOption.FIVE_YEARS: "5 Years",
-        PeriodOption.TEN_YEARS: "10 Years",
-        PeriodOption.TWENTY_YEARS: "20 Years",
-        PeriodOption.YEAR_TO_DATE: "Year to Date",
-        PeriodOption.MAXIMUM: "Maximum Available",
+        PeriodOption.ONE_WEEK.value: "1 Week",
+        PeriodOption.TWO_WEEKS.value: "2 Weeks",
+        PeriodOption.ONE_MONTH.value: "1 Month",
+        PeriodOption.TWO_MONTHS.value: "2 Months",
+        PeriodOption.ONE_QUARTER.value: "1 Quarter",
+        PeriodOption.TWO_QUARTERS.value: "2 Quarters",
+        PeriodOption.THREE_QUARTERS.value: "3 Quarters",
+        PeriodOption.ONE_YEAR.value: "1 Year",
+        PeriodOption.TWO_YEARS.value: "2 Years",
+        PeriodOption.THREE_YEARS.value: "3 Years",
+        PeriodOption.FOUR_YEARS.value: "4 Years",
+        PeriodOption.FIVE_YEARS.value: "5 Years",
+        PeriodOption.TEN_YEARS.value: "10 Years",
+        PeriodOption.TWENTY_YEARS.value: "20 Years",
+        PeriodOption.YEAR_TO_DATE.value: "Year to Date",
+        PeriodOption.MAXIMUM.value: "Maximum Available",
     }
 
     if period not in descriptions:
@@ -185,7 +195,7 @@ def get_max_fallback_date(data_type: str = "default") -> datetime:
     return fallbacks.get(data_type, fallbacks["default"])
 
 
-def format_date_range_message(period: str, base_date: Optional[datetime]) -> str:
+def format_date_range_message(period: str, base_date: datetime | None) -> str:
     """
     Format user-friendly message for date range selection.
 
@@ -212,7 +222,7 @@ def ensure_minimum_data_points(
     base_date: datetime,
     min_points: int = 2,
     data_frequency: str = "quarterly",
-    reference_date: Optional[datetime] = None,
+    reference_date: datetime | None = None,
 ) -> Tuple[pd.DataFrame, str, bool]:
     """
     Ensure filtered data has minimum number of points by extending period if needed.
@@ -274,6 +284,10 @@ def ensure_minimum_data_points(
 
     filtered_data = data[data.index >= base_date_pd]
 
+    # Ensure we return a proper DataFrame
+    if not isinstance(filtered_data, pd.DataFrame):
+        filtered_data = pd.DataFrame(filtered_data)
+
     # If we have enough data points, return as-is
     if len(filtered_data) >= min_points:
         return filtered_data, current_period, False
@@ -302,6 +316,10 @@ def ensure_minimum_data_points(
 
                 new_base_date_pd = pd.to_datetime(new_base_date.date())
                 filtered_data = data[data.index >= new_base_date_pd]
+
+                # Ensure we return a proper DataFrame
+                if not isinstance(filtered_data, pd.DataFrame):
+                    filtered_data = pd.DataFrame(filtered_data)
 
                 # Check if this period gives us enough data points
                 if len(filtered_data) >= min_points:
@@ -346,7 +364,7 @@ def format_period_adjustment_message(
     )
 
 
-def filter_trend_data_to_period(trend_data: dict, filtered_data: pd.DataFrame) -> dict:
+def filter_trend_data_to_period(trend_data, filtered_data: pd.DataFrame):
     """
     Filter trend data to match the time period of filtered display data.
 
@@ -360,24 +378,26 @@ def filter_trend_data_to_period(trend_data: dict, filtered_data: pd.DataFrame) -
     if trend_data is None or filtered_data.empty:
         return trend_data
 
-    # Get the date range from filtered data
+    # Get date range from filtered data
     start_date = filtered_data.index.min()
     end_date = filtered_data.index.max()
 
-    # Convert trend dates to pandas datetime if they aren't already
-    trend_dates = pd.to_datetime(trend_data["dates"])
+    # Convert trend dates to DatetimeIndex for consistent operations
+    trend_dates = pd.DatetimeIndex(trend_data["dates"])
 
-    # Create mask for dates within the filtered range
+    # Create boolean mask - this will work with any comparable datetime types
     date_mask = (trend_dates >= start_date) & (trend_dates <= end_date)
 
     # Filter all trend data arrays using the same mask
     filtered_trend = {}
     for key, values in trend_data.items():
         if key == "dates":
+            # Preserve the filtered DatetimeIndex
             filtered_trend[key] = trend_dates[date_mask]
         else:
-            # Handle numpy arrays or lists
+            # Convert to numpy array for consistent indexing
             values_array = np.array(values)
-            filtered_trend[key] = values_array[date_mask]
+            mask_array = np.array(date_mask)
+            filtered_trend[key] = values_array[mask_array].tolist()
 
     return filtered_trend

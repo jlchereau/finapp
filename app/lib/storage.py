@@ -5,7 +5,9 @@ Provides common functionality for creating and managing date-based
 storage folders used across the application (cache, logs, etc.).
 """
 
+import csv
 from datetime import datetime
+import shutil
 from pathlib import Path
 from typing import Optional, Union
 
@@ -142,8 +144,6 @@ class DateBasedStorage:
                 days_old = (current_date - folder_date).days
 
                 if days_old > keep_days:
-                    import shutil
-
                     shutil.rmtree(folder)
                     removed_folders.append(folder.name)
             except ValueError:
@@ -171,8 +171,6 @@ class DateBasedStorage:
             return False
 
         try:
-            import shutil
-
             shutil.rmtree(folder_path)
             return True
         except (FileNotFoundError, OSError, PermissionError):
@@ -197,8 +195,6 @@ class DateBasedStorage:
             return []
 
         try:
-            import csv
-
             log_data = []
             with open(log_file, "r", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)

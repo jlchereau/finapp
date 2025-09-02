@@ -117,6 +117,12 @@ class CSVLogger:
     def _get_caller_info(self) -> Dict[str, Any]:
         """Extract caller information from the stack."""
         frame = inspect.currentframe()
+        result = {
+            "file": "unknown",
+            "function": "unknown",
+            "context": "app",
+            "params": "{}",
+        }
         try:
             # Skip frames: current -> _log -> debug/info/warning/error -> actual caller
             if frame and frame.f_back and frame.f_back.f_back:
@@ -125,12 +131,7 @@ class CSVLogger:
                 caller_frame = None
 
             if caller_frame is None:
-                return {
-                    "file": "unknown",
-                    "function": "unknown",
-                    "context": "app",
-                    "params": "{}",
-                }
+                return result
 
             # Get file path relative to project root
             file_path = Path(caller_frame.f_code.co_filename)
@@ -152,7 +153,7 @@ class CSVLogger:
             # Get function parameters
             params = self._get_function_params(caller_frame)
 
-            return {
+            result = {
                 "file": str(relative_path),
                 "function": function_name,
                 "context": context,
@@ -160,10 +161,12 @@ class CSVLogger:
             }
         finally:
             del frame
+        return result
 
     def _determine_context(self) -> str:
         """Determine if the call is from a workflow or regular app code."""
         frame = inspect.currentframe()
+        context = "app"  # default value
         try:
             # Look through the call stack for workflow indicators
             current = frame
@@ -175,11 +178,12 @@ class CSVLogger:
                         "flows" in file_path.parts
                         or "workflow" in file_path.name.lower()
                     ):
-                        return "workflow"
+                        context = "workflow"
+                        break
                 current = current.f_back
-            return "app"
         finally:
             del frame
+        return context
 
     def _get_function_params(self, frame) -> str:
         """Extract function parameters from the frame."""

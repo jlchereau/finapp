@@ -36,10 +36,14 @@ def calculate_returns(
     if base_date is not None:
         prices = prices[prices.index >= base_date]
 
-    if prices.empty:
+    if len(prices) == 0:
         return pd.DataFrame()
 
     # Calculate percentage returns from first value
+    # Ensure we're working with a pandas Series (not numpy array)
+    if not isinstance(prices, pd.Series):
+        prices = pd.Series(prices, index=data.index)
+
     first_price = prices.iloc[0]
     returns = ((prices / first_price) - 1) * 100
 
@@ -124,7 +128,12 @@ def calculate_rsi(data: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     rs = avg_gains / avg_losses
     rsi = 100 - (100 / (1 + rs))
 
-    return rsi.to_frame("RSI")
+    # Convert to DataFrame if it's a Series
+    if isinstance(rsi, pd.Series):
+        return rsi.to_frame("RSI")
+    else:
+        # Handle case where rsi might be an array
+        return pd.DataFrame({"RSI": rsi}, index=data.index[window:])
 
 
 def calculate_volume_metrics(data: pd.DataFrame, ma_window: int = 20) -> pd.DataFrame:
@@ -202,10 +211,12 @@ def calculate_exponential_trend(
         return None
 
     # Handle zeros/negatives
-    if np.any(np.isnan(y) | (y <= 0)):
+    # Convert to numpy array to avoid ExtensionArray comparison issues
+    y_array = np.asarray(y)
+    if np.any(np.isnan(y_array) | (y_array <= 0)):
         raise ValueError(f"Column '{column}' contains non-positive values")
 
-    y_log = np.log(y)
+    y_log = np.log(y_array)
 
     # Fit linear regression on log-transformed data
     model = LinearRegression()
