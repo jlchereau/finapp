@@ -28,6 +28,8 @@ install:
 pylint:
 	.venv/bin/pylint --disable=R,C app/ tests/ *.py
 
+# lint with pyrefly (see pyrefly.toml)
+# Note: consider https://docs.astral.sh/ty/ in the future
 pyrefly:
 	.venv/bin/pyrefly check
 
