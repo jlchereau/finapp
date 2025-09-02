@@ -1,0 +1,134 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "finapp"
+description = "Financial market analysis and portfolio management application"
+requires-python = ">=3.12"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "FinApp Team"}
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | \.web
+)/
+'''
+
+
+[tool.pylint.master]
+py-version = "3.12"
+load-plugins = ["pylint_per_file_ignores"]
+
+[tool.pylint."messages control"]
+# Disable refactoring (R) and convention (C) messages globally
+# These categories focus on code style and structure rather than correctness
+disable = ["R", "C"]
+
+# Per-file ignores for test files to handle legitimate pytest patterns
+# that are not applicable to production code quality standards
+per-file-ignores = [
+    "tests/**:protected-access,redefined-outer-name,attribute-defined-outside-init,reimported,unused-argument,broad-exception-caught"
+]
+
+# Justification for each disabled message in test files:
+# - protected-access: Tests need to access private methods/attributes for thorough testing
+# - redefined-outer-name: Pytest fixtures commonly redefine names from outer scopes (fixture pattern)
+# - attribute-defined-outside-init: Pytest setup_method pattern defines attributes outside __init__
+# - reimported: Test isolation often requires reimporting modules within fixtures for clean state
+# - unused-argument: Pytest fixtures may be passed but not directly used in test logic (dependency injection)
+# - broad-exception-caught: Workflow/exception testing legitimately catches general Exception types
+
+# IMPORTANT: Disabling messages for app/**/* files should be made inline.
+# `pylint: disable=*` comments hide issues, so they should only be considered
+# a last resort options if all attempts to fix the code have failed.
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "app/__init__.py",
+    "*/tests/*",
+    "*/test_*",
+    "temp/*",
+    ".venv/*",
+    "setup.py"
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod"
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-vv",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml"
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests"
+]
+asyncio_mode = "auto"
+
+[tool.pyrefly]
+python_version = "3.12"
+project-includes = [
+    "app/*",
+    "tests/*"
+]
+project-excludes = [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/*venv/**/*"
+]
