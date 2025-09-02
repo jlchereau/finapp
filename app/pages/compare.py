@@ -30,8 +30,8 @@ from app.lib.charts import (
 )
 from app.lib.metrics import (
     show_metric_as_badge,
-    IntegerTemplate,
-    LargeCurrencyTemplate,
+    integer_formatter,
+    large_currency_formatter,
     # show_metric_as_gauge,  # not yet implemented
 )
 from app.lib.periods import (
@@ -703,8 +703,6 @@ def metrics_graham_indicators() -> rx.Component:
     Metrics can be found in Chapter 14 pages 367 and after of
     The Intelligent Investor (4th revised edition) by Benjamin Graham.
     """
-    integer_template = IntegerTemplate()
-    large_currency_template = LargeCurrencyTemplate()
     return rx.table.root(
         # Metrics column + one column per ticker
         rx.table.header(
@@ -726,7 +724,7 @@ def metrics_graham_indicators() -> rx.Component:
                         uniform(1000000000, 150000000000),
                         2000000000.0,
                         5000000000.0,
-                        large_currency_template,
+                        large_currency_formatter,
                     )
                 ),
                 rx.table.cell(
@@ -734,7 +732,7 @@ def metrics_graham_indicators() -> rx.Component:
                         uniform(1000000000, 150000000000),
                         2000000000.0,
                         5000000000.0,
-                        large_currency_template,
+                        large_currency_formatter,
                     )
                 ),
             ),
@@ -748,7 +746,7 @@ def metrics_graham_indicators() -> rx.Component:
                         uniform(1000000000, 150000000000),
                         1000000000.0,
                         3000000000.0,
-                        large_currency_template,
+                        large_currency_formatter,
                     )
                 ),
                 rx.table.cell(
@@ -756,7 +754,7 @@ def metrics_graham_indicators() -> rx.Component:
                         uniform(1000000000, 150000000000),
                         2000000000.0,
                         5000000000.0,
-                        large_currency_template,
+                        large_currency_formatter,
                     )
                 ),
             ),
@@ -777,10 +775,10 @@ def metrics_graham_indicators() -> rx.Component:
                 # According to Graham, positive earnings for the past 10 years are
                 # required to demonstrate earnings stability
                 rx.table.cell(
-                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_template)
+                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_formatter)
                 ),
                 rx.table.cell(
-                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_template)
+                    show_metric_as_badge(uniform(0, 30), 10, 15, integer_formatter)
                 ),
             ),
             # ---------------------------
