@@ -1027,11 +1027,8 @@ def main_content() -> rx.Component:
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable]
-@rx.page(
-    route="/compare",
-    on_load=CompareState.update_all_charts,  # pyright: ignore[reportArgumentType]
-)
+# pyrefly: ignore[not-callable,bad-argument-type]
+@rx.page(route="/compare", on_load=CompareState.update_all_charts)
 @template
 def page():
     """The compare page."""

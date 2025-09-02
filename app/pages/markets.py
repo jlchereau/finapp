@@ -1513,11 +1513,9 @@ def tabs_commodities() -> rx.Component:
 
 
 # pylint: disable=not-callable
-# pyrefly: ignore[not-callable]
-@rx.page(
-    route="/markets",
-    on_load=MarketState.run_workflows,  # pyright: ignore[reportArgumentType]
-)
+# pyright: ignore[reportArgumentType]
+# pyrefly: ignore[not-callable,bad-argument-type]
+@rx.page(route="/markets", on_load=MarketState.run_workflows)
 @template
 def page():
     """The markets page."""

@@ -157,7 +157,7 @@ def confirm_delete_dialog() -> rx.Component:
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable]
+# pyrefly: ignore[not-callable,bad-argument-type]
 @rx.page(route="/cache", on_load=State.on_load)
 @template
 def page():

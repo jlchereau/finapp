@@ -23,7 +23,7 @@ MD = load_markdown("index")
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable]
+# pyrefly: ignore[not-callable,bad-argument-type]
 @rx.page(route="/")
 @template
 def page():

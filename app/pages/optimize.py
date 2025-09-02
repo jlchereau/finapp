@@ -10,7 +10,7 @@ class OptimizeState(rx.State):  # pylint: disable=inherit-non-class
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable]
+# pyrefly: ignore[not-callable,bad-argument-type]
 @rx.page(route="/optimize")
 @template
 def page():
