@@ -456,6 +456,36 @@ class TestYahooInfoConfig:
             exc_info.value
         )
 
+    def test_yahoo_info_model_null_values_raise_validation_error(self):
+        """Test that None values in required fields raise ValidationError."""
+        # Test data with None values in required fields
+        test_data = {
+            "symbol": "AAPL",
+            "longName": "Apple Inc.",
+            "regularMarketPrice": None,  # Should raise ValidationError
+            "regularMarketChange": 2.50,
+            "regularMarketChangePercent": 0.0168,
+            "regularMarketVolume": 50000000,
+            "marketCap": 2500000000000,
+            "trailingPE": 25.5,
+            "dividendYield": 0.006,
+            "beta": 1.2,
+            "fiftyTwoWeekHigh": 180.0,
+            "fiftyTwoWeekLow": 120.0,
+            "currency": "USD",
+            "exchange": "NMS",
+            "sector": "Technology",
+            "industry": "Consumer Electronics",
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            YahooInfoModel(**test_data)
+
+        # Should complain about None value in required field
+        assert "Required" in str(exc_info.value) and "cannot be None" in str(
+            exc_info.value
+        )
+
 
 class TestYahooProviderIntegration:
     """Integration tests for Yahoo providers."""

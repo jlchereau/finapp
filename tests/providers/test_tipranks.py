@@ -7,6 +7,7 @@ import asyncio
 from unittest.mock import patch, MagicMock
 import httpx
 import pytest
+from pydantic import ValidationError
 
 from app.providers.tipranks import (
     TipranksDataProvider,
@@ -22,15 +23,46 @@ from app.providers.base import ProviderType, ProviderConfig
 class TestTipranksDataModel:
     """Test cases for TipranksDataModel."""
 
-    def test_model_initialization_with_defaults(self):
-        """Test model initialization with minimal data."""
-        data = {"ticker": "AAPL"}
-        model = TipranksDataModel(**data)
+    def test_model_missing_required_fields_raises_validation_error(self):
+        """Test that missing required fields raise ValidationError."""
+        # Test data missing required fields
+        test_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            # Missing many other required fields...
+        }
 
-        assert model.ticker == "AAPL"
-        assert model.consensus_rating == 0
-        assert model.company_name == ""
-        assert model.analyst_count == 0
+        with pytest.raises(ValidationError) as exc_info:
+            TipranksDataModel(**test_data)
+
+        # Should complain about missing fields
+        assert "Field required" in str(exc_info.value)
+
+    def test_model_null_values_raise_validation_error(self):
+        """Test that None values in required fields raise ValidationError."""
+        # Test data with None values in required fields
+        test_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "consensus_rating": None,  # Should raise ValidationError
+            "numOfAnalysts": 25,
+            "buy_count": 18,
+            "hold_count": 5,
+            "sell_count": 2,
+            "price_target": 180.50,
+            "price_target_high": 200.0,
+            "price_target_low": 150.0,
+            "smart_score": 8,
+            "marketCap": 3000000000,
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            TipranksDataModel(**test_data)
+
+        # Should complain about None value in required field
+        assert "Required" in str(exc_info.value) and "cannot be None" in str(
+            exc_info.value
+        )
 
     def test_model_initialization_with_aliases(self):
         """Test model initialization using field aliases."""
@@ -67,7 +99,17 @@ class TestTipranksDataModel:
         """Test that model ignores extra fields."""
         data = {
             "ticker": "AAPL",
+            "companyName": "Apple Inc",
             "consensus_rating": 5,
+            "numOfAnalysts": 25,
+            "buy_count": 18,
+            "hold_count": 5,
+            "sell_count": 2,
+            "price_target": 180.50,
+            "price_target_high": 200.0,
+            "price_target_low": 150.0,
+            "smart_score": 8,
+            "marketCap": 3000000000,
             "extraField": "ignored",
             "anotherExtra": 123,
         }
@@ -223,13 +265,16 @@ class TestTipranksDataProvider:
 
     @pytest.mark.asyncio
     @patch("httpx.Client")
-    async def test_fetch_data_partial_data(self, mock_client_class):
-        """Test handling of partial data from Tipranks."""
-        # Mock Tipranks response with only some fields
+    async def test_fetch_data_missing_consensus_data(self, mock_client_class):
+        """Test handling when consensus data is missing from API response."""
+        # Mock Tipranks response with missing consensus data
         mock_tipranks_data = {
             "ticker": "AAPL",
             "companyName": "Apple Inc",
             "numOfAnalysts": 15,
+            "consensuses": [],  # Empty consensus data
+            "ptConsensus": [],  # Empty price target data
+            "tipranksStockScore": {},  # Empty stock score data
         }
 
         mock_client = MagicMock()
@@ -243,16 +288,10 @@ class TestTipranksDataProvider:
 
         result = await self.provider.get_data("AAPL")
 
-        assert result.success is True
-        assert result.data is not None
-        assert isinstance(result.data, TipranksDataModel)
-        assert result.data.ticker == "AAPL"
-        assert result.data.company_name == "Apple Inc"
-        assert result.data.analyst_count == 15
-        # Check default values are used for missing fields
-        assert result.data.consensus_rating == 0
-        assert result.data.buy_count == 0
-        assert result.data.price_target == 0.0
+        # Should fail due to missing required nested data structures
+        assert result.success is False
+        assert "No latest consensus data found" in (result.error_message or "")
+        assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""
@@ -261,7 +300,25 @@ class TestTipranksDataProvider:
             mock_tipranks_data = {
                 "ticker": "AAPL",
                 "companyName": "Apple Inc",
-                "numOfAnalysts": 15,
+                "numOfAnalysts": 25,
+                "marketCap": 3000000000,
+                "consensuses": [
+                    {
+                        "rating": 5,
+                        "nB": 18,
+                        "nH": 5,
+                        "nS": 2,
+                        "isLatest": 1,
+                    }
+                ],
+                "ptConsensus": [
+                    {
+                        "priceTarget": 180.50,
+                        "high": 200.0,
+                        "low": 150.0,
+                    }
+                ],
+                "tipranksStockScore": {"score": 8},
             }
 
             mock_client = MagicMock()
@@ -325,7 +382,25 @@ class TestTipranksProviderIntegration:
         mock_tipranks_data = {
             "ticker": "AAPL",
             "companyName": "Apple Inc",
-            "numOfAnalysts": 15,
+            "numOfAnalysts": 25,
+            "marketCap": 3000000000,
+            "consensuses": [
+                {
+                    "rating": 5,
+                    "nB": 18,
+                    "nH": 5,
+                    "nS": 2,
+                    "isLatest": 1,
+                }
+            ],
+            "ptConsensus": [
+                {
+                    "priceTarget": 180.50,
+                    "high": 200.0,
+                    "low": 150.0,
+                }
+            ],
+            "tipranksStockScore": {"score": 8},
         }
 
         mock_client = MagicMock()
@@ -367,8 +442,26 @@ class TestTipranksProviderIntegration:
                 # First request succeeds
                 response.json.return_value = {
                     "ticker": "AAPL",
-                    "consensusRating": "Buy",
-                    "analystCount": 15,
+                    "companyName": "Apple Inc",
+                    "numOfAnalysts": 25,
+                    "marketCap": 3000000000,
+                    "consensuses": [
+                        {
+                            "rating": 5,
+                            "nB": 18,
+                            "nH": 5,
+                            "nS": 2,
+                            "isLatest": 1,
+                        }
+                    ],
+                    "ptConsensus": [
+                        {
+                            "priceTarget": 180.50,
+                            "high": 200.0,
+                            "low": 150.0,
+                        }
+                    ],
+                    "tipranksStockScore": {"score": 8},
                 }
                 response.raise_for_status.return_value = None
                 return response
@@ -483,21 +576,44 @@ class TestGlobalCacheSettingsTipranks:
 class TestTipranksNewsSentimentModel:
     """Test cases for TipranksNewsSentimentModel."""
 
-    def test_model_initialization_with_defaults(self):
-        """Test model initialization with minimal data."""
-        data = {"ticker": "AAPL"}
-        model = TipranksNewsSentimentModel(**data)
+    def test_model_missing_required_fields_raises_validation_error(self):
+        """Test that missing required fields raise ValidationError."""
+        # Test data missing required fields
+        test_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            # Missing many other required fields...
+        }
 
-        assert model.ticker == "AAPL"
-        assert model.company_name == ""
-        assert model.sentiment_score == 0.0
-        assert model.bullish_percent == 0.0
-        assert model.bearish_percent == 0.0
-        assert model.articles_last_week == 0
-        assert model.weekly_average == 0.0
-        assert model.buzz_score == 0.0
-        assert model.sector_avg_bullish_percent == 0.0
-        assert model.word_cloud_count == 0
+        with pytest.raises(ValidationError) as exc_info:
+            TipranksNewsSentimentModel(**test_data)
+
+        # Should complain about missing fields
+        assert "Field required" in str(exc_info.value)
+
+    def test_model_null_values_raise_validation_error(self):
+        """Test that None values in required fields raise ValidationError."""
+        # Test data with None values in required fields
+        test_data = {
+            "ticker": "AAPL",
+            "companyName": "Apple Inc",
+            "score": None,  # Should raise ValidationError
+            "bullish_percent": 0.85,
+            "bearish_percent": 0.15,
+            "articles_last_week": 84,
+            "weekly_average": 132.25,
+            "buzz_score": 0.635,
+            "sectorAverageBullishPercent": 0.587,
+            "word_cloud_count": 12,
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            TipranksNewsSentimentModel(**test_data)
+
+        # Should complain about None value in required field
+        assert "Required" in str(exc_info.value) and "cannot be None" in str(
+            exc_info.value
+        )
 
     def test_model_initialization_with_full_data(self):
         """Test model initialization with full data."""
@@ -530,7 +646,15 @@ class TestTipranksNewsSentimentModel:
         """Test that model ignores extra fields."""
         data = {
             "ticker": "AAPL",
-            "sentiment_score": 0.8,
+            "companyName": "Apple Inc",
+            "score": 0.8,
+            "bullish_percent": 0.85,
+            "bearish_percent": 0.15,
+            "articles_last_week": 84,
+            "weekly_average": 132.25,
+            "buzz_score": 0.635,
+            "sectorAverageBullishPercent": 0.587,
+            "word_cloud_count": 12,
             "extraField": "ignored",
             "anotherExtra": 123,
         }
@@ -685,13 +809,15 @@ class TestTipranksNewsSentimentProvider:
 
     @pytest.mark.asyncio
     @patch("httpx.Client")
-    async def test_fetch_data_partial_data(self, mock_client_class):
-        """Test handling of partial data from Tipranks."""
-        # Mock Tipranks response with only some fields
+    async def test_fetch_data_missing_sentiment_data(self, mock_client_class):
+        """Test handling when sentiment data is missing from API response."""
+        # Mock Tipranks response with missing sentiment data
         mock_tipranks_data = {
             "ticker": "AAPL",
             "companyName": "Apple Inc",
             "score": 0.65,
+            "sentiment": {},  # Empty sentiment data
+            "buzz": {},  # Empty buzz data
         }
 
         mock_client = MagicMock()
@@ -705,16 +831,10 @@ class TestTipranksNewsSentimentProvider:
 
         result = await self.provider.get_data("AAPL")
 
-        assert result.success is True
-        assert result.data is not None
-        assert isinstance(result.data, TipranksNewsSentimentModel)
-        assert result.data.ticker == "AAPL"
-        assert result.data.company_name == "Apple Inc"
-        assert result.data.sentiment_score == 0.65
-        # Check default values are used for missing fields
-        assert result.data.bullish_percent == 0.0
-        assert result.data.articles_last_week == 0
-        assert result.data.buzz_score == 0.0
+        # Should fail due to missing required nested data structures
+        assert result.success is False
+        assert "No sentiment data found" in (result.error_message or "")
+        assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""
@@ -724,6 +844,17 @@ class TestTipranksNewsSentimentProvider:
                 "ticker": "AAPL",
                 "companyName": "Apple Inc",
                 "score": 0.8,
+                "sentiment": {
+                    "bullishPercent": 0.85,
+                    "bearishPercent": 0.15,
+                },
+                "buzz": {
+                    "articlesInLastWeek": 84,
+                    "weeklyAverage": 132.25,
+                    "buzz": 0.635,
+                },
+                "sectorAverageBullishPercent": 0.587,
+                "wordCloud": [{"text": "test"}],
             }
 
             mock_client = MagicMock()

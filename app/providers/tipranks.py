@@ -7,7 +7,7 @@ import asyncio
 import time
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.lib.logger import logger
 from .base import (
@@ -24,18 +24,48 @@ from .headers import get_random_user_agent
 class TipranksDataModel(BaseModel):
     """Pydantic model for Tipranks data."""
 
+    # Important: Do not set default values for required fields.
+    # This would prevent us from detecting API changes.
+    # If the API changes and fields are missing,
+    # Pydantic should raise a validation error.
+
     ticker: str
-    company_name: str = Field(alias="companyName", default="")
-    consensus_rating: int = Field(default=0)
-    analyst_count: int = Field(alias="numOfAnalysts", default=0)
-    buy_count: int = Field(default=0)
-    hold_count: int = Field(default=0)
-    sell_count: int = Field(default=0)
-    price_target: float = Field(default=0.0)
-    price_target_high: float = Field(default=0.0)
-    price_target_low: float = Field(default=0.0)
-    smart_score: int = Field(default=0)
-    market_cap: int = Field(alias="marketCap", default=0)
+    company_name: str = Field(alias="companyName")
+    consensus_rating: int
+    analyst_count: int = Field(alias="numOfAnalysts")
+    buy_count: int
+    hold_count: int
+    sell_count: int
+    price_target: float
+    price_target_high: float
+    price_target_low: float
+    smart_score: int
+    market_cap: int = Field(alias="marketCap")
+
+    @field_validator(
+        "consensus_rating",
+        "analyst_count",
+        "buy_count",
+        "hold_count",
+        "sell_count",
+        "smart_score",
+        "market_cap",
+        mode="before",
+    )
+    @classmethod
+    def convert_null_ints(cls, v):
+        if v is None:
+            raise ValueError("Required int field cannot be None")
+        return int(v)
+
+    @field_validator(
+        "price_target", "price_target_high", "price_target_low", mode="before"
+    )
+    @classmethod
+    def convert_null_floats(cls, v):
+        if v is None:
+            raise ValueError("Required float field cannot be None")
+        return float(v)
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
@@ -43,18 +73,43 @@ class TipranksDataModel(BaseModel):
 class TipranksNewsSentimentModel(BaseModel):
     """Pydantic model for Tipranks news sentiment data."""
 
+    # Important: Do not set default values for required fields.
+    # This would prevent us from detecting API changes.
+    # If the API changes and fields are missing,
+    # Pydantic should raise a validation error.
+
     ticker: str
-    company_name: str = Field(alias="companyName", default="")
-    sentiment_score: float = Field(alias="score", default=0.0)
-    bullish_percent: float = Field(default=0.0)
-    bearish_percent: float = Field(default=0.0)
-    articles_last_week: int = Field(default=0)
-    weekly_average: float = Field(default=0.0)
-    buzz_score: float = Field(default=0.0)
-    sector_avg_bullish_percent: float = Field(
-        alias="sectorAverageBullishPercent", default=0.0
+    company_name: str = Field(alias="companyName")
+    sentiment_score: float = Field(alias="score")
+    bullish_percent: float
+    bearish_percent: float
+    articles_last_week: int
+    weekly_average: float
+    buzz_score: float
+    sector_avg_bullish_percent: float = Field(alias="sectorAverageBullishPercent")
+    word_cloud_count: int
+
+    @field_validator("articles_last_week", "word_cloud_count", mode="before")
+    @classmethod
+    def convert_null_ints(cls, v):
+        if v is None:
+            raise ValueError("Required int field cannot be None")
+        return int(v)
+
+    @field_validator(
+        "sentiment_score",
+        "bullish_percent",
+        "bearish_percent",
+        "weekly_average",
+        "buzz_score",
+        "sector_avg_bullish_percent",
+        mode="before",
     )
-    word_cloud_count: int = Field(default=0)
+    @classmethod
+    def convert_null_floats(cls, v):
+        if v is None:
+            raise ValueError("Required float field cannot be None")
+        return float(v)
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
@@ -122,50 +177,44 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
                 logger.warning(f"No valid TipRanks data returned for {ticker}")
                 raise ValueError(f"No Tipranks data found for query: {query}")
 
-            # Extract and transform the data structure
-            data_dict = {
-                "ticker": ticker,
-                "companyName": json_data.get("companyName", ""),
-                "numOfAnalysts": json_data.get("numOfAnalysts", 0),
-                "marketCap": json_data.get("marketCap", 0),
-            }
-
+            # Transform the API response structure to match Pydantic model field names
             # Extract consensus data from latest consensus (isLatest=1)
             consensuses = json_data.get("consensuses", [])
             latest_consensus = next(
-                (c for c in consensuses if c.get("isLatest") == 1), {}
+                (c for c in consensuses if c.get("isLatest") == 1), None
             )
-            if latest_consensus:
-                data_dict.update(
-                    {
-                        "consensus_rating": latest_consensus.get("rating", 0),
-                        "buy_count": latest_consensus.get("nB", 0),
-                        "hold_count": latest_consensus.get("nH", 0),
-                        "sell_count": latest_consensus.get("nS", 0),
-                    }
-                )
-            else:
-                pass
+            if latest_consensus is None:
+                raise ValueError("No latest consensus data found in API response")
 
             # Extract price target data
             pt_consensus = json_data.get("ptConsensus", [])
-            if pt_consensus and len(pt_consensus) > 0:
-                pt_data = pt_consensus[0]
-                data_dict.update(
-                    {
-                        "price_target": pt_data.get("priceTarget", 0.0),
-                        "price_target_high": pt_data.get("high", 0.0),
-                        "price_target_low": pt_data.get("low", 0.0),
-                    }
-                )
+            if not pt_consensus or len(pt_consensus) == 0:
+                raise ValueError("No price target consensus data found in API response")
+            pt_data = pt_consensus[0]
 
             # Extract smart score
             stock_score = json_data.get("tipranksStockScore", {})
-            if stock_score:
-                data_dict["smart_score"] = stock_score.get("score", 0)
+            if not stock_score:
+                raise ValueError("No stock score data found in API response")
 
-            # Parse the JSON data using the Pydantic model
-            result = TipranksDataModel(**data_dict)
+            # Build data structure matching Pydantic model aliases and field names
+            transformed_data = {
+                "ticker": ticker,
+                "companyName": json_data.get("companyName"),
+                "consensus_rating": latest_consensus.get("rating"),
+                "numOfAnalysts": json_data.get("numOfAnalysts"),
+                "buy_count": latest_consensus.get("nB"),
+                "hold_count": latest_consensus.get("nH"),
+                "sell_count": latest_consensus.get("nS"),
+                "price_target": pt_data.get("priceTarget"),
+                "price_target_high": pt_data.get("high"),
+                "price_target_low": pt_data.get("low"),
+                "smart_score": stock_score.get("score"),
+                "marketCap": json_data.get("marketCap"),
+            }
+
+            # Parse the JSON data using the Pydantic model (strict validation)
+            result = TipranksDataModel(**transformed_data)
             return result
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:
@@ -259,41 +308,33 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
                     f"No Tipranks news sentiment data found for query: {query}"
                 )
 
-            # Extract and transform the data structure with proper type conversion
-            data_dict = {
+            # Validate required nested structures exist
+            sentiment = json_data.get("sentiment", {})
+            if not sentiment:
+                raise ValueError("No sentiment data found in API response")
+
+            buzz = json_data.get("buzz", {})
+            if not buzz:
+                raise ValueError("No buzz data found in API response")
+
+            # Build data structure matching Pydantic model aliases and field names
+            transformed_data = {
                 "ticker": ticker,
-                "companyName": str(json_data.get("companyName", "")),
-                "score": float(json_data.get("score", 0.0)),
-                "sectorAverageBullishPercent": float(
-                    json_data.get("sectorAverageBullishPercent", 0.0)
+                "companyName": json_data.get("companyName"),
+                "score": json_data.get("score"),
+                "bullish_percent": sentiment.get("bullishPercent"),
+                "bearish_percent": sentiment.get("bearishPercent"),
+                "articles_last_week": buzz.get("articlesInLastWeek"),
+                "weekly_average": buzz.get("weeklyAverage"),
+                "buzz_score": buzz.get("buzz"),
+                "sectorAverageBullishPercent": json_data.get(
+                    "sectorAverageBullishPercent"
                 ),
+                "word_cloud_count": len(json_data.get("wordCloud", [])),
             }
 
-            # Extract sentiment data with proper type conversion
-            sentiment = json_data.get("sentiment", {})
-            data_dict.update(
-                {
-                    "bullish_percent": float(sentiment.get("bullishPercent", 0.0)),
-                    "bearish_percent": float(sentiment.get("bearishPercent", 0.0)),
-                }
-            )
-
-            # Extract buzz data with proper type conversion
-            buzz = json_data.get("buzz", {})
-            data_dict.update(
-                {
-                    "articles_last_week": int(buzz.get("articlesInLastWeek", 0)),
-                    "weekly_average": float(buzz.get("weeklyAverage", 0.0)),
-                    "buzz_score": float(buzz.get("buzz", 0.0)),
-                }
-            )
-
-            # Count word cloud items
-            word_cloud = json_data.get("wordCloud", [])
-            data_dict["word_cloud_count"] = len(word_cloud) if word_cloud else 0
-
-            # Parse the JSON data using the Pydantic model
-            result = TipranksNewsSentimentModel(**data_dict)
+            # Parse the JSON data using the Pydantic model (strict validation)
+            result = TipranksNewsSentimentModel(**transformed_data)
             return result
 
         except (httpx.HTTPStatusError, httpx.RequestError) as e:

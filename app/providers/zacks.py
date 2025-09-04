@@ -4,7 +4,7 @@ This module provides functionality to fetch data from Zacks API.
 """
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from app.lib.logger import logger
 from .base import (
@@ -18,7 +18,14 @@ from .cache import cache
 
 
 class ZacksModel(BaseModel):
-    """Pydantic model for Zacks API data."""
+    """
+    Pydantic model for Zacks API data.
+    """
+
+    # Important: Do not set default values.
+    # This would prevent us from detecting API changes.
+    # If the API changes and fields are missing,
+    # Pydantic should raise a validation error.
 
     ticker: str = Field(alias="ticker")
     price: float = Field(alias="last")
@@ -46,8 +53,42 @@ class ZacksModel(BaseModel):
     market_cap: float = Field(alias="marketCap")
 
     # Optional fields that might not always be present
-    market_time: str = Field(default="", alias="market_time")
-    updated: str = Field(default="", alias="updated")
+    # should default to None
+    market_time: str | None = Field(default=None, alias="market_time")
+    updated: str | None = Field(default=None, alias="updated")
+
+    @field_validator(
+        "price",
+        "change",
+        "percent_change",
+        "previous_close",
+        "pe_ratio",
+        "dividend_yield",
+        "high",
+        "low",
+        "open_price",
+        "market_cap",
+        mode="before",
+    )
+    @classmethod
+    def convert_null_floats(cls, v):
+        if v == "NULL" or v is None:
+            raise ValueError("Required float field cannot be NULL")
+        return float(v)
+
+    @field_validator("volume", mode="before")
+    @classmethod
+    def convert_null_volume(cls, v):
+        if v == "NULL" or v is None:
+            raise ValueError("Required volume field cannot be NULL")
+        return int(v)
+
+    @field_validator("zacks_rank", mode="before")
+    @classmethod
+    def convert_null_zacks_rank(cls, v):
+        if v == "NULL" or v is None:
+            raise ValueError("Required zacks_rank field cannot be NULL")
+        return int(v)
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
@@ -134,63 +175,6 @@ class ZacksProvider(BaseProvider[BaseModel]):
             else:
                 # If direct format, use as-is
                 ticker_data = json_data
-
-            # Process data for type conversion
-            # Convert string numbers to appropriate types
-            if "net_change" in ticker_data and ticker_data["net_change"] != "NULL":
-                ticker_data["net_change"] = float(ticker_data["net_change"])
-            else:
-                ticker_data["net_change"] = 0.0
-
-            if (
-                "percent_net_change" in ticker_data
-                and ticker_data["percent_net_change"] != "NULL"
-            ):
-                ticker_data["percent_net_change"] = float(
-                    ticker_data["percent_net_change"]
-                )
-            else:
-                ticker_data["percent_net_change"] = 0.0
-
-            if "last" in ticker_data and ticker_data["last"] != "NULL":
-                ticker_data["last"] = float(ticker_data["last"])
-            else:
-                # Fallback to previous_close if last is not available
-                if "previous_close" in ticker_data:
-                    ticker_data["last"] = float(ticker_data["previous_close"])
-                else:
-                    ticker_data["last"] = 0.0
-
-            if "volume" in ticker_data and ticker_data["volume"] != "NULL":
-                ticker_data["volume"] = int(ticker_data["volume"])
-            else:
-                ticker_data["volume"] = 0
-
-            if (
-                "previous_close" in ticker_data
-                and ticker_data["previous_close"] != "NULL"
-            ):
-                ticker_data["previous_close"] = float(ticker_data["previous_close"])
-            else:
-                ticker_data["previous_close"] = 0.0
-
-            if "pe_f1" in ticker_data and ticker_data["pe_f1"] != "NULL":
-                ticker_data["pe_f1"] = float(ticker_data["pe_f1"])
-            else:
-                ticker_data["pe_f1"] = 0.0
-
-            if "zacks_rank" in ticker_data and ticker_data["zacks_rank"] != "NULL":
-                ticker_data["zacks_rank"] = int(ticker_data["zacks_rank"])
-            else:
-                ticker_data["zacks_rank"] = 3  # Default neutral rank
-
-            if (
-                "dividend_yield" in ticker_data
-                and ticker_data["dividend_yield"] != "NULL"
-            ):
-                ticker_data["dividend_yield"] = float(ticker_data["dividend_yield"])
-            else:
-                ticker_data["dividend_yield"] = 0.0
 
         except Exception as e:
             logger.error(f"Error extracting ticker data for {ticker}: {e}")

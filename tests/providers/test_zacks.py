@@ -518,6 +518,40 @@ class TestZacksConfig:
         # Should complain about missing fields
         assert "Field required" in str(exc_info.value)
 
+    def test_zacks_model_null_values_raise_validation_error(self):
+        """Test that NULL string values in required fields raise ValidationError."""
+        # Test data with NULL values in required fields
+        test_data = {
+            "ticker": "AAPL",
+            "last": "NULL",  # Should raise ValidationError
+            "net_change": 2.50,
+            "percent_net_change": 1.68,
+            "volume": 50000000,
+            "high": 152.0,
+            "low": 149.0,
+            "open": 151.0,
+            "previous_close": 148.0,
+            "marketCap": 2500000000000,
+            "pe_f1": 25.5,
+            "zacks_rank": 2,
+            "zacks_rank_text": "Buy",
+            "dividend_yield": 2.1,
+            "market_status": "OPEN",
+            "name": "Apple Inc.",
+            "valueScore": "B",
+            "growthScore": "A",
+            "momentumScore": "B",
+            "vgmScore": "B",
+        }
+
+        with pytest.raises(ValidationError) as exc_info:
+            ZacksModel(**test_data)
+
+        # Should complain about NULL value in required field
+        assert "Required" in str(exc_info.value) and "cannot be NULL" in str(
+            exc_info.value
+        )
+
 
 class TestZacksProviderIntegration:
     """Integration tests for Zacks provider."""

@@ -6,7 +6,7 @@ This module provides functionality to fetch data from Yahoo Finance.
 import asyncio
 import yfinance as yf
 from pandas import DataFrame
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.lib.logger import logger
 from .base import (
@@ -21,6 +21,11 @@ from .cache import cache
 
 class YahooInfoModel(BaseModel):
     """Pydantic model for Yahoo Finance info data."""
+
+    # Important: Do not set default values for required fields.
+    # This would prevent us from detecting API changes.
+    # If the API changes and fields are missing,
+    # Pydantic should raise a validation error.
 
     ticker: str = Field(alias="symbol")
     company_name: str = Field(alias="longName")
@@ -38,6 +43,30 @@ class YahooInfoModel(BaseModel):
     exchange: str = Field(alias="exchange")
     sector: str = Field(alias="sector")
     industry: str = Field(alias="industry")
+
+    @field_validator("volume", "market_cap", mode="before")
+    @classmethod
+    def convert_null_ints(cls, v):
+        if v is None:
+            raise ValueError("Required int field cannot be None")
+        return int(v)
+
+    @field_validator(
+        "price",
+        "change",
+        "percent_change",
+        "pe_ratio",
+        "dividend_yield",
+        "beta",
+        "week_52_high",
+        "week_52_low",
+        mode="before",
+    )
+    @classmethod
+    def convert_null_floats(cls, v):
+        if v is None:
+            raise ValueError("Required float field cannot be None")
+        return float(v)
 
     model_config = {"populate_by_name": True, "extra": "ignore"}
 
