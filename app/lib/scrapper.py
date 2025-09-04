@@ -1,6 +1,5 @@
 """Web page scrapper module."""
 
-from typing import Optional
 import httpx
 from bs4 import BeautifulSoup
 
@@ -23,8 +22,8 @@ class WebPageScrapper:
         """
         self.url = url
         self.timeout = timeout
-        self._soup: Optional[BeautifulSoup] = None
-        self._client: Optional[httpx.AsyncClient] = None
+        self._soup: BeautifulSoup | None = None
+        self._client: httpx.AsyncClient | None = None
 
     async def _fetch_page(self) -> None:
         """
