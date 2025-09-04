@@ -14,6 +14,7 @@ llama-index-workflows
 lxml
 # networkx
 numpy
+openpyxl # to open xlsx files in pandas
 orjson
 pandas
 pybind11
@@ -30,4 +31,4 @@ reflex
 # reflex-motion
 # reflex-pyplot  # if using matplotlib
 # reflex-resizable-panels
-xlrd  # to open Excel files in pandas
+xlrd  # to open xls files in pandas

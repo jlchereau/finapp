@@ -124,7 +124,7 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
 
     def _get_provider_type(self) -> ProviderType:
         """Return the provider type."""
-        return ProviderType.CUSTOM
+        return ProviderType.TIPRANKS_DATA
 
     @cache
     # @cache loses pyrefly - no easy fix
@@ -250,7 +250,7 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
 
     def _get_provider_type(self) -> ProviderType:
         """Return the provider type."""
-        return ProviderType.CUSTOM
+        return ProviderType.TIPRANKS_NEWS_SENTIMENT
 
     @cache
     # @cache loses pyrefly - no easy fix

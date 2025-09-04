@@ -132,7 +132,7 @@ class TestTipranksDataProvider:
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
-        assert self.provider.provider_type == ProviderType.CUSTOM
+        assert self.provider.provider_type == ProviderType.TIPRANKS_DATA
 
     def test_provider_initialization(self):
         """Test provider initialization."""
@@ -677,7 +677,7 @@ class TestTipranksNewsSentimentProvider:
 
     def test_provider_type(self):
         """Test that provider returns correct type."""
-        assert self.provider.provider_type == ProviderType.CUSTOM
+        assert self.provider.provider_type == ProviderType.TIPRANKS_NEWS_SENTIMENT
 
     def test_provider_initialization(self):
         """Test provider initialization."""

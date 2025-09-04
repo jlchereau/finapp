@@ -52,17 +52,18 @@ class RetriableProviderException(FinAppException):
 
 class ProviderType(str, Enum):
     """Enum for provider types."""
-
-    YAHOO_HISTORY = "yahoo_history"
-    YAHOO_INFO = "yahoo_info"
-    ZACKS = "zacks"
+  
+    # ALPHA_VANTAGE = "alpha_vantage"
     BLACKROCK_HOLDINGS = "blackrock_holdings"
-    ALPHA_VANTAGE = "alpha_vantage"
-    IEX = "iex"
     FRED_SERIES = "fred_series"
     IBKR_POSITIONS = "ibkr_positions"
     IBKR_CASH = "ibkr_cash"
-    CUSTOM = "custom"
+    SHILLER_CAPE = "shiller_cape"
+    TIPRANKS_DATA = "tipranks_data"
+    TIPRANKS_NEWS_SENTIMENT = "tipranks_news_sentiment"
+    YAHOO_HISTORY = "yahoo_history"
+    YAHOO_INFO = "yahoo_info"
+    ZACKS = "zacks"
 
 
 class ProviderStatus(str, Enum):
