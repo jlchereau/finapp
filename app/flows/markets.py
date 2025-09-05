@@ -1,3 +1,4 @@
+# pylint: disable=broad-exception-raised
 """
 LlamaIndex workflow for market page data collection.
 
@@ -5,7 +6,6 @@ This workflow handles fetching economic data for market indicators
 like the Buffet Indicator using FredSeriesProvider and YahooHistoryProvider.
 """
 
-import asyncio
 from typing import Dict, Any
 from datetime import datetime
 
@@ -15,6 +15,10 @@ from workflows.events import Event, StartEvent, StopEvent
 
 from app.providers.fred import create_fred_series_provider
 from app.providers.yahoo import create_yahoo_history_provider
+from app.flows.helpers import (
+    process_multiple_provider_results,
+    validate_single_provider_task,
+)
 from app.lib.logger import logger
 from app.lib.exceptions import WorkflowException
 from app.lib.periods import (
@@ -140,55 +144,24 @@ class BuffetIndicatorWorkflow(Workflow):
         logger.debug(f"BuffetIndicatorWorkflow: Fetching data from {base_date}")
 
         # Create tasks for parallel execution
-        gdp_task = self.fred_provider.get_data("GDP")  # Nominal GDP, Quarterly
-        wilshire_task = self.yahoo_provider.get_data("^FTW5000")  # Wilshire 5000
+        tasks = {
+            "GDP": self.fred_provider.get_data("GDP"),  # Nominal GDP, Quarterly
+            "Wilshire": self.yahoo_provider.get_data("^FTW5000"),  # Wilshire 5000
+        }
 
-        # Execute tasks in parallel
-        results = await asyncio.gather(gdp_task, wilshire_task, return_exceptions=True)
+        # Execute tasks in parallel using helper function
+        results = await process_multiple_provider_results(tasks)
 
-        gdp_result, wilshire_result = results
-
-        # Process GDP data
-        if isinstance(gdp_result, Exception):
-            logger.error(f"Failed to fetch GDP data: {gdp_result}")
-            raise gdp_result
-
-        if not (hasattr(gdp_result, "success") and gdp_result.success):
-            error_msg = getattr(gdp_result, "error_message", "Unknown GDP fetch error")
-            logger.error(f"GDP provider failed: {error_msg}")
-            raise Exception(f"GDP data fetch failed: {error_msg}")
-
-        gdp_data = gdp_result.data
-        if gdp_data.empty:
-            logger.error("Empty GDP data returned")
-            raise Exception("No GDP data available")
-
-        logger.debug(
-            f"GDP data: {len(gdp_data)} rows, "
-            f"range: {gdp_data.index.min()} to {gdp_data.index.max()}"
-        )
-
-        # Process Wilshire data
-        if isinstance(wilshire_result, Exception):
-            logger.error(f"Failed to fetch Wilshire data: {wilshire_result}")
-            raise wilshire_result
-
-        if not (hasattr(wilshire_result, "success") and wilshire_result.success):
-            error_msg = getattr(
-                wilshire_result, "error_message", "Unknown Wilshire fetch error"
+        # Check for failures and extract data
+        if not results["GDP"]["success"]:
+            raise Exception(f"GDP data fetch failed: {results['GDP']['error']}")
+        if not results["Wilshire"]["success"]:
+            raise Exception(
+                f"Wilshire data fetch failed: {results['Wilshire']['error']}"
             )
-            logger.error(f"Wilshire provider failed: {error_msg}")
-            raise Exception(f"Wilshire data fetch failed: {error_msg}")
 
-        wilshire_data = wilshire_result.data
-        if wilshire_data.empty:
-            logger.error("Empty Wilshire data returned")
-            raise Exception("No Wilshire data available")
-
-        logger.debug(
-            f"Wilshire data: {len(wilshire_data)} rows, "
-            f"range: {wilshire_data.index.min()} to {wilshire_data.index.max()}"
-        )
+        gdp_data = results["GDP"]["data"]
+        wilshire_data = results["Wilshire"]["data"]
 
         return BuffetIndicatorEvent(
             gdp_data=gdp_data,
@@ -428,28 +401,9 @@ class VIXWorkflow(Workflow):
 
         logger.debug(f"VIXWorkflow: Fetching VIX data from {base_date}")
 
-        # Fetch VIX data
+        # Fetch VIX data using helper function
         vix_result = await self.yahoo_provider.get_data("^VIX")
-
-        # Process VIX data
-        if isinstance(vix_result, Exception):
-            logger.error(f"Failed to fetch VIX data: {vix_result}")
-            raise vix_result
-
-        if not (hasattr(vix_result, "success") and vix_result.success):
-            error_msg = getattr(vix_result, "error_message", "Unknown VIX fetch error")
-            logger.error(f"VIX provider failed: {error_msg}")
-            raise Exception(f"VIX data fetch failed: {error_msg}")
-
-        vix_data = vix_result.data
-        if vix_data.empty:
-            logger.error("Empty VIX data returned")
-            raise Exception("No VIX data available")
-
-        logger.debug(
-            f"VIX data: {len(vix_data)} rows, "
-            f"range: {vix_data.index.min()} to {vix_data.index.max()}"
-        )
+        vix_data = validate_single_provider_task(vix_result, "VIX")
 
         return VIXEvent(vix_data=vix_data, base_date=base_date)
 
@@ -701,57 +655,22 @@ class CurrencyWorkflow(Workflow):
         logger.debug(f"CurrencyWorkflow: Fetching currency data from {base_date}")
 
         # Create tasks for parallel execution
-        usdeur_task = self.yahoo_provider.get_data("EUR=X")  # USD/EUR
-        gbpeur_task = self.yahoo_provider.get_data("GBPEUR=X")  # GBP/EUR
+        tasks = {
+            "USD_EUR": self.yahoo_provider.get_data("EUR=X"),  # USD/EUR
+            "GBP_EUR": self.yahoo_provider.get_data("GBPEUR=X"),  # GBP/EUR
+        }
 
-        # Execute tasks in parallel
-        results = await asyncio.gather(usdeur_task, gbpeur_task, return_exceptions=True)
+        # Execute tasks in parallel using helper function
+        results = await process_multiple_provider_results(tasks)
 
-        usdeur_result, gbpeur_result = results
+        # Check for failures and extract data
+        if not results["USD_EUR"]["success"]:
+            raise Exception(f"USD/EUR data fetch failed: {results['USD_EUR']['error']}")
+        if not results["GBP_EUR"]["success"]:
+            raise Exception(f"GBP/EUR data fetch failed: {results['GBP_EUR']['error']}")
 
-        # Process USD/EUR data
-        if isinstance(usdeur_result, Exception):
-            logger.error(f"Failed to fetch USD/EUR data: {usdeur_result}")
-            raise usdeur_result
-
-        if not (hasattr(usdeur_result, "success") and usdeur_result.success):
-            error_msg = getattr(
-                usdeur_result, "error_message", "Unknown USD/EUR fetch error"
-            )
-            logger.error(f"USD/EUR provider failed: {error_msg}")
-            raise Exception(f"USD/EUR data fetch failed: {error_msg}")
-
-        usdeur_data = usdeur_result.data
-        if usdeur_data.empty:
-            logger.error("Empty USD/EUR data returned")
-            raise Exception("No USD/EUR data available")
-
-        logger.debug(
-            f"USD/EUR data: {len(usdeur_data)} rows, "
-            f"range: {usdeur_data.index.min()} to {usdeur_data.index.max()}"
-        )
-
-        # Process GBP/EUR data
-        if isinstance(gbpeur_result, Exception):
-            logger.error(f"Failed to fetch GBP/EUR data: {gbpeur_result}")
-            raise gbpeur_result
-
-        if not (hasattr(gbpeur_result, "success") and gbpeur_result.success):
-            error_msg = getattr(
-                gbpeur_result, "error_message", "Unknown GBP/EUR fetch error"
-            )
-            logger.error(f"GBP/EUR provider failed: {error_msg}")
-            raise Exception(f"GBP/EUR data fetch failed: {error_msg}")
-
-        gbpeur_data = gbpeur_result.data
-        if gbpeur_data.empty:
-            logger.error("Empty GBP/EUR data returned")
-            raise Exception("No GBP/EUR data available")
-
-        logger.debug(
-            f"GBP/EUR data: {len(gbpeur_data)} rows, "
-            f"range: {gbpeur_data.index.min()} to {gbpeur_data.index.max()}"
-        )
+        usdeur_data = results["USD_EUR"]["data"]
+        gbpeur_data = results["GBP_EUR"]["data"]
 
         return CurrencyEvent(
             usdeur_data=usdeur_data, gbpeur_data=gbpeur_data, base_date=base_date
@@ -911,30 +830,9 @@ class PreciousMetalsWorkflow(Workflow):
 
         logger.debug(f"PreciousMetalsWorkflow: Fetching gold data from {base_date}")
 
-        # Fetch Gold Futures data (COMEX)
+        # Fetch Gold Futures data (COMEX) using helper function
         gold_result = await self.yahoo_provider.get_data("GC=F")
-
-        # Process Gold data
-        if isinstance(gold_result, Exception):
-            logger.error(f"Failed to fetch gold data: {gold_result}")
-            raise gold_result
-
-        if not (hasattr(gold_result, "success") and gold_result.success):
-            error_msg = getattr(
-                gold_result, "error_message", "Unknown gold fetch error"
-            )
-            logger.error(f"Gold provider failed: {error_msg}")
-            raise Exception(f"Gold data fetch failed: {error_msg}")
-
-        gold_data = gold_result.data
-        if gold_data.empty:
-            logger.error("Empty gold data returned")
-            raise Exception("No gold data available")
-
-        logger.debug(
-            f"Gold data: {len(gold_data)} rows, "
-            f"range: {gold_data.index.min()} to {gold_data.index.max()}"
-        )
+        gold_data = validate_single_provider_task(gold_result, "Gold")
 
         return PreciousMetalsEvent(gold_data=gold_data, base_date=base_date)
 
@@ -1063,56 +961,25 @@ class CryptoCurrencyWorkflow(Workflow):
         base_date = ev.base_date
         logger.debug(f"CryptoCurrencyWorkflow: Fetching crypto data from {base_date}")
 
-        # Fetch Bitcoin and Ethereum data in parallel
-        bitcoin_task = self.yahoo_provider.get_data("BTC-USD")
-        ethereum_task = self.yahoo_provider.get_data("ETH-USD")
+        # Fetch Bitcoin and Ethereum data in parallel using helper function
+        tasks = {
+            "Bitcoin": self.yahoo_provider.get_data("BTC-USD"),
+            "Ethereum": self.yahoo_provider.get_data("ETH-USD"),
+        }
 
-        bitcoin_result, ethereum_result = await asyncio.gather(
-            bitcoin_task, ethereum_task, return_exceptions=True
-        )
+        # Execute tasks in parallel using helper function
+        results = await process_multiple_provider_results(tasks)
 
-        # Process Bitcoin data
-        if isinstance(bitcoin_result, Exception):
-            logger.error(f"Failed to fetch Bitcoin data: {bitcoin_result}")
-            raise bitcoin_result
-
-        if not (hasattr(bitcoin_result, "success") and bitcoin_result.success):
-            error_msg = getattr(
-                bitcoin_result, "error_message", "Unknown Bitcoin fetch error"
+        # Extract data from results, checking for failures
+        if not results["Bitcoin"]["success"]:
+            raise Exception(f"Bitcoin data fetch failed: {results['Bitcoin']['error']}")
+        if not results["Ethereum"]["success"]:
+            raise Exception(
+                f"Ethereum data fetch failed: {results['Ethereum']['error']}"
             )
-            logger.error(f"Bitcoin provider failed: {error_msg}")
-            raise Exception(f"Bitcoin data fetch failed: {error_msg}")
 
-        bitcoin_data = bitcoin_result.data
-        if bitcoin_data.empty:
-            logger.error("Empty Bitcoin data returned")
-            raise Exception("No Bitcoin data available")
-
-        # Process Ethereum data
-        if isinstance(ethereum_result, Exception):
-            logger.error(f"Failed to fetch Ethereum data: {ethereum_result}")
-            raise ethereum_result
-
-        if not (hasattr(ethereum_result, "success") and ethereum_result.success):
-            error_msg = getattr(
-                ethereum_result, "error_message", "Unknown Ethereum fetch error"
-            )
-            logger.error(f"Ethereum provider failed: {error_msg}")
-            raise Exception(f"Ethereum data fetch failed: {error_msg}")
-
-        ethereum_data = ethereum_result.data
-        if ethereum_data.empty:
-            logger.error("Empty Ethereum data returned")
-            raise Exception("No Ethereum data available")
-
-        logger.debug(
-            f"Bitcoin data: {len(bitcoin_data)} rows, "
-            f"range: {bitcoin_data.index.min()} to {bitcoin_data.index.max()}"
-        )
-        logger.debug(
-            f"Ethereum data: {len(ethereum_data)} rows, "
-            f"range: {ethereum_data.index.min()} to {ethereum_data.index.max()}"
-        )
+        bitcoin_data = results["Bitcoin"]["data"]
+        ethereum_data = results["Ethereum"]["data"]
 
         return CryptoCurrencyEvent(
             bitcoin_data=bitcoin_data, ethereum_data=ethereum_data, base_date=base_date
@@ -1266,54 +1133,22 @@ class CrudeOilWorkflow(Workflow):
         base_date = ev.base_date
         logger.debug(f"CrudeOilWorkflow: Fetching crude oil data from {base_date}")
 
-        # Fetch WTI and Brent data in parallel
-        wti_task = self.yahoo_provider.get_data("CL=F")  # WTI Crude Oil
-        brent_task = self.yahoo_provider.get_data("BZ=F")  # Brent Crude Oil
+        # Fetch WTI and Brent data in parallel using helper function
+        tasks = {
+            "WTI": self.yahoo_provider.get_data("CL=F"),  # WTI Crude Oil
+            "Brent": self.yahoo_provider.get_data("BZ=F"),  # Brent Crude Oil
+        }
 
-        wti_result, brent_result = await asyncio.gather(
-            wti_task, brent_task, return_exceptions=True
-        )
+        results = await process_multiple_provider_results(tasks)
 
-        # Process WTI data
-        if isinstance(wti_result, Exception):
-            logger.error(f"Failed to fetch WTI data: {wti_result}")
-            raise wti_result
+        # Check for failures and extract data
+        if not results["WTI"]["success"]:
+            raise Exception(f"WTI data fetch failed: {results['WTI']['error']}")
+        if not results["Brent"]["success"]:
+            raise Exception(f"Brent data fetch failed: {results['Brent']['error']}")
 
-        if not (hasattr(wti_result, "success") and wti_result.success):
-            error_msg = getattr(wti_result, "error_message", "Unknown WTI fetch error")
-            logger.error(f"WTI provider failed: {error_msg}")
-            raise Exception(f"WTI data fetch failed: {error_msg}")
-
-        wti_data = wti_result.data
-        if wti_data.empty:
-            logger.error("Empty WTI data returned")
-            raise Exception("No WTI data available")
-
-        # Process Brent data
-        if isinstance(brent_result, Exception):
-            logger.error(f"Failed to fetch Brent data: {brent_result}")
-            raise brent_result
-
-        if not (hasattr(brent_result, "success") and brent_result.success):
-            error_msg = getattr(
-                brent_result, "error_message", "Unknown Brent fetch error"
-            )
-            logger.error(f"Brent provider failed: {error_msg}")
-            raise Exception(f"Brent data fetch failed: {error_msg}")
-
-        brent_data = brent_result.data
-        if brent_data.empty:
-            logger.error("Empty Brent data returned")
-            raise Exception("No Brent data available")
-
-        logger.debug(
-            f"WTI data: {len(wti_data)} rows, "
-            f"range: {wti_data.index.min()} to {wti_data.index.max()}"
-        )
-        logger.debug(
-            f"Brent data: {len(brent_data)} rows, "
-            f"range: {brent_data.index.min()} to {brent_data.index.max()}"
-        )
+        wti_data = results["WTI"]["data"]
+        brent_data = results["Brent"]["data"]
 
         return CrudeOilEvent(
             wti_data=wti_data, brent_data=brent_data, base_date=base_date
@@ -1474,30 +1309,9 @@ class BloombergCommodityWorkflow(Workflow):
             f"BloombergCommodityWorkflow: Fetching ^BCOM data from {base_date}"
         )
 
-        # Fetch Bloomberg Commodity Index data
+        # Fetch Bloomberg Commodity Index data using helper function
         bcom_result = await self.yahoo_provider.get_data("^BCOM")
-
-        # Process ^BCOM data
-        if isinstance(bcom_result, Exception):
-            logger.error(f"Failed to fetch ^BCOM data: {bcom_result}")
-            raise bcom_result
-
-        if not (hasattr(bcom_result, "success") and bcom_result.success):
-            error_msg = getattr(
-                bcom_result, "error_message", "Unknown ^BCOM fetch error"
-            )
-            logger.error(f"^BCOM provider failed: {error_msg}")
-            raise Exception(f"^BCOM data fetch failed: {error_msg}")
-
-        bcom_data = bcom_result.data
-        if bcom_data.empty:
-            logger.error("Empty ^BCOM data returned")
-            raise Exception("No ^BCOM data available")
-
-        logger.debug(
-            f"^BCOM data: {len(bcom_data)} rows, "
-            f"range: {bcom_data.index.min()} to {bcom_data.index.max()}"
-        )
+        bcom_data = validate_single_provider_task(bcom_result, "^BCOM")
 
         return BloombergCommodityEvent(bcom_data=bcom_data, base_date=base_date)
 
@@ -1633,30 +1447,9 @@ class MSCIWorldWorkflow(Workflow):
         base_date = ev.base_date
         logger.debug(f"MSCIWorldWorkflow: Fetching MSCI World data from {base_date}")
 
-        # Fetch MSCI World Index data
+        # Fetch MSCI World Index data using helper function
         msci_result = await self.yahoo_provider.get_data("^990100-USD-STRD")
-
-        # Process MSCI data
-        if isinstance(msci_result, Exception):
-            logger.error(f"Failed to fetch MSCI World data: {msci_result}")
-            raise msci_result
-
-        if not (hasattr(msci_result, "success") and msci_result.success):
-            error_msg = getattr(
-                msci_result, "error_message", "Unknown MSCI World fetch error"
-            )
-            logger.error(f"MSCI World provider failed: {error_msg}")
-            raise Exception(f"MSCI World data fetch failed: {error_msg}")
-
-        msci_data = msci_result.data
-        if msci_data.empty:
-            logger.error("Empty MSCI World data returned")
-            raise Exception("No MSCI World data available")
-
-        logger.debug(
-            f"MSCI World data: {len(msci_data)} rows, "
-            f"range: {msci_data.index.min()} to {msci_data.index.max()}"
-        )
+        msci_data = validate_single_provider_task(msci_result, "MSCI World")
 
         return MSCIWorldEvent(msci_data=msci_data, base_date=base_date)
 

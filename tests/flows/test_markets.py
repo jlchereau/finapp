@@ -103,9 +103,10 @@ async def test_fetch_buffet_indicator_data_success(
     wilshire_result.data = sample_wilshire_data
 
     # Mock the providers
-    with patch("app.flows.markets.create_fred_series_provider") as mock_fred, patch(
-        "app.flows.markets.create_yahoo_history_provider"
-    ) as mock_yahoo:
+    with (
+        patch("app.flows.markets.create_fred_series_provider") as mock_fred,
+        patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo,
+    ):
 
         # Setup provider mocks
         mock_fred_instance = AsyncMock()
@@ -188,9 +189,10 @@ async def test_buffet_indicator_calculation_accuracy(
     wilshire_result.data = sample_wilshire_data
 
     # Mock the providers
-    with patch("app.flows.markets.create_fred_series_provider") as mock_fred, patch(
-        "app.flows.markets.create_yahoo_history_provider"
-    ) as mock_yahoo:
+    with (
+        patch("app.flows.markets.create_fred_series_provider") as mock_fred,
+        patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo,
+    ):
 
         # Setup provider mocks
         mock_fred_instance = AsyncMock()
@@ -246,9 +248,10 @@ async def test_buffet_indicator_workflow_direct():
     wilshire_result.data = wilshire_data
 
     # Mock the providers at the class level
-    with patch("app.flows.markets.create_fred_series_provider") as mock_fred, patch(
-        "app.flows.markets.create_yahoo_history_provider"
-    ) as mock_yahoo:
+    with (
+        patch("app.flows.markets.create_fred_series_provider") as mock_fred,
+        patch("app.flows.markets.create_yahoo_history_provider") as mock_yahoo,
+    ):
 
         # Setup provider mocks
         mock_fred_instance = AsyncMock()
@@ -378,7 +381,7 @@ async def test_vix_data_empty_handling():
             await workflow.run(base_date=datetime(2020, 1, 1))
             assert False, "Expected exception to be raised"
         except Exception as e:
-            assert "No VIX data available" in str(e)
+            assert "No vix data available" in str(e)
 
 
 @pytest.mark.asyncio
@@ -1242,7 +1245,7 @@ async def test_currency_data_empty_handling():
             await workflow.run(base_date=datetime(2020, 1, 1))
             assert False, "Expected exception to be raised"
         except Exception as e:
-            assert "No USD/EUR data available" in str(e)
+            assert "usd_eur data" in str(e)
 
 
 @pytest.mark.asyncio

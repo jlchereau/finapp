@@ -102,7 +102,7 @@ class CompareState(rx.State):
         result = await fetch_returns_data(tickers, base_date)
 
         # Extract the normalized DataFrame
-        normalized_data = result.get("data")
+        normalized_data = result.data
 
         if normalized_data is None or normalized_data.empty:
             raise PageOutputException(
@@ -125,7 +125,7 @@ class CompareState(rx.State):
             return pd.DataFrame()
 
         result = await fetch_volatility_data(tickers, base_date)
-        volatility_data = result.get("data")
+        volatility_data = result.data
 
         if volatility_data is None or volatility_data.empty:
             raise PageOutputException(
@@ -148,7 +148,7 @@ class CompareState(rx.State):
             return pd.DataFrame()
 
         result = await fetch_volume_data(tickers, base_date)
-        volume_data = result.get("data")
+        volume_data = result.data
 
         if volume_data is None or volume_data.empty:
             raise PageOutputException(
@@ -171,7 +171,7 @@ class CompareState(rx.State):
             return pd.DataFrame()
 
         result = await fetch_rsi_data(tickers, base_date)
-        rsi_data = result.get("data")
+        rsi_data = result.data
 
         if rsi_data is None or rsi_data.empty:
             raise PageOutputException(

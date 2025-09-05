@@ -111,20 +111,20 @@ class TestFetchReturnsData:
 
             result = await fetch_returns_data(["AAPL"], datetime(2024, 1, 1))
 
-            assert result["successful_tickers"] == ["AAPL"]
-            assert len(result["failed_tickers"]) == 0
-            assert isinstance(result["data"], pd.DataFrame)
-            assert "AAPL" in result["data"].columns
+            assert result.successful_items == ["AAPL"]
+            assert len(result.failed_items) == 0
+            assert isinstance(result.data, pd.DataFrame)
+            assert "AAPL" in result.data.columns
 
     @pytest.mark.asyncio
     async def test_fetch_returns_data_empty_tickers(self):
         """Test with empty ticker list."""
         result = await fetch_returns_data([], datetime(2024, 1, 1))
 
-        assert result["successful_tickers"] == []
-        assert result["failed_tickers"] == []
-        assert isinstance(result["data"], pd.DataFrame)
-        assert result["data"].empty
+        assert result.successful_items == []
+        assert result.failed_items == []
+        assert isinstance(result.data, pd.DataFrame)
+        assert result.data.empty
 
     @pytest.mark.asyncio
     async def test_fetch_returns_data_no_raw_data(self):
@@ -134,8 +134,8 @@ class TestFetchReturnsData:
 
             result = await fetch_returns_data(["AAPL"], datetime(2024, 1, 1))
 
-            assert result["successful_tickers"] == []
-            assert result["failed_tickers"] == ["AAPL"]
+            assert result.successful_items == []
+            assert result.failed_items == ["AAPL"]
 
     @pytest.mark.asyncio
     async def test_fetch_returns_data_missing_close_column(self):
@@ -188,10 +188,10 @@ class TestFetchVolatilityData:
 
                 result = await fetch_volatility_data(["AAPL"], datetime(2024, 1, 1))
 
-                assert result["successful_tickers"] == ["AAPL"]
-                assert len(result["failed_tickers"]) == 0
-                assert isinstance(result["data"], pd.DataFrame)
-                assert "AAPL" in result["data"].columns
+                assert result.successful_items == ["AAPL"]
+                assert len(result.failed_items) == 0
+                assert isinstance(result.data, pd.DataFrame)
+                assert "AAPL" in result.data.columns
 
     @pytest.mark.asyncio
     async def test_fetch_volatility_data_calculation_failure(self, sample_ohlcv_data):
@@ -206,8 +206,8 @@ class TestFetchVolatilityData:
 
                 result = await fetch_volatility_data(["AAPL"], datetime(2024, 1, 1))
 
-                assert result["successful_tickers"] == []
-                assert result["failed_tickers"] == ["AAPL"]
+                assert result.successful_items == []
+                assert result.failed_items == ["AAPL"]
 
 
 class TestFetchVolumeData:
@@ -223,10 +223,10 @@ class TestFetchVolumeData:
 
             result = await fetch_volume_data(["AAPL"], datetime(2024, 1, 1))
 
-            assert result["successful_tickers"] == ["AAPL"]
-            assert len(result["failed_tickers"]) == 0
-            assert isinstance(result["data"], pd.DataFrame)
-            assert "AAPL" in result["data"].columns
+            assert result.successful_items == ["AAPL"]
+            assert len(result.failed_items) == 0
+            assert isinstance(result.data, pd.DataFrame)
+            assert "AAPL" in result.data.columns
 
     @pytest.mark.asyncio
     async def test_fetch_volume_data_missing_volume_column(self):
@@ -249,8 +249,8 @@ class TestFetchVolumeData:
 
             result = await fetch_volume_data(["AAPL"], datetime(2024, 1, 1))
 
-            assert result["successful_tickers"] == []
-            assert result["failed_tickers"] == ["AAPL"]
+            assert result.successful_items == []
+            assert result.failed_items == ["AAPL"]
 
 
 class TestFetchRSIData:
@@ -275,10 +275,10 @@ class TestFetchRSIData:
 
                 result = await fetch_rsi_data(["AAPL"], datetime(2024, 1, 1))
 
-                assert result["successful_tickers"] == ["AAPL"]
-                assert len(result["failed_tickers"]) == 0
-                assert isinstance(result["data"], pd.DataFrame)
-                assert "AAPL" in result["data"].columns
+                assert result.successful_items == ["AAPL"]
+                assert len(result.failed_items) == 0
+                assert isinstance(result.data, pd.DataFrame)
+                assert "AAPL" in result.data.columns
 
 
 class TestTickerDataWorkflow:
