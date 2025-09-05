@@ -9,7 +9,6 @@ import csv
 from datetime import datetime
 import shutil
 from pathlib import Path
-from typing import Optional, Union
 
 from .settings import settings
 
@@ -22,7 +21,7 @@ class DateBasedStorage:
     organized by date in YYYYMMDD format.
     """
 
-    def __init__(self, base_path: Optional[Union[str, Path]] = None):
+    def __init__(self, base_path: str | Path | None = None):
         """
         Initialize storage manager.
 
@@ -35,9 +34,7 @@ class DateBasedStorage:
         else:
             self.base_path = Path(base_path)
 
-    def get_date_folder(
-        self, date_str: Optional[str] = None, create: bool = True
-    ) -> Path:
+    def get_date_folder(self, date_str: str | None = None, create: bool = True) -> Path:
         """
         Get path to date-based folder.
 
@@ -59,7 +56,7 @@ class DateBasedStorage:
         return date_folder
 
     def get_file_path(
-        self, filename: str, date_str: Optional[str] = None, create_folder: bool = True
+        self, filename: str, date_str: str | None = None, create_folder: bool = True
     ) -> Path:
         """
         Get full path to a file in a date-based folder.
@@ -93,7 +90,7 @@ class DateBasedStorage:
         return sorted(date_folders, reverse=True)
 
     def get_cache_paths(
-        self, provider_type: str, query: str, date_str: Optional[str] = None
+        self, provider_type: str, query: str | None, date_str: str | None = None
     ) -> tuple[Path, Path]:
         """
         Get cache file paths for a provider query (JSON and Parquet).
@@ -225,7 +222,7 @@ class DateBasedStorage:
 
 
 # Convenience functions for backward compatibility and ease of use
-def get_data_folder(date_str: Optional[str] = None, create: bool = True) -> Path:
+def get_data_folder(date_str: str | None = None, create: bool = True) -> Path:
     """
     Get path to data folder for a specific date.
 
@@ -241,7 +238,7 @@ def get_data_folder(date_str: Optional[str] = None, create: bool = True) -> Path
 
 
 def get_data_file_path(
-    filename: str, date_str: Optional[str] = None, create_folder: bool = True
+    filename: str, date_str: str | None = None, create_folder: bool = True
 ) -> Path:
     """
     Get full path to a file in a date-based data folder.
@@ -259,7 +256,7 @@ def get_data_file_path(
 
 
 def get_cache_file_paths(
-    provider_type: str, query: str, date_str: Optional[str] = None
+    provider_type: str, query: str | None, date_str: str | None = None
 ) -> tuple[Path, Path]:
     """
     Get cache file paths for a provider query (JSON and Parquet).

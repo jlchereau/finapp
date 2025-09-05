@@ -22,7 +22,9 @@ def apply_provider_cache(func):  # decorator for async _fetch_data methods
     """
 
     @wraps(func)
-    async def wrapper(self, query, *args, cache_date: str | None = None, **kwargs):
+    async def wrapper(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ):
         # If caching is disabled globally or per-provider, bypass cache entirely
         from app.lib.settings import settings
 

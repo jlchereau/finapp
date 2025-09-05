@@ -12,9 +12,9 @@ class DummyDFProvider(BaseProvider[pd.DataFrame]):
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.DUMMY
 
+    @apply_provider_cache
     # pyrefly: ignore[bad-override]
     # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    @apply_provider_cache
     async def _fetch_data(
         self, query: str | None, *args, cache_date: str | None = None, **kwargs
     ) -> pd.DataFrame:
@@ -30,12 +30,13 @@ class DummyModelProvider(BaseProvider[SimpleModel]):
     def _get_provider_type(self) -> ProviderType:
         return ProviderType.DUMMY
 
+    @apply_provider_cache
     # pyrefly: ignore[bad-override]
     # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    @apply_provider_cache
     async def _fetch_data(
         self, query: str | None, *args, cache_date: str | None = None, **kwargs
     ) -> SimpleModel:
+        """Simulate fetching a SimpleModel with unique content using query"""
         return SimpleModel(value=len(query) if query else 0)
 
 
@@ -88,7 +89,9 @@ async def test_cache_date_read_only():
     # Provide a past date where no cache exists
     old_date = (datetime.now() - timedelta(days=1)).strftime("%Y%m%d")
     # Should fetch without error and not write new cache files
-    df = await provider._fetch_data("baz", cache_date=old_date)
+    result = await provider.get_data("baz", cache_date=old_date)
+    assert result.success
+    df = result.data
     assert isinstance(df, pd.DataFrame)
 
     # Check that cache files were not created for read-only mode

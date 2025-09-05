@@ -406,6 +406,21 @@ class TestConvenienceFunctions:
         )
         assert result == expected_paths
 
+    def test_get_cache_file_paths_none_query(self, mock_storage):
+        """Test get_cache_file_paths convenience function with None query."""
+        provider_type = "yahoo"
+        query = None
+        test_date = "20231225"
+        expected_paths = (Path("/test/none.json"), Path("/test/none.parquet"))
+        mock_storage.get_cache_paths.return_value = expected_paths
+
+        result = get_cache_file_paths(provider_type, query, test_date)
+
+        mock_storage.get_cache_paths.assert_called_once_with(
+            provider_type, query, test_date
+        )
+        assert result == expected_paths
+
 
 class TestStorageIntegration:
     """Integration tests for storage functionality."""
