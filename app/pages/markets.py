@@ -196,8 +196,9 @@ class MarketState(rx.State):
             return None
         return base_date.strftime("%Y-%m-%d")
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_buffet_chart(self):
         """Update the Buffet Indicator chart using background processing."""
         async with self:
@@ -310,8 +311,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_buffet = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_vix_chart(self):
         """Update the VIX chart using background processing."""
         async with self:
@@ -430,8 +432,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_vix = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     # pylint: disable=too-many-locals,too-many-branches,too-many-statements
     async def update_yield_chart(self):
         """Update the yield curve chart using background processing."""
@@ -609,8 +612,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_yield = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_currency_chart(self):
         """Update the currency exchange rate chart using background processing."""
         async with self:
@@ -726,8 +730,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_currency = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_precious_metals_chart(self):
         """Update the precious metals (Gold Futures) chart in background."""
         async with self:
@@ -848,8 +853,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_precious_metals = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_bloomberg_commodity_chart(self):
         """Update the Bloomberg Commodity Index chart in background."""
         async with self:
@@ -974,8 +980,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_bloomberg_commodity = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_msci_world_chart(self):
         """Update the MSCI World Index chart using background processing."""
         async with self:
@@ -1120,8 +1127,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_msci_world = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_crypto_chart(self):
         """Update the cryptocurrency (Bitcoin and Ethereum) chart in background."""
         async with self:
@@ -1194,8 +1202,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_crypto = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def update_crude_oil_chart(self):
         """Update the crude oil (WTI and Brent) chart in background."""
         async with self:
@@ -1264,8 +1273,9 @@ class MarketState(rx.State):
             async with self:
                 self.loading_crude_oil = False
 
+    # pylint: disable=not-callable
     # pyrefly: ignore[not-callable]
-    @rx.event(background=True)  # pylint: disable=not-callable
+    @rx.event(background=True)
     async def run_workflows(self):
         """Load initial chart data."""
         yield MarketState.update_buffet_chart
@@ -1340,6 +1350,11 @@ def plots_fear_and_greed_index() -> rx.Component:
     return rx.box(rx.text("Fear and Greed index plot"))
 
 
+def plots_shiller_cape() -> rx.Component:
+    """Shiller CAPE plot."""
+    return rx.box(rx.text("Shiller CAPE plot"))
+
+
 def plots_buffet_indicator() -> rx.Component:
     """
     Buffet indicator plot.
@@ -1399,6 +1414,7 @@ def tabs_us() -> rx.Component:
         rx.grid(
             rx.card(plots_fear_and_greed_index()),
             rx.card(plots_buffet_indicator()),
+            rx.card(plots_shiller_cape()),
             rx.card(plots_yield_curve()),
             rx.card(plots_vix_index()),
             columns="2",
