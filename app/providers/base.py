@@ -52,7 +52,7 @@ class RetriableProviderException(FinAppException):
 
 class ProviderType(str, Enum):
     """Enum for provider types."""
-  
+
     # ALPHA_VANTAGE = "alpha_vantage"
     BLACKROCK_HOLDINGS = "blackrock_holdings"
     FRED_SERIES = "fred_series"

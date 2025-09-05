@@ -133,7 +133,9 @@ class TestShillerCAPEProvider:
             "https://img1.wsimg.com/downloads/ie_data.xls?ver=123456789"
         )
         mock_xlrd_open.assert_called_once_with(file_contents=b"fake_excel_content")
-        mock_read_excel.assert_called_once_with(mock_workbook, sheet_name="Data", skiprows=8, engine="xlrd")
+        mock_read_excel.assert_called_once_with(
+            mock_workbook, sheet_name="Data", skiprows=8, engine="xlrd"
+        )
 
     @pytest.mark.asyncio
     @patch("app.providers.shiller.WebPageScrapper")
@@ -305,7 +307,6 @@ class TestShillerCAPEProvider:
         # Should still have 4 rows since we only drop rows with ALL NaN values
         assert result.data is not None
         assert len(result.data) == 4
-
 
     def test_get_data_sync(self):
         """Test synchronous wrapper."""

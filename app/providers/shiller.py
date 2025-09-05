@@ -91,9 +91,13 @@ class ShillerCAPEProvider(BaseProvider[DataFrame]):
             workbook = xlrd.open_workbook(file_contents=response.content)
             df = pd.read_excel(workbook, sheet_name="Data", skiprows=8, engine="xlrd")
         except httpx.RequestError as e:
-            raise RetriableProviderException(f"Failed to download Excel file: {e}") from e
+            raise RetriableProviderException(
+                f"Failed to download Excel file: {e}"
+            ) from e
         except httpx.HTTPStatusError as e:
-            raise RetriableProviderException(f"HTTP error downloading Excel file: {e}") from e
+            raise RetriableProviderException(
+                f"HTTP error downloading Excel file: {e}"
+            ) from e
         except Exception as e:
             raise RetriableProviderException(
                 f"Unexpected error downloading Excel file: {e}"
@@ -142,9 +146,7 @@ class ShillerCAPEProvider(BaseProvider[DataFrame]):
         # Clean up - remove rows with all NaN values
         result_df = result_df.dropna(how="all")
 
-        logger.info(
-            f"Successfully processed Shiller data: {len(result_df)} records"
-        )
+        logger.info(f"Successfully processed Shiller data: {len(result_df)} records")
         return result_df
 
 
