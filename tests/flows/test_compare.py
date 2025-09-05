@@ -16,7 +16,7 @@ from app.flows.compare import (
     fetch_volatility_data,
     fetch_volume_data,
     fetch_rsi_data,
-    CompareDataWorkflow,
+    TickerDataWorkflow,
 )
 
 
@@ -281,14 +281,14 @@ class TestFetchRSIData:
                 assert "AAPL" in result["data"].columns
 
 
-class TestCompareDataWorkflow:
-    """Test CompareDataWorkflow class."""
+class TestTickerDataWorkflow:
+    """Test TickerDataWorkflow class."""
 
     def test_workflow_initialization(self):
         """Test workflow can be initialized."""
         with patch("app.flows.compare.create_yahoo_history_provider") as mock_create:
             mock_create.return_value = MagicMock()
-            workflow = CompareDataWorkflow()
+            workflow = TickerDataWorkflow()
             assert workflow.yahoo_history is not None
 
     @pytest.mark.asyncio
@@ -303,7 +303,7 @@ class TestCompareDataWorkflow:
             mock_provider.get_data.return_value = mock_provider_result
             mock_create.return_value = mock_provider
 
-            workflow = CompareDataWorkflow()
+            workflow = TickerDataWorkflow()
 
             # Create mock start event
             start_event = MagicMock()

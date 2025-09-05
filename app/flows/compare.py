@@ -6,12 +6,13 @@ using the YahooHistoryProvider with proper error handling and parallel processin
 """
 
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Tuple, cast
 from datetime import datetime
 
-import pandas as pd
+from pandas import DataFrame, Series, to_datetime
 from workflows import Workflow, step
 from workflows.events import Event, StartEvent, StopEvent
+from app.providers.base import ProviderResult
 from app.providers.yahoo import create_yahoo_history_provider
 from app.lib.logger import logger
 from app.lib.finance import calculate_volatility, calculate_rsi
@@ -19,7 +20,7 @@ from app.lib.exceptions import WorkflowException
 from app.flows.cache import apply_flow_cache
 
 
-def _filter_data_by_date(data: pd.DataFrame, base_date: datetime) -> pd.DataFrame:
+def _filter_data_by_date(data: DataFrame, base_date: datetime) -> DataFrame:
     """
     Common date filtering logic used across all workflows.
 
@@ -30,19 +31,19 @@ def _filter_data_by_date(data: pd.DataFrame, base_date: datetime) -> pd.DataFram
     Returns:
         Filtered DataFrame containing data from base_date onwards
     """
-    base_date_pd = pd.to_datetime(base_date.date())
+    base_date_pd = to_datetime(base_date.date())
 
     # Handle timezone-aware indexes
-    if data.index.tz is not None:
-        data_index = data.index.tz_localize(None)
-        return data[data_index >= base_date_pd]
-    else:
-        return data[data.index >= base_date_pd]
+    if hasattr(data.index, "tz") and data.index.tz is not None:
+        if hasattr(data.index, "tz_localize"):
+            data_index = data.index.tz_localize(None)
+            return cast(DataFrame, data[data_index >= base_date_pd])
+    return cast(DataFrame, data[data.index >= base_date_pd])
 
 
 def _process_ticker_result(
-    ticker: str, raw_data: Dict[str, pd.DataFrame], failed_tickers: List[str]
-) -> Optional[pd.DataFrame]:
+    ticker: str, raw_data: Dict[str, DataFrame], failed_tickers: List[str]
+) -> DataFrame | None:
     """
     Standard ticker validation and data extraction.
 
@@ -66,7 +67,7 @@ def _process_ticker_result(
     return data
 
 
-def _get_close_prices(data: pd.DataFrame, ticker: str) -> Optional[pd.Series]:
+def _get_close_prices(data: DataFrame, ticker: str) -> Series | None:
     """
     Extract close prices from OHLCV data with fallback to Adj Close.
 
@@ -78,15 +79,15 @@ def _get_close_prices(data: pd.DataFrame, ticker: str) -> Optional[pd.Series]:
         Close price Series or None if not available
     """
     if "Close" in data.columns:
-        return data["Close"].dropna()
+        return cast(Series, data["Close"].dropna())
     elif "Adj Close" in data.columns:
-        return data["Adj Close"].dropna()
+        return cast(Series, data["Adj Close"].dropna())
     else:
         logger.warning(f"No Close price data for {ticker}")
         return None
 
 
-class DataFetchedEvent(Event):
+class TickerDataEvent(Event):
     """Event emitted when all ticker data is fetched."""
 
     tickers: List[str]
@@ -94,7 +95,7 @@ class DataFetchedEvent(Event):
     results: Dict[str, Any]
 
 
-class CompareDataWorkflow(Workflow):
+class TickerDataWorkflow(Workflow):
     """
     Workflow that fetches historical price data for multiple tickers and
     normalizes them for comparison charts.
@@ -115,7 +116,7 @@ class CompareDataWorkflow(Workflow):
         )
 
     @step
-    async def fetch_ticker_data(self, ev: StartEvent) -> DataFetchedEvent:
+    async def fetch_ticker_data(self, ev: StartEvent) -> TickerDataEvent:
         """
         Fetch historical data for all tickers in parallel.
 
@@ -130,7 +131,7 @@ class CompareDataWorkflow(Workflow):
         base_date = ev.base_date
 
         logger.debug(
-            f"CompareDataWorkflow: Fetching data for {len(tickers)} tickers "
+            f"TickerDataWorkflow: Fetching data for {len(tickers)} tickers "
             f"from {base_date}"
         )
 
@@ -145,7 +146,9 @@ class CompareDataWorkflow(Workflow):
             tasks[ticker] = task
 
         # Execute all tasks in parallel
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        results: Tuple[ProviderResult[DataFrame] | BaseException, ...] = (
+            await asyncio.gather(*tasks.values(), return_exceptions=True)
+        )
 
         # Map results back to tickers
         ticker_results = {}
@@ -153,30 +156,36 @@ class CompareDataWorkflow(Workflow):
             if isinstance(result, Exception):
                 logger.warning(f"Failed to fetch data for {ticker}: {result}")
                 ticker_results[ticker] = {"success": False, "error": str(result)}
-            else:
-                # result is a ProviderResult from the provider
-                if hasattr(result, "success") and result.success:
-                    ticker_results[ticker] = {
-                        "success": True,
-                        "data": result.data,
-                        "execution_time": getattr(result, "execution_time", None),
-                    }
-                    logger.debug(
-                        f"Successfully fetched {len(result.data)} rows for {ticker}"
-                    )
-                else:
-                    error_msg = getattr(
-                        result, "error_message", "Unknown provider error"
-                    )
-                    logger.warning(f"Provider failed for {ticker}: {error_msg}")
-                    ticker_results[ticker] = {"success": False, "error": error_msg}
+                continue
 
-        return DataFetchedEvent(
+            if not (hasattr(result, "success") and result.success):
+                error_msg = getattr(result, "error_message", "Unknown provider error")
+                logger.warning(f"Provider failed for {ticker}: {error_msg}")
+                ticker_results[ticker] = {"success": False, "error": error_msg}
+                continue
+
+            if not (hasattr(result, "data") and isinstance(result.data, DataFrame)):
+                logger.warning(f"Provider returned invalid data for {ticker}")
+                ticker_results[ticker] = {
+                    "success": False,
+                    "error": "Invalid data format",
+                }
+                continue
+
+            data = result.data
+            ticker_results[ticker] = {
+                "success": True,
+                "data": data,
+                "execution_time": getattr(result, "execution_time", None),
+            }
+            logger.debug(f"Successfully fetched {len(data)} rows for {ticker}")
+
+        return TickerDataEvent(
             tickers=tickers, base_date=base_date, results=ticker_results
         )
 
     @step
-    async def normalize_data(self, ev: DataFetchedEvent) -> StopEvent:
+    async def normalize_data(self, ev: TickerDataEvent) -> StopEvent:
         """
         Normalize the fetched data to percentage returns for comparison.
 
@@ -196,12 +205,10 @@ class CompareDataWorkflow(Workflow):
         base_date = ev.base_date
         results = ev.results
 
-        logger.debug(
-            f"CompareDataWorkflow: Normalizing data for {len(tickers)} tickers"
-        )
+        logger.debug(f"TickerDataWorkflow: Normalizing data for {len(tickers)} tickers")
 
         # Create normalized DataFrame
-        normalized_data = pd.DataFrame()
+        normalized_data = DataFrame()
         successful_tickers = []
         failed_tickers = []
 
@@ -265,7 +272,7 @@ class CompareDataWorkflow(Workflow):
 
         # Log summary
         logger.info(
-            f"CompareDataWorkflow completed: {len(successful_tickers)} successful, "
+            f"TickerDataWorkflow completed: {len(successful_tickers)} successful, "
             f"{len(failed_tickers)} failed tickers"
         )
 
@@ -285,7 +292,7 @@ class CompareDataWorkflow(Workflow):
 @apply_flow_cache
 async def fetch_raw_ticker_data(
     tickers: List[str], base_date: datetime
-) -> Dict[str, pd.DataFrame]:
+) -> Dict[str, DataFrame]:
     """
     Shared function to fetch raw OHLCV data with in-memory caching.
 
@@ -320,7 +327,9 @@ async def fetch_raw_ticker_data(
             task = yahoo_history.get_data(ticker)
             tasks[ticker] = task
 
-        results = await asyncio.gather(*tasks.values(), return_exceptions=True)
+        results: Tuple[ProviderResult[DataFrame] | BaseException, ...] = (
+            await asyncio.gather(*tasks.values(), return_exceptions=True)
+        )
 
         # Process results
         successful_data = {}
@@ -337,6 +346,11 @@ async def fetch_raw_ticker_data(
                 failed_tickers.append(ticker)
                 continue
 
+            if not (hasattr(result, "data") and isinstance(result.data, DataFrame)):
+                logger.warning(f"Provider returned invalid data for {ticker}")
+                failed_tickers.append(ticker)
+                continue
+
             try:
                 data = result.data
                 if data.empty:
@@ -349,7 +363,7 @@ async def fetch_raw_ticker_data(
                 successful_data[ticker] = data
                 logger.debug(f"Cached raw data for {ticker}: {len(data)} rows")
 
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError) as e:
                 logger.warning(f"Error processing raw data for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
@@ -408,7 +422,7 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
     if not tickers:
         logger.debug("fetch_returns_data: No tickers provided")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": [],
             "base_date": base_date,
@@ -423,14 +437,14 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
         if not raw_data:
             logger.warning("No raw data available from shared cache")
             return {
-                "data": pd.DataFrame(),
+                "data": DataFrame(),
                 "successful_tickers": [],
                 "failed_tickers": tickers,
                 "base_date": base_date,
             }
 
         # Process raw data into normalized returns
-        normalized_data = pd.DataFrame()
+        normalized_data = DataFrame()
         successful_tickers = []
         failed_tickers = []
 
@@ -465,7 +479,7 @@ async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[st
                 normalized_data[ticker] = percentage_returns
                 successful_tickers.append(ticker)
 
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
                 logger.warning(f"Error processing returns for {ticker}: {e}")
                 failed_tickers.append(ticker)
                 continue
@@ -527,7 +541,7 @@ async def fetch_volatility_data(
     if not tickers:
         logger.debug("fetch_volatility_data: No tickers provided")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": [],
             "base_date": base_date,
@@ -542,7 +556,7 @@ async def fetch_volatility_data(
         if not raw_data:
             logger.warning("No raw data available from shared cache")
             return {
-                "data": pd.DataFrame(),
+                "data": DataFrame(),
                 "successful_tickers": [],
                 "failed_tickers": tickers,
                 "base_date": base_date,
@@ -551,7 +565,7 @@ async def fetch_volatility_data(
         # Process raw data into volatility
         successful_tickers = []
         failed_tickers = []
-        volatility_data = pd.DataFrame()
+        volatility_data = DataFrame()
 
         for ticker in tickers:
             try:
@@ -581,7 +595,7 @@ async def fetch_volatility_data(
                 volatility_data[ticker] = filtered_vol_data["Volatility"]
                 successful_tickers.append(ticker)
 
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
                 logger.warning(f"Error calculating volatility for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
@@ -597,10 +611,10 @@ async def fetch_volatility_data(
             "base_date": base_date,
         }
 
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
         logger.error(f"Volatility data processing failed: {e}")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": tickers,
             "base_date": base_date,
@@ -622,7 +636,7 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
     if not tickers:
         logger.debug("fetch_volume_data: No tickers provided")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": [],
             "base_date": base_date,
@@ -637,7 +651,7 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
         if not raw_data:
             logger.warning("No raw data available from shared cache")
             return {
-                "data": pd.DataFrame(),
+                "data": DataFrame(),
                 "successful_tickers": [],
                 "failed_tickers": tickers,
                 "base_date": base_date,
@@ -646,7 +660,7 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
         # Process raw data into volume
         successful_tickers = []
         failed_tickers = []
-        volume_data = pd.DataFrame()
+        volume_data = DataFrame()
 
         for ticker in tickers:
             try:
@@ -672,7 +686,7 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
                     logger.warning(f"No Volume data for {ticker}")
                     failed_tickers.append(ticker)
 
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
                 logger.warning(f"Error extracting volume for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
@@ -688,10 +702,10 @@ async def fetch_volume_data(tickers: List[str], base_date: datetime) -> Dict[str
             "base_date": base_date,
         }
 
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
         logger.error(f"Volume data processing failed: {e}")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": tickers,
             "base_date": base_date,
@@ -713,7 +727,7 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
     if not tickers:
         logger.debug("fetch_rsi_data: No tickers provided")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": [],
             "base_date": base_date,
@@ -728,7 +742,7 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
         if not raw_data:
             logger.warning("No raw data available from shared cache")
             return {
-                "data": pd.DataFrame(),
+                "data": DataFrame(),
                 "successful_tickers": [],
                 "failed_tickers": tickers,
                 "base_date": base_date,
@@ -737,7 +751,7 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
         # Process raw data into RSI
         successful_tickers = []
         failed_tickers = []
-        rsi_data = pd.DataFrame()
+        rsi_data = DataFrame()
 
         for ticker in tickers:
             try:
@@ -766,7 +780,7 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
                 rsi_data[ticker] = filtered_rsi_data["RSI"]
                 successful_tickers.append(ticker)
 
-            except Exception as e:
+            except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
                 logger.warning(f"Error calculating RSI for {ticker}: {e}")
                 failed_tickers.append(ticker)
 
@@ -782,10 +796,10 @@ async def fetch_rsi_data(tickers: List[str], base_date: datetime) -> Dict[str, A
             "base_date": base_date,
         }
 
-    except Exception as e:
+    except (AttributeError, TypeError, KeyError, IndexError, ValueError) as e:
         logger.error(f"RSI data processing failed: {e}")
         return {
-            "data": pd.DataFrame(),
+            "data": DataFrame(),
             "successful_tickers": [],
             "failed_tickers": tickers,
             "base_date": base_date,
