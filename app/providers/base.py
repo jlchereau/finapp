@@ -64,6 +64,8 @@ class ProviderType(str, Enum):
     YAHOO_HISTORY = "yahoo_history"
     YAHOO_INFO = "yahoo_info"
     ZACKS = "zacks"
+    # ------------------------------------------------------
+    DUMMY = "dummy"  # For testing purposes only
 
 
 class ProviderStatus(str, Enum):

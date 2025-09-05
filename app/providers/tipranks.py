@@ -17,7 +17,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
-from .cache import cache
+from .cache import apply_provider_cache
 from .headers import get_random_user_agent
 
 
@@ -126,8 +126,8 @@ class TipranksDataProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.TIPRANKS_DATA
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
@@ -252,8 +252,8 @@ class TipranksNewsSentimentProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.TIPRANKS_NEWS_SENTIMENT
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """

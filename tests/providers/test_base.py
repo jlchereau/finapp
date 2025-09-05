@@ -22,7 +22,7 @@ class MockProvider(BaseProvider[DataFrame]):
     """Mock provider for testing."""
 
     def _get_provider_type(self) -> ProviderType:
-        return ProviderType.CUSTOM
+        return ProviderType.DUMMY
 
     async def _fetch_data(
         self, query: str | None, *args, cache_date: str | None = None, **kwargs
@@ -127,7 +127,7 @@ class TestBaseProvider:
     def test_provider_initialization(self):
         """Test provider initialization."""
         assert isinstance(self.provider.config, ProviderConfig)
-        assert self.provider.provider_type == ProviderType.CUSTOM
+        assert self.provider.provider_type == ProviderType.DUMMY
         assert hasattr(self.provider, "logger")
         assert hasattr(self.provider, "_semaphore")
 
@@ -148,7 +148,7 @@ class TestBaseProvider:
         assert result.data is not None
         assert isinstance(result.data, DataFrame)
         assert result.error_message is None
-        assert result.provider_type == ProviderType.CUSTOM
+        assert result.provider_type == ProviderType.DUMMY
         assert result.query == "AAPL"
         assert result.execution_time is not None
         assert result.execution_time > 0
@@ -162,7 +162,7 @@ class TestBaseProvider:
         assert result.data is None
         assert "Mock error for testing" in (result.error_message or "")
         assert result.error_code == "ValueError"
-        assert result.provider_type == ProviderType.CUSTOM
+        assert result.provider_type == ProviderType.DUMMY
         assert result.query == "ERROR"
 
     @pytest.mark.asyncio
@@ -296,12 +296,19 @@ class TestProviderTypes:
 
     def test_provider_type_values(self):
         """Test that all provider types have expected values."""
+        # assert ProviderType.ALPHA_VANTAGE == "alpha_vantage"
+        assert ProviderType.BLACKROCK_HOLDINGS == "blackrock_holdings"
+        assert ProviderType.FRED_SERIES == "fred_series"
+        assert ProviderType.IBKR_POSITIONS == "ibkr_positions"
+        assert ProviderType.IBKR_CASH == "ibkr_cash"
+        assert ProviderType.SHILLER_CAPE == "shiller_cape"
+        assert ProviderType.TIPRANKS_DATA == "tipranks_data"
+        assert ProviderType.TIPRANKS_NEWS_SENTIMENT == "tipranks_news_sentiment"
         assert ProviderType.YAHOO_HISTORY == "yahoo_history"
         assert ProviderType.YAHOO_INFO == "yahoo_info"
         assert ProviderType.ZACKS == "zacks"
-        assert ProviderType.ALPHA_VANTAGE == "alpha_vantage"
-        assert ProviderType.IEX == "iex"
-        assert ProviderType.CUSTOM == "custom"
+        # ------------------------------------------------------
+        assert ProviderType.DUMMY == "dummy"  # For testing purposes only
 
     def test_provider_status_values(self):
         """Test that all provider status values are correct."""

@@ -13,7 +13,7 @@ from app.lib.storage import get_cache_file_paths
 _CACHE_LOCKS: dict[str, asyncio.Lock] = {}
 
 
-def cache(func):  # decorator for async _fetch_data methods
+def apply_provider_cache(func):  # decorator for async _fetch_data methods
     """
     Decorator to cache provider _fetch_data outputs.
     Usage: apply to async _fetch_data(self, query, **kwargs).

@@ -19,7 +19,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
-from .cache import cache
+from .cache import apply_provider_cache
 
 # Yield curve series mapping (FRED series ID to maturity label)
 YIELD_CURVE_SERIES = {
@@ -45,8 +45,8 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
         """Return the provider type."""
         return ProviderType.FRED_SERIES
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
@@ -205,7 +205,7 @@ class FredSeriesProvider(BaseProvider[DataFrame]):
             )
             raise RetriableProviderException(str(e)) from e
 
-    @cache
+    @apply_provider_cache
     async def fetch_yield_curve_data(
         self, query: str | None = None, **kwargs
     ) -> DataFrame:

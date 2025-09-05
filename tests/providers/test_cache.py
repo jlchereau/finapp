@@ -3,16 +3,18 @@ import pandas as pd
 from pydantic import BaseModel
 import pytest
 
-from app.providers.cache import cache
+from app.providers.cache import apply_provider_cache
 from app.providers.base import BaseProvider, ProviderType, ProviderConfig
 from app.lib.storage import get_cache_file_paths
 
 
 class DummyDFProvider(BaseProvider[pd.DataFrame]):
     def _get_provider_type(self) -> ProviderType:
-        return ProviderType.CUSTOM
+        return ProviderType.DUMMY
 
-    @cache
+    # pyrefly: ignore[bad-override]
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
+    @apply_provider_cache
     async def _fetch_data(
         self, query: str | None, *args, cache_date: str | None = None, **kwargs
     ) -> pd.DataFrame:
@@ -26,9 +28,11 @@ class SimpleModel(BaseModel):
 
 class DummyModelProvider(BaseProvider[SimpleModel]):
     def _get_provider_type(self) -> ProviderType:
-        return ProviderType.CUSTOM
+        return ProviderType.DUMMY
 
-    @cache
+    # pyrefly: ignore[bad-override]
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
+    @apply_provider_cache
     async def _fetch_data(
         self, query: str | None, *args, cache_date: str | None = None, **kwargs
     ) -> SimpleModel:
@@ -46,7 +50,7 @@ async def test_dataframe_cache():
     assert isinstance(df1, pd.DataFrame)
 
     # Check for cache files using the storage system
-    _, parquet_path = get_cache_file_paths("custom", "foo")
+    _, parquet_path = get_cache_file_paths("dummy", "foo")
     assert parquet_path.exists(), "Parquet cache file was not created"
 
     # Second fetch should return cached DataFrame
@@ -68,7 +72,7 @@ async def test_model_cache():
     assert model1.value == 3
 
     # Check for cache files using the storage system
-    json_path, _ = get_cache_file_paths("custom", "bar")
+    json_path, _ = get_cache_file_paths("dummy", "bar")
     assert json_path.exists(), "JSON cache file was not created"
 
     # Second fetch should return cached model

@@ -23,7 +23,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
-from .cache import cache
+from .cache import apply_provider_cache
 
 
 class IBKRApp(EWrapper, EClient):
@@ -104,8 +104,8 @@ class IBKRPositionsProvider(BaseProvider[DataFrame]):
         """Return the provider type."""
         return ProviderType.IBKR_POSITIONS
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """
@@ -220,8 +220,8 @@ class IBKRCashProvider(BaseProvider[DataFrame]):
         """Return the provider type."""
         return ProviderType.IBKR_CASH
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
         """

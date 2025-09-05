@@ -14,7 +14,7 @@ from .base import (
     NonRetriableProviderException,
     RetriableProviderException,
 )
-from .cache import cache
+from .cache import apply_provider_cache
 
 
 class ZacksModel(BaseModel):
@@ -105,8 +105,8 @@ class ZacksProvider(BaseProvider[BaseModel]):
         """Return the provider type."""
         return ProviderType.ZACKS
 
-    @cache
-    # @cache loses pyrefly - no easy fix
+    @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
     # pyrefly: ignore[bad-override]
     async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
         """
