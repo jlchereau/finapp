@@ -2,6 +2,7 @@
 black
 flake8
 ipykernel
+llama-index-utils-workflow
 pylint
 pylint-per-file-ignores
 pyrefly
