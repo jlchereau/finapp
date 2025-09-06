@@ -24,8 +24,8 @@ from app.lib.charts import (
     create_comparison_chart,
 )
 from app.flows.markets_buffet import fetch_buffet_indicator_data
+from app.flows.markets_vix import fetch_vix_data
 from app.flows.markets import (
-    fetch_vix_data,
     fetch_yield_curve_data,
     fetch_currency_data,
     fetch_precious_metals_data,
