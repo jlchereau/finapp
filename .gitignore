@@ -12,6 +12,10 @@ temp/
 *.db
 *.py[cod]
 
+# Llama-index flow
+notebooks/flows
+notebooks/lib
+
 # Coverage artifacts
 .coverage
 coverage.xml
