@@ -23,8 +23,8 @@ from app.lib.charts import (
     get_default_theme_colors,
     create_comparison_chart,
 )
+from app.flows.markets_buffet import fetch_buffet_indicator_data
 from app.flows.markets import (
-    fetch_buffet_indicator_data,
     fetch_vix_data,
     fetch_yield_curve_data,
     fetch_currency_data,

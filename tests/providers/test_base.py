@@ -90,8 +90,8 @@ class TestProviderResult:
 
         assert result.success is True
         # Ensure data is present before calling equals()
-        assert result.data is not None
-        assert result.data.equals(data)
+        assert isinstance(result.data, DataFrame)
+        assert DataFrame(result.data).equals(data)
         assert result.error_message is None
         assert result.error_code is None
         assert result.provider_type == ProviderType.YAHOO_HISTORY

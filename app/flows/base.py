@@ -5,9 +5,18 @@ This module provides standardized result classes and common utilities
 for all workflow operations in the application.
 """
 
+import asyncio
+import time
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, Tuple
+
+from workflows import Workflow
 from pydantic import BaseModel, Field
+import pandas as pd
+
+from app.providers.base import ProviderResult
+from app.lib.logger import logger
+from app.lib.exceptions import WorkflowException
 
 
 class FlowResult[T](BaseModel):
@@ -120,3 +129,420 @@ class FlowResult[T](BaseModel):
             successful_items=[],
             failed_items=failed_items or [],
         )
+
+
+class FlowRunner[T]:
+    """
+    Standardized runner for LlamaIndex workflows.
+
+    Provides consistent workflow execution with automatic FlowResult wrapping,
+    timing, error handling, and integration of helper utilities.
+
+    Type parameter T should match the expected workflow result type:
+    - pd.DataFrame for data workflows
+    - Pydantic models for structured results
+    - Any other result type
+    """
+
+    def __init__(self, workflow: Workflow):
+        """
+        Initialize FlowRunner with a LlamaIndex workflow instance.
+
+        Args:
+            workflow: LlamaIndex Workflow instance to execute
+        """
+        self.workflow: Workflow = workflow
+        self._start_time: float | None = None
+
+    async def run(self, **kwargs) -> FlowResult[T]:
+        """
+        Execute the workflow and return a standardized FlowResult.
+
+        Args:
+            **kwargs: Parameters to pass to workflow.run()
+
+        Returns:
+            FlowResult[T] with standardized structure and metadata
+        """
+        self._start_time = time.time()
+
+        try:
+            logger.debug(f"Starting workflow {self.workflow.__class__.__name__}")
+
+            # Execute the workflow
+            raw_result = await self.workflow.run(**kwargs)
+
+            execution_time = time.time() - self._start_time
+
+            # Extract actual result data from StopEvent
+            if hasattr(raw_result, "result"):
+                result_data = raw_result.result
+            else:
+                logger.warning(
+                    f"Workflow {self.workflow.__class__.__name__} result "
+                    "missing .result attribute"
+                )
+                result_data = raw_result
+
+            # Handle different result formats
+            if isinstance(result_data, dict):
+                # Legacy dictionary format - convert to FlowResult
+                return self._convert_dict_result(result_data, execution_time, **kwargs)
+            elif isinstance(result_data, FlowResult):
+                # Already a FlowResult - update execution time
+                result_data.execution_time = execution_time
+                return result_data
+            else:
+                # Direct data - wrap in success result
+                return FlowResult.success_result(
+                    data=result_data,
+                    execution_time=execution_time,
+                    metadata={
+                        "workflow": self.workflow.__class__.__name__,
+                        "raw_result_type": type(result_data).__name__,
+                    },
+                )
+
+        except Exception as e:
+            execution_time = time.time() - self._start_time
+            logger.error(f"Workflow {self.workflow.__class__.__name__} failed: {e}")
+
+            return FlowResult.error_result(
+                error_message=f"Workflow execution failed: {str(e)}",
+                execution_time=execution_time,
+                metadata={
+                    "workflow": self.workflow.__class__.__name__,
+                    "error_type": type(e).__name__,
+                    "kwargs": kwargs,
+                },
+            )
+
+    def _convert_dict_result(
+        self, result_data: dict, execution_time: float, **kwargs
+    ) -> FlowResult[T]:
+        """
+        Convert legacy dictionary result to FlowResult format.
+
+        Args:
+            result_data: Dictionary result from workflow
+            execution_time: Execution time in seconds
+            **kwargs: Original workflow parameters
+
+        Returns:
+            FlowResult[T] with converted data
+        """
+        # Check if this is an error result
+        if result_data.get("error"):
+            return FlowResult.error_result(
+                error_message=result_data.get("error", "Unknown workflow error"),
+                execution_time=execution_time,
+                failed_items=result_data.get("failed_tickers", []),
+                metadata={
+                    "workflow": self.workflow.__class__.__name__,
+                    "original_result": result_data,
+                },
+            )
+
+        # Check if data is missing or empty (but only if there's no explicit error)
+        data = result_data.get("data")
+        if data is None or (hasattr(data, "empty") and data.empty):
+            return FlowResult.error_result(
+                error_message="No data returned from workflow",
+                execution_time=execution_time,
+                failed_items=result_data.get("failed_tickers", []),
+                metadata={
+                    "workflow": self.workflow.__class__.__name__,
+                    "original_result": result_data,
+                },
+            )
+
+        # Success result - extract standard fields
+        return FlowResult.success_result(
+            data=data,
+            base_date=kwargs.get("base_date"),
+            execution_time=execution_time,
+            successful_items=result_data.get("successful_tickers", []),
+            failed_items=result_data.get("failed_tickers", []),
+            metadata={
+                "workflow": self.workflow.__class__.__name__,
+                "original_result": result_data,
+                **{
+                    k: v
+                    for k, v in result_data.items()
+                    if k not in ["data", "successful_tickers", "failed_tickers"]
+                },
+            },
+        )
+
+    @staticmethod
+    def _validate_provider_result(
+        result: ProviderResult[pd.DataFrame] | BaseException, data_name: str
+    ) -> pd.DataFrame:
+        """
+        Validate a single provider result with consistent error handling.
+
+        Args:
+            result: Provider result or exception to validate
+            data_name: Name of the data source for error messages
+
+        Returns:
+            Validated DataFrame from the provider result
+
+        Raises:
+            WorkflowException: If result is invalid or contains no data
+        """
+        # Check for exceptions first
+        if isinstance(result, Exception):
+            logger.error(f"Failed to fetch {data_name} data: {result}")
+            raise result
+
+        # Check provider success status
+        if not (hasattr(result, "success") and result.success):
+            error_msg = getattr(
+                result, "error_message", f"Unknown {data_name} fetch error"
+            )
+            logger.error(f"{data_name} provider failed: {error_msg}")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_provider_result",
+                message=f"{data_name} data fetch failed: {error_msg}",
+            )
+
+        # Check data attribute and type
+        if not (hasattr(result, "data") and isinstance(result.data, pd.DataFrame)):
+            error_msg = getattr(
+                result, "error_message", f"Unknown {data_name} data error"
+            )
+            logger.error(f"{data_name} provider returned invalid data: {error_msg}")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_provider_result",
+                message=f"{data_name} data fetch failed: {error_msg}",
+            )
+
+        data = result.data
+
+        # Check for empty data
+        if data.empty:
+            logger.error(f"Empty {data_name} data returned")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_provider_result",
+                message=f"No {data_name.lower()} data available",
+            )
+
+        logger.debug(
+            f"{data_name} data: {len(data)} rows, "
+            f"range: {data.index.min()} to {data.index.max()}"
+        )
+
+        return data
+
+    @staticmethod
+    async def process_provider_tasks(tasks: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Process multiple provider tasks with consistent error handling.
+
+        Args:
+            tasks: Dictionary mapping identifiers to provider tasks
+
+        Returns:
+            Dictionary mapping identifiers to result metadata:
+            - success: bool indicating if fetch succeeded
+            - data: DataFrame if successful
+            - error: str error message if failed
+            - execution_time: Optional execution time from provider
+        """
+        if not tasks:
+            return {}
+
+        # Execute all tasks in parallel with proper typing
+        results: Tuple[ProviderResult[pd.DataFrame] | BaseException, ...] = (
+            await asyncio.gather(*tasks.values(), return_exceptions=True)
+        )
+
+        # Process results with consistent error handling
+        processed_results = {}
+
+        for identifier, result in zip(tasks.keys(), results):
+            try:
+                # Validate the provider result
+                data = FlowRunner._validate_provider_result(result, identifier)
+
+                # Store success result
+                processed_results[identifier] = {
+                    "success": True,
+                    "data": data,
+                    "execution_time": getattr(result, "execution_time", None),
+                }
+                logger.debug(f"Successfully processed {identifier}: {len(data)} rows")
+
+            except Exception as e:
+                # Store failure result
+                processed_results[identifier] = {
+                    "success": False,
+                    "error": str(e),
+                }
+                logger.warning(f"Failed to process {identifier}: {e}")
+
+        return processed_results
+
+    @staticmethod
+    def _validate_single_provider_task(
+        result: ProviderResult[pd.DataFrame] | BaseException,
+        data_name: str,
+        check_empty: bool = True,
+    ) -> pd.DataFrame:
+        """
+        Validate a single provider task result (simplified version).
+
+        Args:
+            result: Provider result or exception to validate
+            data_name: Name of the data source for error messages
+            check_empty: Whether to check for empty DataFrame
+
+        Returns:
+            Validated DataFrame from the provider result
+
+        Raises:
+            WorkflowException: If result is invalid or contains no data
+        """
+        # Check for exceptions first
+        if isinstance(result, Exception):
+            logger.error(f"Failed to fetch {data_name} data: {result}")
+            raise result
+
+        # Check provider success status
+        if not (hasattr(result, "success") and result.success):
+            error_msg = getattr(
+                result, "error_message", f"Unknown {data_name} fetch error"
+            )
+            logger.error(f"{data_name} provider failed: {error_msg}")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_single_provider_task",
+                message=f"{data_name} data fetch failed: {error_msg}",
+            )
+
+        # Check data attribute and type
+        if not (hasattr(result, "data") and isinstance(result.data, pd.DataFrame)):
+            error_msg = getattr(
+                result, "error_message", f"Unknown {data_name} data error"
+            )
+            logger.error(f"{data_name} provider returned invalid data: {error_msg}")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_single_provider_task",
+                message=f"{data_name} data fetch failed: {error_msg}",
+            )
+
+        data = result.data
+
+        # Check for empty data if requested
+        if check_empty and data.empty:
+            logger.error(f"Empty {data_name} data returned")
+            raise WorkflowException(
+                workflow="FlowRunner",
+                step="validate_single_provider_task",
+                message=f"No {data_name.lower()} data available",
+            )
+
+        if not data.empty:
+            logger.debug(
+                f"{data_name} data: {len(data)} rows, "
+                f"range: {data.index.min()} to {data.index.max()}"
+            )
+
+        return data
+
+    @staticmethod
+    async def _create_from_provider_results(
+        tasks: Dict[str, Any],
+        base_date: datetime | None = None,
+        start_time: float | None = None,
+    ) -> FlowResult[pd.DataFrame]:
+        """
+        Create a FlowResult from multiple provider tasks with consistent error handling.
+
+        Args:
+            tasks: Dictionary mapping identifiers to provider tasks
+            base_date: Base date used for data filtering
+            start_time: Start time for execution time calculation
+
+        Returns:
+            FlowResult containing combined DataFrame or error information
+        """
+        execution_start = start_time or time.time()
+
+        try:
+            # Use existing provider results processing
+            processed_results = await FlowRunner.process_provider_tasks(tasks)
+
+            if not processed_results:
+                return FlowResult.success_result(
+                    data=pd.DataFrame(),
+                    base_date=base_date,
+                    execution_time=time.time() - execution_start,
+                    successful_items=[],
+                    failed_items=[],
+                    metadata={"message": "No tasks provided"},
+                )
+
+            # Separate successful and failed results
+            successful_items = [
+                identifier
+                for identifier, result in processed_results.items()
+                if result["success"]
+            ]
+            failed_items = [
+                identifier
+                for identifier, result in processed_results.items()
+                if not result["success"]
+            ]
+
+            # If all tasks failed, return error result
+            if not successful_items:
+                error_messages = [
+                    f"{item}: {processed_results[item]['error']}"
+                    for item in failed_items
+                ]
+                return FlowResult.error_result(
+                    error_message=(
+                        f"Failed to process all items: {'; '.join(error_messages)}"
+                    ),
+                    base_date=base_date,
+                    execution_time=time.time() - execution_start,
+                    failed_items=failed_items,
+                    metadata={"processed_results": processed_results},
+                )
+
+            # Combine successful data into single DataFrame
+            combined_data = pd.DataFrame()
+            metadata = {"processed_results": processed_results}
+
+            for identifier in successful_items:
+                result_data = processed_results[identifier]["data"]
+                if not result_data.empty:
+                    # Add data with identifier as column name or suffix
+                    if combined_data.empty:
+                        combined_data = result_data.copy()
+                    else:
+                        combined_data = pd.concat([combined_data, result_data], axis=1)
+
+            return FlowResult.success_result(
+                data=combined_data,
+                base_date=base_date,
+                execution_time=time.time() - execution_start,
+                successful_items=successful_items,
+                failed_items=failed_items,
+                metadata=metadata,
+            )
+
+        except Exception as e:
+            logger.error(f"Error creating FlowResult from provider results: {e}")
+            return FlowResult.error_result(
+                error_message=f"Flow execution failed: {str(e)}",
+                base_date=base_date,
+                execution_time=time.time() - execution_start,
+                failed_items=list(tasks.keys()) if tasks else [],
+            )

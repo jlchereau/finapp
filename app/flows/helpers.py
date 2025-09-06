@@ -5,10 +5,13 @@ This module provides common utilities for handling provider results,
 asyncio.gather operations, and data validation across workflows.
 """
 
+# pylint: disable=broad-exception-raised
+
 import asyncio
 import time
 from typing import Dict, Any, Tuple
 from datetime import datetime
+from deprecated.classic import deprecated
 
 import pandas as pd
 
@@ -17,6 +20,7 @@ from app.flows.base import FlowResult
 from app.lib.logger import logger
 
 
+@deprecated(reason="use methods available in @app/flows/base.py")
 def validate_provider_result(
     result: ProviderResult[pd.DataFrame] | BaseException, data_name: str
 ) -> pd.DataFrame:
@@ -65,6 +69,7 @@ def validate_provider_result(
     return data
 
 
+@deprecated(reason="use methods available in @app/flows/base.py")
 async def process_multiple_provider_results(tasks: Dict[str, Any]) -> Dict[str, Any]:
     """
     Process multiple provider tasks with consistent error handling.
@@ -117,6 +122,7 @@ async def process_multiple_provider_results(tasks: Dict[str, Any]) -> Dict[str, 
     return processed_results
 
 
+@deprecated(reason="use methods available in @app/flows/base.py")
 def validate_single_provider_task(
     result: ProviderResult[pd.DataFrame] | BaseException,
     data_name: str,
@@ -172,6 +178,7 @@ def validate_single_provider_task(
     return data
 
 
+@deprecated(reason="use methods available in @app/flows/base.py")
 async def create_flow_result_from_provider_results(
     tasks: Dict[str, Any],
     base_date: datetime | None = None,
@@ -225,7 +232,9 @@ async def create_flow_result_from_provider_results(
                 f"{item}: {processed_results[item]['error']}" for item in failed_items
             ]
             return FlowResult.error_result(
-                error_message=f"Failed to process all items: {'; '.join(error_messages)}",
+                error_message=(
+                    f"Failed to process all items: {'; '.join(error_messages)}"
+                ),
                 base_date=base_date,
                 execution_time=time.time() - execution_start,
                 failed_items=failed_items,
