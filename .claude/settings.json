@@ -3,6 +3,7 @@
     "allow": [
       "Bash(find:*)",
       "Bash(grep:*)",
+      "WebFetch(domain:docs.llamaindex.ai)",
       "WebFetch(domain:reflex.dev)",
       "Bash(make format)",
       "Bash(make lint)",
