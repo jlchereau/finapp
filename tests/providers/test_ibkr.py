@@ -215,7 +215,7 @@ class TestIBKRPositionsProvider:
             "position",
             "avgCost",
         ]
-        empty_data = DataFrame(columns=expected_columns)
+        empty_data = DataFrame(data=[], columns=expected_columns)
         mock_to_thread.return_value = empty_data
 
         result = await self.provider.get_data(None)
@@ -342,7 +342,7 @@ class TestIBKRCashProvider:
         """Test handling of empty cash response."""
         # Mock empty DataFrame
         expected_columns = ["account", "currency", "value"]
-        empty_data = DataFrame(columns=expected_columns)
+        empty_data = DataFrame(data=[], columns=expected_columns)
         mock_to_thread.return_value = empty_data
 
         result = await self.provider.get_data(None)

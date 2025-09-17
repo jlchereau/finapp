@@ -24,8 +24,6 @@ def mock_fred_response():
     return {
         "realtime_start": "2024-01-01",
         "realtime_end": "2024-01-01",
-        "observation_start": "1947-01-01",
-        "observation_end": "2023-10-01",
         "units": "Billions of Chained 2012 Dollars",
         "output_type": 1,
         "file_type": "json",
@@ -72,8 +70,6 @@ def mock_fred_empty_response():
     return {
         "realtime_start": "2024-01-01",
         "realtime_end": "2024-01-01",
-        "observation_start": "1947-01-01",
-        "observation_end": "2023-10-01",
         "units": "Billions of Chained 2012 Dollars",
         "output_type": 1,
         "file_type": "json",
@@ -332,16 +328,12 @@ class TestFredSeriesProvider:
         mock_client.return_value.__aenter__.return_value = mock_client_instance
 
         # Test with date parameters
-        result = await self.provider.get_data(
-            "GDPC1", observation_start="2023-01-01", observation_end="2023-12-31"
-        )
+        result = await self.provider.get_data("GDPC1")
 
         assert result.success
 
-        # Verify the API was called with correct parameters
-        call_args = mock_client_instance.get.call_args
-        assert call_args[1]["params"]["observation_start"] == "2023-01-01"
-        assert call_args[1]["params"]["observation_end"] == "2023-12-31"
+        # Note: observation_start/observation_end parameters removed to prevent
+        # period limitation anti-pattern - no longer need to verify these params
 
     @pytest.mark.asyncio
     @patch("app.providers.fred.settings")
@@ -374,6 +366,7 @@ class TestFredSeriesProvider:
         result = await self.provider.get_data("TEST_SERIES")
 
         assert result.success
+        assert result.data is not None
         assert len(result.data) == 3  # Only non-missing values
         expected_values = [100.0, 102.0, 103.0]
         assert result.data["value"].tolist() == expected_values
@@ -415,7 +408,7 @@ class TestFredSeriesProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "ValueError"
 
     def test_get_data_sync_without_query_raises_error(self):
@@ -424,7 +417,7 @@ class TestFredSeriesProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "ValueError"
 
 

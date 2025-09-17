@@ -417,7 +417,7 @@ class TestBlackrockHoldingsProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync_without_query_raises_error(self):
@@ -426,7 +426,7 @@ class TestBlackrockHoldingsProvider:
 
         assert result.success is False
         assert result.error_message is not None
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
 

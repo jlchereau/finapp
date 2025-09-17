@@ -23,10 +23,11 @@ from app.lib.charts import (
     get_default_theme_colors,
     create_comparison_chart,
 )
-from app.flows.markets_buffet import fetch_buffet_indicator_data
-from app.flows.markets_vix import fetch_vix_data
+from app.flows.markets.buffet import fetch_buffet_indicator_data
+from app.flows.markets.vix import fetch_vix_data
+from app.flows.markets.yield_curve import fetch_yield_curve_data
+from app.lib.logger import logger
 from app.flows.markets import (
-    fetch_yield_curve_data,
     fetch_currency_data,
     fetch_precious_metals_data,
     fetch_crypto_data,
@@ -41,7 +42,6 @@ from app.lib.periods import (
     calculate_base_date,
     get_max_fallback_date,
     format_date_range_message,
-    format_period_adjustment_message,
 )
 from app.templates.template import template
 
@@ -117,15 +117,10 @@ class MarketState(rx.State):
         # Use the markets workflow to fetch and calculate data
         result = await fetch_buffet_indicator_data(base_date, self.base_date_option)
 
-        # Extract the DataFrame, trend data, and adjustment info
+        # Extract the DataFrame and trend data
         buffet_data = result.get("data")
         trend_data = result.get("trend_data")
-        adjustment_info = {
-            "was_adjusted": result.get("was_adjusted", False),
-            "original_period": result.get("original_period", self.base_date_option),
-            "actual_period": result.get("actual_period", self.base_date_option),
-            "data_points": result.get("data_points", 0),
-        }
+        data_points = result.get("data_points", 0)
 
         if buffet_data is None or buffet_data.empty:
             raise PageOutputException(
@@ -141,7 +136,7 @@ class MarketState(rx.State):
                 },
             )
 
-        return buffet_data, trend_data, adjustment_info
+        return buffet_data, trend_data, data_points
 
     async def get_vix_data(self, base_date: datetime) -> pd.DataFrame:
         """Get VIX data using workflow."""
@@ -220,9 +215,7 @@ class MarketState(rx.State):
                 )
                 yield rx.toast.info(message)
             # Get Buffet Indicator data
-            buffet_data, trend_data, adjustment_info = await self.get_buffet_data(
-                base_date
-            )
+            buffet_data, trend_data, data_points = await self.get_buffet_data(base_date)
 
             if buffet_data is None or buffet_data.empty:
                 async with self:
@@ -232,19 +225,11 @@ class MarketState(rx.State):
                     )
                 return
 
-            # Log successful data fetch and show adjustment message if needed
+            # Log successful data fetch
             async with self:
-                if adjustment_info["was_adjusted"]:
-                    adjustment_msg = format_period_adjustment_message(
-                        adjustment_info["original_period"],
-                        adjustment_info["actual_period"],
-                        adjustment_info["data_points"],
-                    )
-                    yield rx.toast.info(adjustment_msg)
-                else:
-                    yield rx.toast.success(
-                        f"Loaded Buffet Indicator data: {buffet_data.shape[0]} quarters"
-                    )
+                yield rx.toast.success(
+                    f"Loaded Buffet Indicator data: {data_points} data points"
+                )
 
             # Create time-series chart using utility functions
             config = TimeSeriesChartConfig(
@@ -505,12 +490,37 @@ class MarketState(rx.State):
                     (12, MARKET_COLORS["trend"], "12M ago"),
                 ]:
                     target_date = latest_date - pd.DateOffset(months=months_back)
-                    closest_date = historical_dates[historical_dates <= target_date]
 
-                    if len(closest_date) > 0:
-                        hist_date = closest_date[0]
+                    # Find closest date with more flexible approach
+                    # First try exact target date or earlier
+                    closest_dates = historical_dates[historical_dates <= target_date]
+
+                    # If no dates found (edge case), try a bit more flexibility
+                    if len(closest_dates) == 0:
+                        # Look within ±1 week of target for edge cases
+                        tolerance_start = target_date - pd.DateOffset(days=7)
+                        tolerance_end = target_date + pd.DateOffset(days=7)
+                        closest_dates = historical_dates[
+                            (historical_dates >= tolerance_start)
+                            & (historical_dates <= tolerance_end)
+                        ]
+
+                    # Debug logging to understand missing curves
+                    logger.debug(
+                        f"Yield curve {name}: target_date={target_date}, "
+                        f"available_dates={len(closest_dates)}, "
+                        f"latest_date={latest_date}, "
+                        f"data_range=({yield_data.index.min()}, "
+                        f"{yield_data.index.max()})"
+                    )
+
+                    if len(closest_dates) > 0:
+                        hist_date = closest_dates[
+                            0
+                        ]  # Take the most recent within range
                         hist_data = yield_data.loc[yield_data.index == hist_date]
                         if not hist_data.empty:
+                            logger.debug(f"Adding {name} curve from {hist_date}")
                             curves.append(
                                 {
                                     "x": maturities,
@@ -521,6 +531,16 @@ class MarketState(rx.State):
                                     "opacity": 0.7,
                                 }
                             )
+                        else:
+                            logger.warning(
+                                f"Empty data for {name} curve at {hist_date}"
+                            )
+                    else:
+                        logger.warning(
+                            f"No historical data available for {name} "
+                            f"(target: {target_date}, data range: "
+                            f"{yield_data.index.min()} to {yield_data.index.max()})"
+                        )
 
                 add_historical_curves(fig, curves)
 

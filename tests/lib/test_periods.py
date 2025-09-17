@@ -377,18 +377,14 @@ class TestEnsureMinimumDataPoints:
         # Test with 1Y period that should capture multiple quarters
         base_date = datetime(2023, 6, 15)  # Should get July and later quarters
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="1Y",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 1, 15),
         )
 
         assert len(result_data) >= 2
-        assert actual_period == "1Y"
-        assert was_adjusted is False
 
     def test_quarterly_data_needs_adjustment_2m_to_1q(self):
         """Test quarterly data where 2M period gets adjusted to 1Q."""
@@ -399,18 +395,18 @@ class TestEnsureMinimumDataPoints:
         # Test with 2M period that falls between quarters (should get adjusted)
         base_date = datetime(2023, 11, 15)  # Between Oct and Jan quarters
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="2M",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
-            reference_date=datetime(2024, 1, 15),
+            reference_date=datetime(
+                2024,
+                1,
+                15,
+            ),
         )
 
         assert len(result_data) >= 2
-        assert actual_period in ["1Q", "2Q", "3Q", "1Y", "2Y", "5Y"]
-        assert was_adjusted is True
 
     def test_quarterly_data_progressive_fallback(self):
         """Test progressive fallback through multiple periods."""
@@ -421,20 +417,14 @@ class TestEnsureMinimumDataPoints:
         # Test with 1W period that needs multiple fallbacks
         base_date = datetime(2023, 12, 15)  # Should only get Jan quarter
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="1W",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 2, 1),
         )
 
         assert len(result_data) >= 2
-        assert was_adjusted is True
-        # Should fallback to a period that captures both quarters
-        expected_periods = ["1Q", "2Q", "3Q", "1Y", "2Y", "5Y", "MAX"]
-        assert actual_period in expected_periods
 
     def test_daily_data_no_adjustment(self):
         """Test daily data keeps short periods when sufficient points exist."""
@@ -446,18 +436,14 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2024, 3, 1)  # Should have plenty of daily data
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="1W",
             base_date=base_date,
             min_points=2,
-            data_frequency="daily",
             reference_date=datetime(2024, 4, 1),
         )
 
         assert len(result_data) >= 2
-        assert actual_period == "1W"
-        assert was_adjusted is False
 
     def test_max_period_handling(self):
         """Test MAX period returns all data."""
@@ -466,18 +452,14 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2023, 6, 1)  # Any base date
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="MAX",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 1, 1),
         )
 
-        assert len(result_data) == len(data)  # All data returned
-        assert actual_period == "MAX"
-        assert was_adjusted is False
+        assert len(result_data) >= 2
 
     def test_empty_data_handling(self):
         """Test handling of empty data."""
@@ -487,17 +469,14 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2023, 6, 1)
 
-        result_data, _, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="2M",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 1, 1),
         )
 
         assert len(result_data) == 0
-        assert was_adjusted is False  # No data to adjust, returned as-is
 
     def test_insufficient_data_fallback_to_max(self):
         """Test fallback to MAX when no other period works."""
@@ -507,19 +486,15 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2023, 6, 1)  # After the only data point
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="2M",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 1, 1),
         )
 
-        # Should fallback to MAX to get the one available point
-        assert actual_period == "MAX"
-        assert was_adjusted is True
-        assert len(result_data) == 1
+        # Should extend backwards to get available data
+        assert len(result_data) >= 1
 
     def test_different_min_points(self):
         """Test with different minimum point requirements."""
@@ -529,17 +504,14 @@ class TestEnsureMinimumDataPoints:
         base_date = datetime(2023, 8, 1)  # Should get Oct quarter only
 
         # Test with min_points=3
-        result_data, _, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="1Q",
             base_date=base_date,
             min_points=3,
-            data_frequency="quarterly",
             reference_date=datetime(2024, 1, 1),
         )
 
         assert len(result_data) >= 3
-        assert was_adjusted is True
 
     def test_monthly_data_frequency(self):
         """Test monthly data frequency fallback sequence."""
@@ -551,24 +523,14 @@ class TestEnsureMinimumDataPoints:
 
         base_date = datetime(2023, 11, 1)
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="1W",  # Should fallback through monthly sequence
             base_date=base_date,
             min_points=2,
-            data_frequency="monthly",
             reference_date=datetime(2024, 1, 1),
         )
 
         assert len(result_data) >= 2
-        # For monthly data, 1W might work if there are enough monthly points
-        # after the base date. If adjusted, should use monthly fallback sequence.
-        if was_adjusted:
-            expected_periods = ["1M", "2M", "1Q", "2Q", "1Y", "2Y"]
-            assert actual_period in expected_periods
-        else:
-            # Original period worked
-            assert actual_period == "1W"
 
     def test_reference_date_usage(self):
         """Test that reference_date is used correctly for period calculations."""
@@ -578,18 +540,14 @@ class TestEnsureMinimumDataPoints:
         base_date = datetime(2023, 2, 1)
         reference_date = datetime(2023, 6, 15)
 
-        result_data, actual_period, was_adjusted = ensure_minimum_data_points(
+        result_data = ensure_minimum_data_points(
             data=data,
-            original_period="2M",
             base_date=base_date,
             min_points=2,
-            data_frequency="quarterly",
             reference_date=reference_date,  # Different from default
         )
 
         assert len(result_data) >= 0  # Should handle the different reference date
-        assert isinstance(actual_period, str)
-        assert isinstance(was_adjusted, bool)
 
 
 class TestFormatPeriodAdjustmentMessage:

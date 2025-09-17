@@ -161,6 +161,84 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Pydantic Models**: Type-safe data validation with field aliases for API mapping
 - **HTTP Management**: Custom headers, user agents, timeout handling
 
+### **CRITICAL: Provider Period Limitation Anti-Pattern**
+**⚠️ NEVER pass user-selected periods to provider calls - this breaks period selection functionality!**
+
+#### **The Problem**
+When providers accept period/date limitation parameters (like `observation_start`, `period`, `start_date`), and workflows pass user-selected periods, the provider caches limited datasets. This creates a critical bug where:
+
+1. **User selects 1Y period** → Provider fetches 1 year of data → Caches 1 year dataset
+2. **User later selects 10Y period** → Provider loads cached 1 year dataset → Period selection appears broken
+
+#### **Real Example: Buffet Indicator Bug**
+```python
+# ❌ WRONG - This broke period selection
+provider_result = await self.fred_provider.get_data(
+    query="GDP",
+    observation_start=base_date.strftime("%Y-%m-%d"),  # Limited to user period!
+)
+
+# ✅ CORRECT - Fetch maximum data, filter in workflow
+provider_result = await self.fred_provider.get_data(
+    query="GDP",  # No period limitations
+)
+```
+
+#### **Mandatory Provider Pattern**
+**ALL providers MUST follow this pattern:**
+
+```python
+# ✅ CORRECT PROVIDER PATTERN
+class MyProvider(BaseProvider):
+    async def _fetch_data(self, query: str, **kwargs) -> DataFrame:
+        # CRITICAL: Fetch MAXIMUM historical data by default
+        # NEVER pass user periods to external APIs
+        return external_api.get_data(
+            symbol=query,
+            period="max",  # Always maximum
+            # observation_start=kwargs.get("observation_start"),  # ❌ NEVER
+        )
+
+# ✅ CORRECT WORKFLOW PATTERN
+async def my_workflow(base_date: datetime, period: str):
+    # 1. Fetch FULL dataset from provider
+    provider_result = await provider.get_data(query="SYMBOL")
+    full_data = provider_result.data
+
+    # 2. Filter in workflow AFTER getting full data
+    filtered_data = ensure_minimum_data_points(
+        data=full_data,
+        base_date=base_date,  # User period applied HERE
+        min_points=2,
+    )
+```
+
+#### **Provider Implementation Rules**
+1. **Default to Maximum Data**: All providers MUST fetch maximum available historical data by default
+2. **No User Periods**: NEVER accept user-selected periods in provider calls from workflows
+3. **Workflow Filtering**: Period filtering happens in workflows AFTER data collection
+4. **Cache Full Datasets**: Cache complete historical data, not limited subsets
+5. **Document Pattern**: Include comments explaining why period limitations are dangerous
+
+#### **Correct Examples in Codebase**
+- **YahooHistoryProvider**: Defaults to `period="max"`, explicit comments about workflow filtering
+- **BuffetIndicatorWorkflow** (after fix): Fetches full GDP + Wilshire data, filters via `ensure_minimum_data_points()`
+
+#### **Anti-Pattern Detection**
+Watch for these dangerous patterns in provider calls:
+- `observation_start=base_date` (FRED)
+- `period=user_selected_period` (Yahoo)
+- `start_date=calculated_date` (Generic APIs)
+- Any parameter that limits historical data based on user input
+
+#### **Provider Validation Checklist**
+Before implementing any provider:
+- ✅ Fetches maximum available historical data by default
+- ✅ Period parameters (if any) default to maximum range
+- ✅ Comments warn against passing user periods from workflows
+- ✅ Factory functions don't accept period limitations
+- ✅ Tests verify full historical data is cached
+
 ### Provider Design Patterns (`app/providers/`)
 **CRITICAL**: All providers returning Pydantic models must follow this standardized pattern for API change detection and data validation consistency.
 

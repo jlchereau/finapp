@@ -4,7 +4,7 @@ Unit tests for custom exception classes.
 
 from app.lib.exceptions import (
     FinAppException,
-    WorkflowException,
+    FlowException,
     PageInputException,
     PageOutputException,
 )
@@ -57,19 +57,19 @@ class TestFinAppException:
         assert result["exception_type"] == "FinAppException"
 
 
-class TestWorkflowException:
-    """Test cases for WorkflowException."""
+class TestFlowException:
+    """Test cases for FlowException."""
 
     def test_workflow_exception_defaults(self):
-        """Test WorkflowException with default user message."""
-        exc = WorkflowException(
+        """Test FlowException with default user message."""
+        exc = FlowException(
             workflow="test_workflow", step="data_fetch", message="Step failed"
         )
 
         assert exc.workflow == "test_workflow"
         assert exc.step == "data_fetch"
         assert exc.message == "Step failed"
-        assert "workflow failed" in exc.user_message
+        assert "flow failed" in exc.user_message
         assert exc.context["workflow"] == "test_workflow"
         assert exc.context["step"] == "data_fetch"
 

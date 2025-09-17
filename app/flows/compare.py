@@ -17,7 +17,7 @@ from app.flows.helpers import process_multiple_provider_results
 from app.flows.base import FlowResult
 from app.lib.logger import logger
 from app.lib.finance import calculate_volatility, calculate_rsi
-from app.lib.exceptions import WorkflowException
+from app.lib.exceptions import FlowException
 from app.flows.cache import apply_flow_cache
 
 
@@ -327,7 +327,7 @@ async def fetch_raw_ticker_data(
 
         # Check if we have any successful data
         if not successful_data:
-            raise WorkflowException(
+            raise FlowException(
                 workflow="fetch_raw_ticker_data",
                 step="data_validation",
                 message=f"Failed to fetch data for all {len(tickers)} tickers",
@@ -342,8 +342,8 @@ async def fetch_raw_ticker_data(
 
     except Exception as e:
         logger.error(f"Raw data fetch failed: {e}")
-        # Re-raise as WorkflowException for better handling
-        raise WorkflowException(
+        # Re-raise as FlowException for better handling
+        raise FlowException(
             workflow="fetch_raw_ticker_data",
             step="data_processing",
             message=f"Raw data fetch workflow failed: {e}",
@@ -441,7 +441,7 @@ async def fetch_returns_data(
 
         # Check if we have any successful data
         if not successful_tickers:
-            raise WorkflowException(
+            raise FlowException(
                 workflow="fetch_returns_data",
                 step="data_validation",
                 message=(
@@ -464,8 +464,8 @@ async def fetch_returns_data(
 
     except Exception as e:
         logger.error(f"Returns data processing failed: {e}")
-        # Re-raise as WorkflowException for better handling
-        raise WorkflowException(
+        # Re-raise as FlowException for better handling
+        raise FlowException(
             workflow="fetch_returns_data",
             step="returns_processing",
             message=f"Returns data processing workflow failed: {e}",

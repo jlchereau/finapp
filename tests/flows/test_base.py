@@ -7,10 +7,10 @@ and integration patterns.
 
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock
+from unittest.mock import Mock, AsyncMock, MagicMock
 import pandas as pd
 
-from app.flows.base import FlowResult, FlowRunner
+from app.flows.base import FlowResult, FlowRunner, FlowResultEvent
 
 
 class TestFlowResult:
@@ -221,26 +221,26 @@ class TestFlowRunner:
         """Test FlowRunner with workflow returning dictionary result."""
         mock_workflow = Mock()
 
-        # Mock workflow result with StopEvent containing dictionary
-        mock_stop_event = Mock()
-        mock_stop_event.result = {
-            "data": pd.DataFrame({"A": [1, 2, 3]}),
-            "successful_tickers": ["AAPL"],
-            "failed_tickers": [],
-        }
-        mock_workflow.run = AsyncMock(return_value=mock_stop_event)
+        # Mock workflow result as FlowResultEvent
+        mock_result_event = FlowResultEvent.success_result(
+            data=pd.DataFrame({"A": [1, 2, 3]}),
+            successful_items=["AAPL"],
+            failed_items=[]
+        )
+        mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run(base_date=datetime(2024, 1, 1))
 
-        # Verify FlowResult structure
+        # Verify FlowResultEvent structure
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert isinstance(result.data, pd.DataFrame)
         assert len(result.data) == 3
         assert result.successful_items == ["AAPL"]
         assert result.failed_items == []
-        assert result.execution_time is not None
-        assert result.execution_time > 0
+        assert result.metadata["execution_time"] is not None
+        assert result.metadata["execution_time"] > 0
         assert result.metadata["workflow"] == "Mock"
 
         # Verify workflow was called correctly
@@ -251,71 +251,69 @@ class TestFlowRunner:
         """Test FlowRunner with workflow already returning FlowResult."""
         mock_workflow = Mock()
 
-        # Mock workflow result with FlowResult already
-        flow_result = FlowResult.success_result(
+        # Mock workflow result as FlowResultEvent already
+        mock_result_event = FlowResultEvent.success_result(
             data=pd.DataFrame({"A": [1, 2, 3]}),
             successful_items=["MSFT"],
         )
-
-        mock_stop_event = Mock()
-        mock_stop_event.result = flow_result
-        mock_workflow.run = AsyncMock(return_value=mock_stop_event)
+        mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run(symbol="MSFT")
 
-        # Verify FlowResult is preserved but execution time is updated
+        # Verify FlowResultEvent is preserved but execution time is updated
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert isinstance(result.data, pd.DataFrame)
         assert result.successful_items == ["MSFT"]
-        assert result.execution_time is not None
-        assert result.execution_time > 0  # Should be updated by FlowRunner
+        assert result.metadata["execution_time"] is not None
+        assert result.metadata["execution_time"] > 0  # Should be updated by FlowRunner
 
     @pytest.mark.asyncio
     async def test_flow_runner_success_with_direct_data(self):
         """Test FlowRunner with workflow returning direct data."""
         mock_workflow = Mock()
 
-        # Mock workflow result with direct DataFrame
+        # Mock workflow result as FlowResultEvent with direct DataFrame
         test_data = pd.DataFrame({"B": [4, 5, 6]})
-        mock_stop_event = Mock()
-        mock_stop_event.result = test_data
-        mock_workflow.run = AsyncMock(return_value=mock_stop_event)
+        mock_result_event = FlowResultEvent.success_result(
+            data=test_data
+        )
+        mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run(period="1Y")
 
-        # Verify FlowResult wraps direct data
+        # Verify FlowResultEvent wraps direct data
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert isinstance(result.data, pd.DataFrame)
         assert result.data.equals(test_data)
-        assert result.execution_time is not None
+        assert result.metadata["execution_time"] is not None
         assert result.metadata["workflow"] == "Mock"
-        assert result.metadata["raw_result_type"] == "DataFrame"
 
     @pytest.mark.asyncio
     async def test_flow_runner_error_from_dict_result(self):
         """Test FlowRunner with workflow returning error dictionary."""
         mock_workflow = Mock()
 
-        # Mock workflow result with error dictionary
-        mock_stop_event = Mock()
-        mock_stop_event.result = {
-            "data": pd.DataFrame(),
-            "error": "Test workflow error",
-            "failed_tickers": ["INVALID"],
-        }
-        mock_workflow.run = AsyncMock(return_value=mock_stop_event)
+        # Mock workflow result as FlowResultEvent with error
+        mock_result_event = FlowResultEvent.error_result(
+            error_message="Test workflow error",
+            failed_items=["INVALID"]
+        )
+        mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run(symbols=["INVALID"])
 
-        # Verify FlowResult captures error
+        # Verify FlowResultEvent captures error
+        assert isinstance(result, FlowResultEvent)
         assert result.success is False
         assert result.data is None
         assert result.error_message == "Test workflow error"
         assert result.failed_items == ["INVALID"]
-        assert result.execution_time is not None
+        assert result.metadata["execution_time"] is not None
         assert result.metadata["workflow"] == "Mock"
 
     @pytest.mark.asyncio
@@ -329,14 +327,12 @@ class TestFlowRunner:
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run(test_param="value")
 
-        # Verify exception is captured in FlowResult
+        # Verify exception is captured in FlowResultEvent
+        assert isinstance(result, FlowResultEvent)
         assert result.success is False
         assert result.data is None
-        assert (
-            "Workflow execution failed: Workflow execution failed"
-            in result.error_message
-        )
-        assert result.execution_time is not None
+        assert "Workflow execution failed" in result.error_message
+        assert result.metadata["execution_time"] is not None
         assert result.metadata["workflow"] == "Mock"
         assert result.metadata["error_type"] == "ValueError"
         assert result.metadata["kwargs"] == {"test_param": "value"}
@@ -346,14 +342,17 @@ class TestFlowRunner:
         """Test FlowRunner handling workflow result without .result attribute."""
         mock_workflow = Mock()
 
-        # Mock workflow returning direct result (not StopEvent)
-        direct_result = {"data": pd.DataFrame({"C": [7, 8, 9]})}
-        mock_workflow.run = AsyncMock(return_value=direct_result)
+        # Mock workflow returning FlowResultEvent with data
+        mock_result_event = FlowResultEvent.success_result(
+            data=pd.DataFrame({"C": [7, 8, 9]})
+        )
+        mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
         result = await runner.run()
 
-        # Verify FlowRunner handles missing .result attribute
+        # Verify FlowResultEvent
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert isinstance(result.data, pd.DataFrame)
         assert len(result.data) == 3
@@ -545,23 +544,24 @@ class TestFlowRunnerIntegration:
 
             async def run(self, base_date=None, original_period=None):
                 """Simulate workflow.run() from markets.py pattern."""
-                # Simulate StopEvent with result
-                mock_stop_event = Mock()
-                mock_stop_event.result = {
-                    "data": pd.DataFrame(
+                # Simulate FlowResultEvent with result
+                return FlowResultEvent.success_result(
+                    data=pd.DataFrame(
                         {
                             "Market_Cap": [100, 120, 110],
                             "GDP": [50, 55, 60],
                             "Ratio": [2.0, 2.18, 1.83],
                         }
                     ),
-                    "trend_data": {"slope": 0.1, "r_squared": 0.85},
-                    "was_adjusted": False,
-                    "original_period": original_period,
-                    "actual_period": "5Y",
-                    "data_points": 3,
-                }
-                return mock_stop_event
+                    base_date=base_date,
+                    metadata={
+                        "trend_data": {"slope": 0.1, "r_squared": 0.85},
+                        "was_adjusted": False,
+                        "original_period": original_period,
+                        "actual_period": "5Y",
+                        "data_points": 3,
+                    }
+                )
 
         # Test the FlowRunner pattern
         workflow = MockMarketWorkflow()
@@ -570,20 +570,20 @@ class TestFlowRunnerIntegration:
         # Execute using FlowRunner
         result = await runner.run(base_date=datetime(2024, 1, 1), original_period="5Y")
 
-        # Verify FlowResult structure
+        # Verify FlowResultEvent structure
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert isinstance(result.data, pd.DataFrame)
         assert len(result.data) == 3
         assert list(result.data.columns) == ["Market_Cap", "GDP", "Ratio"]
-        assert result.execution_time is not None
+        assert result.metadata["execution_time"] is not None
         assert result.base_date == datetime(2024, 1, 1)
 
-        # Verify metadata includes original workflow result
+        # Verify metadata includes workflow information
         assert result.metadata["workflow"] == "MockMarketWorkflow"
-        assert "original_result" in result.metadata
-        assert result.metadata["original_result"]["trend_data"]["slope"] == 0.1
-        assert result.metadata["original_result"]["was_adjusted"] is False
-        assert result.metadata["original_result"]["data_points"] == 3
+        assert result.metadata["trend_data"]["slope"] == 0.1
+        assert result.metadata["was_adjusted"] is False
+        assert result.metadata["data_points"] == 3
 
     def test_flow_runner_usage_demonstration(self):
         """Demonstrate how FlowRunner would be used in practice."""

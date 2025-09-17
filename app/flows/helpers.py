@@ -5,8 +5,6 @@ This module provides common utilities for handling provider results,
 asyncio.gather operations, and data validation across workflows.
 """
 
-# pylint: disable=broad-exception-raised
-
 import asyncio
 import time
 from typing import Dict, Any, Tuple
@@ -46,20 +44,20 @@ def validate_provider_result(
     if not (hasattr(result, "success") and result.success):
         error_msg = getattr(result, "error_message", f"Unknown {data_name} fetch error")
         logger.error(f"{data_name} provider failed: {error_msg}")
-        raise Exception(f"{data_name} data fetch failed: {error_msg}")
+        raise ValueError(f"{data_name} data fetch failed: {error_msg}")
 
     # Check data attribute and type
     if not (hasattr(result, "data") and isinstance(result.data, pd.DataFrame)):
         error_msg = getattr(result, "error_message", f"Unknown {data_name} data error")
         logger.error(f"{data_name} provider returned invalid data: {error_msg}")
-        raise Exception(f"{data_name} data fetch failed: {error_msg}")
+        raise ValueError(f"{data_name} data fetch failed: {error_msg}")
 
     data = result.data
 
     # Check for empty data
     if data.empty:
         logger.error(f"Empty {data_name} data returned")
-        raise Exception(f"No {data_name.lower()} data available")
+        raise ValueError(f"No {data_name.lower()} data available")
 
     logger.debug(
         f"{data_name} data: {len(data)} rows, "
@@ -111,7 +109,7 @@ async def process_multiple_provider_results(tasks: Dict[str, Any]) -> Dict[str, 
             }
             logger.debug(f"Successfully processed {identifier}: {len(data)} rows")
 
-        except Exception as e:
+        except (ValueError, TypeError, KeyError, AttributeError) as e:
             # Store failure result
             processed_results[identifier] = {
                 "success": False,
@@ -154,20 +152,20 @@ def validate_single_provider_task(
     if not (hasattr(result, "success") and result.success):
         error_msg = getattr(result, "error_message", f"Unknown {data_name} fetch error")
         logger.error(f"{data_name} provider failed: {error_msg}")
-        raise Exception(f"{data_name} data fetch failed: {error_msg}")
+        raise ValueError(f"{data_name} data fetch failed: {error_msg}")
 
     # Check data attribute and type
     if not (hasattr(result, "data") and isinstance(result.data, pd.DataFrame)):
         error_msg = getattr(result, "error_message", f"Unknown {data_name} data error")
         logger.error(f"{data_name} provider returned invalid data: {error_msg}")
-        raise Exception(f"{data_name} data fetch failed: {error_msg}")
+        raise ValueError(f"{data_name} data fetch failed: {error_msg}")
 
     data = result.data
 
     # Check for empty data if requested
     if check_empty and data.empty:
         logger.error(f"Empty {data_name} data returned")
-        raise Exception(f"No {data_name.lower()} data available")
+        raise ValueError(f"No {data_name.lower()} data available")
 
     if not data.empty:
         logger.debug(
@@ -263,7 +261,7 @@ async def create_flow_result_from_provider_results(
             metadata=metadata,
         )
 
-    except Exception as e:
+    except (ValueError, TypeError, KeyError, AttributeError) as e:
         logger.error(f"Error creating FlowResult from provider results: {e}")
         return FlowResult.error_result(
             error_message=f"Flow execution failed: {str(e)}",

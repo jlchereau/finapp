@@ -386,7 +386,7 @@ class TestZacksProvider:
         result = await self.provider.get_data()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync_without_query_raises_error(self):
@@ -394,7 +394,7 @@ class TestZacksProvider:
         result = self.provider.get_data_sync()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
 
@@ -720,6 +720,7 @@ class TestZacksProviderIntegration:
 
             results = await asyncio.gather(*tasks)
 
+            assert len(results) == 2
             assert results[0].success is True
             assert results[1].success is False
             assert "Ticker not found in Zacks" in (results[1].error_message or "")

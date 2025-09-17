@@ -7,16 +7,18 @@ for all workflow operations in the application.
 
 import asyncio
 import time
+from deprecated.classic import deprecated
 from datetime import datetime
 from typing import Any, Dict, Tuple
 
 from workflows import Workflow
+from workflows.events import StopEvent
 from pydantic import BaseModel, Field
 import pandas as pd
 
 from app.providers.base import ProviderResult
 from app.lib.logger import logger
-from app.lib.exceptions import WorkflowException
+from app.lib.exceptions import FlowException
 
 
 class FlowResult[T](BaseModel):
@@ -131,6 +133,72 @@ class FlowResult[T](BaseModel):
         )
 
 
+class FlowResultEvent(StopEvent):
+    """
+    Unified workflow result event.
+
+    This replaces FlowResult for cleaner LlamaIndex workflow patterns.
+    Can represent both success and error states in a single event type.
+    """
+
+    success: bool = Field(description="Whether the workflow execution was successful")
+    data: pd.DataFrame | Any | None = Field(
+        default=None, description="Main result data (DataFrame or other)"
+    )
+    error_message: str | None = Field(
+        default=None, description="Error message if workflow failed"
+    )
+    base_date: datetime | None = Field(
+        default=None, description="Base date used for data filtering"
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional flow-specific data and metrics"
+    )
+
+    # Keep these for backward compatibility
+    successful_items: list[str] = Field(
+        default_factory=list, description="Successfully processed items"
+    )
+    failed_items: list[str] = Field(default_factory=list, description="Failed items")
+
+    @classmethod
+    def success_result(
+        cls,
+        data: Any,
+        base_date: datetime | None = None,
+        metadata: dict[str, Any] | None = None,
+        successful_items: list[str] | None = None,
+        failed_items: list[str] | None = None,
+    ) -> "FlowResultEvent":
+        """Create a successful result."""
+        return cls(
+            success=True,
+            data=data,
+            base_date=base_date,
+            metadata=metadata or {},
+            successful_items=successful_items or [],
+            failed_items=failed_items or [],
+        )
+
+    @classmethod
+    def error_result(
+        cls,
+        error_message: str,
+        base_date: datetime | None = None,
+        metadata: dict[str, Any] | None = None,
+        failed_items: list[str] | None = None,
+    ) -> "FlowResultEvent":
+        """Create an error result."""
+        return cls(
+            success=False,
+            error_message=error_message,
+            base_date=base_date,
+            metadata=metadata or {},
+            successful_items=[],
+            failed_items=failed_items or [],
+        )
+
+
 class FlowRunner[T]:
     """
     Standardized runner for LlamaIndex workflows.
@@ -154,63 +222,39 @@ class FlowRunner[T]:
         self.workflow: Workflow = workflow
         self._start_time: float | None = None
 
-    async def run(self, **kwargs) -> FlowResult[T]:
+    async def run(self, **kwargs) -> FlowResultEvent:
         """
-        Execute the workflow and return a standardized FlowResult.
+        Execute the workflow and return a standardized StopEvent.
 
         Args:
             **kwargs: Parameters to pass to workflow.run()
 
         Returns:
-            FlowResult[T] with standardized structure and metadata
+            FlowResultEvent with execution metadata
         """
         self._start_time = time.time()
 
         try:
             logger.debug(f"Starting workflow {self.workflow.__class__.__name__}")
 
-            # Execute the workflow
-            raw_result = await self.workflow.run(**kwargs)
-
+            # Execute the workflow - it should return FlowResultEvent
+            result_event = await self.workflow.run(**kwargs)
             execution_time = time.time() - self._start_time
 
-            # Extract actual result data from StopEvent
-            if hasattr(raw_result, "result"):
-                result_data = raw_result.result
-            else:
-                logger.warning(
-                    f"Workflow {self.workflow.__class__.__name__} result "
-                    "missing .result attribute"
-                )
-                result_data = raw_result
+            # Add execution time to the event metadata
+            result_event.metadata["execution_time"] = execution_time
+            result_event.metadata["workflow"] = self.workflow.__class__.__name__
 
-            # Handle different result formats
-            if isinstance(result_data, dict):
-                # Legacy dictionary format - convert to FlowResult
-                return self._convert_dict_result(result_data, execution_time, **kwargs)
-            elif isinstance(result_data, FlowResult):
-                # Already a FlowResult - update execution time
-                result_data.execution_time = execution_time
-                return result_data
-            else:
-                # Direct data - wrap in success result
-                return FlowResult.success_result(
-                    data=result_data,
-                    execution_time=execution_time,
-                    metadata={
-                        "workflow": self.workflow.__class__.__name__,
-                        "raw_result_type": type(result_data).__name__,
-                    },
-                )
+            return result_event
 
         except Exception as e:
             execution_time = time.time() - self._start_time
             logger.error(f"Workflow {self.workflow.__class__.__name__} failed: {e}")
 
-            return FlowResult.error_result(
-                error_message=f"Workflow execution failed: {str(e)}",
-                execution_time=execution_time,
+            return FlowResultEvent.error_result(
+                error_message=str(e),
                 metadata={
+                    "execution_time": execution_time,
                     "workflow": self.workflow.__class__.__name__,
                     "error_type": type(e).__name__,
                     "kwargs": kwargs,
@@ -289,7 +333,7 @@ class FlowRunner[T]:
             Validated DataFrame from the provider result
 
         Raises:
-            WorkflowException: If result is invalid or contains no data
+            FlowException: If result is invalid or contains no data
         """
         # Check for exceptions first
         if isinstance(result, Exception):
@@ -302,7 +346,7 @@ class FlowRunner[T]:
                 result, "error_message", f"Unknown {data_name} fetch error"
             )
             logger.error(f"{data_name} provider failed: {error_msg}")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_provider_result",
                 message=f"{data_name} data fetch failed: {error_msg}",
@@ -314,7 +358,7 @@ class FlowRunner[T]:
                 result, "error_message", f"Unknown {data_name} data error"
             )
             logger.error(f"{data_name} provider returned invalid data: {error_msg}")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_provider_result",
                 message=f"{data_name} data fetch failed: {error_msg}",
@@ -325,7 +369,7 @@ class FlowRunner[T]:
         # Check for empty data
         if data.empty:
             logger.error(f"Empty {data_name} data returned")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_provider_result",
                 message=f"No {data_name.lower()} data available",
@@ -338,6 +382,10 @@ class FlowRunner[T]:
 
         return data
 
+    @deprecated(
+        reason="This is a bad use of llama-index workflows which have the "
+        "ability to handle parallel tasks"
+    )
     @staticmethod
     async def process_provider_tasks(tasks: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -377,7 +425,13 @@ class FlowRunner[T]:
                 }
                 logger.debug(f"Successfully processed {identifier}: {len(data)} rows")
 
-            except Exception as e:
+            except (
+                FlowException,
+                ValueError,
+                TypeError,
+                KeyError,
+                AttributeError,
+            ) as e:
                 # Store failure result
                 processed_results[identifier] = {
                     "success": False,
@@ -405,7 +459,7 @@ class FlowRunner[T]:
             Validated DataFrame from the provider result
 
         Raises:
-            WorkflowException: If result is invalid or contains no data
+            FlowException: If result is invalid or contains no data
         """
         # Check for exceptions first
         if isinstance(result, Exception):
@@ -418,7 +472,7 @@ class FlowRunner[T]:
                 result, "error_message", f"Unknown {data_name} fetch error"
             )
             logger.error(f"{data_name} provider failed: {error_msg}")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_single_provider_task",
                 message=f"{data_name} data fetch failed: {error_msg}",
@@ -430,7 +484,7 @@ class FlowRunner[T]:
                 result, "error_message", f"Unknown {data_name} data error"
             )
             logger.error(f"{data_name} provider returned invalid data: {error_msg}")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_single_provider_task",
                 message=f"{data_name} data fetch failed: {error_msg}",
@@ -441,7 +495,7 @@ class FlowRunner[T]:
         # Check for empty data if requested
         if check_empty and data.empty:
             logger.error(f"Empty {data_name} data returned")
-            raise WorkflowException(
+            raise FlowException(
                 workflow="FlowRunner",
                 step="validate_single_provider_task",
                 message=f"No {data_name.lower()} data available",
@@ -538,7 +592,7 @@ class FlowRunner[T]:
                 metadata=metadata,
             )
 
-        except Exception as e:
+        except (FlowException, ValueError, TypeError, KeyError, AttributeError) as e:
             logger.error(f"Error creating FlowResult from provider results: {e}")
             return FlowResult.error_result(
                 error_message=f"Flow execution failed: {str(e)}",

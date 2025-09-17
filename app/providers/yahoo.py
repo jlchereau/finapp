@@ -85,8 +85,9 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
 
     @apply_provider_cache
     # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    # pyrefly: ignore[bad-override]
-    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> DataFrame:
         """
         Fetch historical price data for a ticker from yfinance.
 
@@ -101,8 +102,10 @@ class YahooHistoryProvider(BaseProvider[DataFrame]):
                 - end: End date (YYYY-MM-DD)
 
         Note:
-            Defaults to "max" period to ensure maximum historical data is cached.
-            Workflows can filter to shorter periods without re-fetching.
+            ✅ CORRECT PROVIDER PATTERN: Defaults to "max" period to ensure
+            maximum historical data is cached. Workflows filter to shorter
+            periods without re-fetching. This prevents the period limitation
+            anti-pattern that breaks period selection.
 
         Returns:
             DataFrame with OHLCV data
@@ -184,8 +187,9 @@ class YahooInfoProvider(BaseProvider[BaseModel]):
 
     @apply_provider_cache
     # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    # pyrefly: ignore[bad-override]
-    async def _fetch_data(self, query: str | None, *args, **kwargs) -> BaseModel:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> BaseModel:
         """
         Get ticker info/fundamentals from yfinance.
 

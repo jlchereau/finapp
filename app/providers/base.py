@@ -218,9 +218,23 @@ class BaseProvider[T](ABC):
         Fetch data from the provider with comprehensive error handling.
         This is the main public interface that workflows should use.
 
+        ⚠️  CRITICAL PROVIDER PATTERN WARNING ⚠️
+
+        NEVER pass user-selected periods to provider calls from workflows!
+        This breaks period selection functionality by caching limited datasets.
+
+        ❌ WRONG: provider.get_data(query="GDP", observation_start=user_base_date)
+        ✅ CORRECT: provider.get_data(query="GDP")  # Fetch max data, filter in workflow
+
+        Providers MUST fetch maximum historical data by default.
+        Period filtering happens in workflows AFTER data collection.
+
+        See CLAUDE.md "Provider Period Limitation Anti-Pattern" for details.
+
         Args:
             query: a query, for example a stock ticker or None if not applicable
             **kwargs: Additional parameters specific to the provider
+                     WARNING: Avoid period/date limitation parameters from workflows!
 
         Returns:
             ProviderResult containing data or error information

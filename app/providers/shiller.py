@@ -40,8 +40,9 @@ class ShillerCAPEProvider(BaseProvider[DataFrame]):
 
     @apply_provider_cache
     # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    # pyrefly: ignore[bad-override]
-    async def _fetch_data(self, query: str | None, *args, **kwargs) -> DataFrame:
+    async def _fetch_data(
+        self, query: str | None, *args, cache_date: str | None = None, **kwargs
+    ) -> DataFrame:
         """
         Fetch CAPE data from ShillerData.
 

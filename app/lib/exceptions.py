@@ -44,8 +44,8 @@ class FinAppException(Exception):
         }
 
 
-class WorkflowException(FinAppException):
-    """Exception raised when workflow execution fails."""
+class FlowException(FinAppException):
+    """Exception raised when flow execution fails."""
 
     def __init__(
         self,
@@ -57,7 +57,7 @@ class WorkflowException(FinAppException):
     ):
         if user_message is None:
             user_message = (
-                "Analysis workflow failed. Please try again or contact support."
+                "Analysis flow failed. Please try again or contact support."
             )
 
         context = {"workflow": workflow, "step": step}

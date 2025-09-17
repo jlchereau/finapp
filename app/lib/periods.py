@@ -7,7 +7,7 @@ for consistent time period handling across the application.
 
 from enum import Enum
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List
 import pandas as pd
 import numpy as np
 
@@ -218,121 +218,86 @@ def format_date_range_message(period: str, base_date: datetime | None) -> str:
 
 def ensure_minimum_data_points(
     data: pd.DataFrame,
-    original_period: str,
     base_date: datetime,
     min_points: int = 2,
-    data_frequency: str = "quarterly",
     reference_date: datetime | None = None,
-) -> Tuple[pd.DataFrame, str, bool]:
+) -> pd.DataFrame:
     """
-    Ensure filtered data has minimum number of points by extending period if needed.
+    Ensure filtered data has minimum number of points by extending base_date if needed.
 
-    This function addresses the issue where economic indicators with quarterly data
-    fail to show any points when users select short periods (e.g., 2M) that fall
-    between quarterly data points.
+    Improved algorithm starting from reference_date:
+    1. Start from reference_date and work backwards
+    2. Ensure base_date is within bounds of available data
+    3. Select min_points data points ending at or before reference_date
 
     Args:
         data: DataFrame with datetime index containing the data to filter
-        original_period: Original period selected by user (e.g., "2M", "1Q")
-        base_date: Calculated base date for the original period
+        base_date: Start date for filtering (must be anterior to reference_date)
         min_points: Minimum number of data points required (default: 2)
-        data_frequency: Frequency of the data ("quarterly", "monthly", "daily")
-        reference_date: Reference date for calculations (defaults to now)
+        reference_date: End date for filtering (defaults to now, must be after
+                       base_date)
 
     Returns:
-        Tuple of (filtered_data, actual_period_used, was_adjusted)
-        - filtered_data: DataFrame filtered to show adequate data points
-        - actual_period_used: Period that was actually used (may differ from original)
-        - was_adjusted: Boolean indicating if period was extended from original
+        DataFrame filtered to show adequate data points
+
+    Raises:
+        ValueError: If base_date is not anterior to reference_date
 
     Example:
-        >>> # Quarterly GDP data with 2M period that falls between quarters
-        >>> filtered_data, period_used, adjusted = ensure_minimum_data_points(
+        >>> # Quarterly GDP data - automatically gets min_points ending before
+        >>> # reference_date
+        >>> filtered_data = ensure_minimum_data_points(
         ...     data=gdp_data,
-        ...     original_period="2M",
-        ...     base_date=datetime(2024, 1, 15),  # Falls between Q4 and Q1
-        ...     min_points=2,
-        ...     data_frequency="quarterly"
+        ...     base_date=datetime(2024, 6, 1),
+        ...     min_points=2
         ... )
-        >>> # Result: period_used="1Q", adjusted=True, shows Q1 data
     """
     if reference_date is None:
         reference_date = datetime.now()
 
-    # Define fallback sequence based on data frequency
-    if data_frequency == "quarterly":
-        # For quarterly data, ensure minimum periods that work with quarters
-        fallback_sequence = ["1Q", "2Q", "3Q", "1Y", "2Y", "5Y", "MAX"]
-    elif data_frequency == "monthly":
-        # For monthly data, start with reasonable monthly periods
-        fallback_sequence = ["1M", "2M", "1Q", "2Q", "1Y", "2Y", "MAX"]
-    else:  # daily or other high-frequency data
-        # For daily data, keep original short periods
-        fallback_sequence = ["1W", "1M", "1Q", "2Q", "1Y", "2Y", "MAX"]
+    # Validate that base_date is anterior to reference_date
+    if base_date >= reference_date:
+        raise ValueError(
+            f"base_date ({base_date.date()}) must be anterior to "
+            f"reference_date ({reference_date.date()}). "
+            f"base_date represents the start of the period, "
+            f"reference_date represents 'now'."
+        )
 
-    # Start with the original period
-    current_period = original_period
-    base_date_pd = pd.to_datetime(base_date.date())
-
-    # Handle MAX period immediately - return all data
-    if original_period == "MAX":
-        return data, current_period, False
-
-    # Try filtering with original period first (handle empty data)
+    # Handle empty data
     if len(data) == 0:
-        return data, current_period, False  # Empty data, nothing to filter
+        return pd.DataFrame(columns=data.columns)
 
-    filtered_data = data[data.index >= base_date_pd]
+    # Convert to pandas timestamps for consistent filtering
+    base_date_ts = pd.Timestamp(base_date.date())
+    reference_date_ts = pd.Timestamp(reference_date.date())
 
-    # Ensure we return a proper DataFrame
-    if not isinstance(filtered_data, pd.DataFrame):
-        filtered_data = pd.DataFrame(filtered_data)
+    # Validate that base_date is within data bounds
+    if base_date_ts < data.index.min():
+        # base_date is before all data - use earliest data
+        base_date_ts = data.index.min()
+    elif base_date_ts > data.index.max():
+        # base_date is after all data - use latest data
+        base_date_ts = data.index.max()
 
-    # If we have enough data points, return as-is
-    if len(filtered_data) >= min_points:
-        return filtered_data, current_period, False
+    # Filter data up to reference_date
+    data_up_to_ref = data[data.index <= reference_date_ts]
 
-    # If original period is already in fallback sequence, start from there
-    # Otherwise start from beginning of fallback sequence
-    if current_period in fallback_sequence:
-        start_idx = fallback_sequence.index(current_period) + 1
+    if len(data_up_to_ref) == 0:
+        return pd.DataFrame(columns=data.columns)
+
+    # Find last min_points data points ending at or before reference_date
+    # but not starting before base_date
+    data_from_base = data_up_to_ref[data_up_to_ref.index >= base_date_ts]
+
+    if len(data_from_base) >= min_points:
+        # We have enough points from base_date to reference_date
+        return data_from_base
     else:
-        start_idx = 0
-
-    # Try progressively longer periods until we get enough data
-    for period in fallback_sequence[start_idx:]:
-        try:
-            # Calculate new base date for this period
-            if period == "MAX":
-                # For MAX, use all available data
-                filtered_data = data.copy()
-                current_period = period
-                break
-            else:
-                new_base_date = calculate_base_date(period, reference_date)
-                if new_base_date is None:
-                    # This should only happen for MAX, which we handle above
-                    continue
-
-                new_base_date_pd = pd.to_datetime(new_base_date.date())
-                filtered_data = data[data.index >= new_base_date_pd]
-
-                # Ensure we return a proper DataFrame
-                if not isinstance(filtered_data, pd.DataFrame):
-                    filtered_data = pd.DataFrame(filtered_data)
-
-                # Check if this period gives us enough data points
-                if len(filtered_data) >= min_points:
-                    current_period = period
-                    break
-
-        except ValueError:
-            # Skip invalid period options
-            continue
-
-    # Return results
-    was_adjusted = current_period != original_period
-    return filtered_data, current_period, was_adjusted
+        # Not enough points from base_date - take last min_points from data_up_to_ref
+        # This extends backwards beyond base_date if necessary
+        start_pos = max(0, len(data_up_to_ref) - min_points)
+        return data_up_to_ref.iloc[start_pos:]
 
 
 def format_period_adjustment_message(

@@ -172,7 +172,7 @@ class TestYahooHistoryProvider:
         result = await self.provider.get_data()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync_without_query_raises_error(self):
@@ -180,7 +180,7 @@ class TestYahooHistoryProvider:
         result = self.provider.get_data_sync()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
 
@@ -309,7 +309,7 @@ class TestYahooInfoProvider:
         result = await self.provider.get_data()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
     def test_get_data_sync_without_query_raises_error(self):
@@ -317,7 +317,7 @@ class TestYahooInfoProvider:
         result = self.provider.get_data_sync()  # No query parameter
 
         assert result.success is False
-        assert "must be provided" in result.error_message.lower()
+        assert "must be provided" in (result.error_message or "").lower()
         assert result.error_code == "NonRetriableProviderException"
 
 

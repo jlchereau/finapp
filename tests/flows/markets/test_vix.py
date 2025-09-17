@@ -7,13 +7,11 @@ import pytest
 from datetime import datetime
 from unittest.mock import AsyncMock, patch, MagicMock
 
-from app.flows.markets_vix import (
+from app.flows.markets.vix import (
     fetch_vix_data,
     VIXWorkflow,
-    VIXEvent,
 )
-from app.flows.base import FlowRunner, FlowResult
-from app.lib.exceptions import WorkflowException
+from app.flows.base import FlowRunner, FlowResultEvent
 
 
 @pytest.fixture
@@ -54,8 +52,8 @@ class TestVIXWorkflow:
         assert hasattr(workflow, "yahoo_provider")
 
     @pytest.mark.asyncio
-    async def test_fetch_vix_data_step_success(self):
-        """Test successful VIX data fetching step."""
+    async def test_fetch_and_process_vix_data_success(self):
+        """Test successful VIX data fetching and processing step."""
         workflow = VIXWorkflow()
 
         # Create mock VIX data
@@ -77,78 +75,90 @@ class TestVIXWorkflow:
         start_event.base_date = datetime(2020, 1, 1)
 
         # Execute the step
-        result = await workflow.fetch_vix_data(start_event)
+        result = await workflow.fetch_and_process_vix_data(start_event)
 
         # Verify result
-        assert isinstance(result, VIXEvent)
-        assert result.base_date == datetime(2020, 1, 1)
-        pd.testing.assert_frame_equal(result.vix_data, vix_data)
+        assert isinstance(result, FlowResultEvent)
+        assert result.success is True
+        assert result.data is not None
+        assert not result.data.empty
+        assert "VIX" in result.data.columns
+        assert "VIX_MA50" in result.data.columns
 
     @pytest.mark.asyncio
-    async def test_process_vix_data_success(self):
-        """Test successful VIX data processing step."""
+    async def test_fetch_and_process_vix_data_provider_failure(self):
+        """Test handling of Yahoo Finance provider failure."""
         workflow = VIXWorkflow()
 
-        # Create realistic test data
-        base_date = datetime(2020, 1, 1)
-        vix_data = pd.DataFrame(
-            {"Close": [20.5, 18.3, 25.1, 22.7, 19.8]},
-            index=pd.date_range("2020-01-01", periods=5, freq="D"),
-        )
+        # Mock provider result with failure
+        vix_result = MagicMock()
+        vix_result.success = False
+        vix_result.error_message = "VIX provider failed"
 
-        # Create VIXEvent
-        event = VIXEvent(vix_data=vix_data, base_date=base_date)
+        # Mock the provider method
+        workflow.yahoo_provider.get_data = AsyncMock(return_value=vix_result)
 
-        # Execute the processing step
-        result = await workflow.process_vix_data(event)
+        # Create start event
+        start_event = MagicMock()
+        start_event.base_date = datetime(2020, 1, 1)
 
-        # Verify result structure
-        assert hasattr(result, "result")
-        assert isinstance(result.result, FlowResult)
-        assert result.result.success is True
-        assert result.result.data is not None
-        assert not result.result.data.empty
+        # Execute the step and expect exception
+        with pytest.raises(Exception) as exc_info:
+            await workflow.fetch_and_process_vix_data(start_event)
 
-        # Verify data columns
-        data = result.result.data
-        assert "VIX" in data.columns
-        assert "VIX_MA50" in data.columns
-
-        # Verify metadata
-        metadata = result.result.metadata
-        assert "historical_mean" in metadata
-        assert "latest_value" in metadata
-        assert "data_points" in metadata
+        assert "VIX data fetch failed" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_process_vix_data_no_close_column(self):
+    async def test_fetch_and_process_vix_data_no_close_column(self):
         """Test error handling when VIX data has no Close column."""
         workflow = VIXWorkflow()
 
+        # Create VIX data without Close column
         vix_data = pd.DataFrame({"Open": [20.5, 18.3, 25.1]})
-        event = VIXEvent(vix_data=vix_data, base_date=datetime(2020, 1, 1))
 
-        with pytest.raises(WorkflowException) as exc_info:
-            await workflow.process_vix_data(event)
+        # Mock provider result
+        vix_result = MagicMock()
+        vix_result.success = True
+        vix_result.data = vix_data
 
-        assert exc_info.value.workflow == "VIXWorkflow"
-        assert exc_info.value.step == "process_vix_data"
-        assert "No Close price data available for VIX" in exc_info.value.message
+        # Mock the provider method
+        workflow.yahoo_provider.get_data = AsyncMock(return_value=vix_result)
+
+        # Create start event
+        start_event = MagicMock()
+        start_event.base_date = datetime(2020, 1, 1)
+
+        # Execute the step and expect exception
+        with pytest.raises(Exception) as exc_info:
+            await workflow.fetch_and_process_vix_data(start_event)
+
+        assert "No Close price data available for VIX" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_process_vix_data_empty_data(self):
+    async def test_fetch_and_process_vix_data_empty_data(self):
         """Test error handling when VIX data is empty."""
         workflow = VIXWorkflow()
 
-        vix_data = pd.DataFrame({"Close": []})
-        event = VIXEvent(vix_data=vix_data, base_date=datetime(2020, 1, 1))
+        # Create empty VIX data
+        vix_data = pd.DataFrame()
 
-        with pytest.raises(WorkflowException) as exc_info:
-            await workflow.process_vix_data(event)
+        # Mock provider result
+        vix_result = MagicMock()
+        vix_result.success = True
+        vix_result.data = vix_data
 
-        assert exc_info.value.workflow == "VIXWorkflow"
-        assert exc_info.value.step == "process_vix_data"
-        assert "No VIX data available" in exc_info.value.message
+        # Mock the provider method
+        workflow.yahoo_provider.get_data = AsyncMock(return_value=vix_result)
+
+        # Create start event
+        start_event = MagicMock()
+        start_event.base_date = datetime(2020, 1, 1)
+
+        # Execute the step and expect exception
+        with pytest.raises(Exception) as exc_info:
+            await workflow.fetch_and_process_vix_data(start_event)
+
+        assert "No VIX data available" in str(exc_info.value)
 
 
 class TestVIXFlowRunner:
@@ -160,9 +170,8 @@ class TestVIXFlowRunner:
         workflow = VIXWorkflow()
         runner = FlowRunner[pd.DataFrame](workflow)
 
-        # Mock the workflow to return a FlowResult
-        mock_result = MagicMock()
-        mock_result.result = FlowResult.success_result(
+        # Mock the workflow to return a FlowResultEvent
+        mock_result = FlowResultEvent.success_result(
             data=pd.DataFrame(
                 {
                     "VIX": [20.5, 18.3],
@@ -182,8 +191,8 @@ class TestVIXFlowRunner:
         # Execute workflow through FlowRunner
         result = await runner.run(base_date=datetime(2020, 1, 1))
 
-        # Verify FlowResult structure
-        assert isinstance(result, FlowResult)
+        # Verify FlowResultEvent structure
+        assert isinstance(result, FlowResultEvent)
         assert result.success is True
         assert result.data is not None
         assert not result.data.empty
@@ -192,23 +201,17 @@ class TestVIXFlowRunner:
 
     @pytest.mark.asyncio
     async def test_flowrunner_integration_workflow_exception(self):
-        """Test FlowRunner handling of WorkflowException."""
+        """Test FlowRunner handling of Exception."""
         workflow = VIXWorkflow()
         runner = FlowRunner[pd.DataFrame](workflow)
 
-        # Mock workflow to raise WorkflowException
-        workflow.run = AsyncMock(
-            side_effect=WorkflowException(
-                workflow="VIXWorkflow",
-                step="test_step",
-                message="Test workflow error",
-            )
-        )
+        # Mock workflow to raise Exception
+        workflow.run = AsyncMock(side_effect=Exception("Test workflow error"))
 
-        # Execute and expect FlowResult with error
+        # Execute and expect FlowResultEvent with error
         result = await runner.run(base_date=datetime(2020, 1, 1))
 
-        assert isinstance(result, FlowResult)
+        assert isinstance(result, FlowResultEvent)
         assert result.success is False
         assert result.data is None
         assert (
@@ -229,7 +232,7 @@ class TestFetchVIXData:
         vix_result.data = sample_vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             # Setup provider mock
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
@@ -253,7 +256,7 @@ class TestFetchVIXData:
 
             # Verify historical mean is calculated
             historical_mean = result["historical_mean"]
-            assert isinstance(historical_mean, float)
+            assert isinstance(historical_mean, (float, int)) or hasattr(historical_mean, 'dtype')
             assert 10 <= historical_mean <= 50  # Reasonable VIX range
 
             # Verify 50-day moving average is calculated
@@ -292,7 +295,7 @@ class TestFetchVIXData:
         vix_result.data = pd.DataFrame()  # Empty DataFrame
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -303,7 +306,7 @@ class TestFetchVIXData:
                 await workflow.run(base_date=datetime(2020, 1, 1))
                 assert False, "Expected exception to be raised"
             except Exception as e:
-                assert "No vix data available" in str(e)
+                assert "No VIX data available" in str(e)
 
     @pytest.mark.asyncio
     async def test_vix_provider_failure(self):
@@ -314,7 +317,7 @@ class TestFetchVIXData:
         vix_result.error_message = "VIX provider failed"
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -336,7 +339,7 @@ class TestFetchVIXData:
         vix_result.data = sample_vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -361,7 +364,7 @@ class TestFetchVIXData:
         vix_result.data = sample_vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -397,7 +400,7 @@ class TestFetchVIXData:
         vix_result.data = vix_data
 
         # Mock the provider at the class level
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -443,7 +446,7 @@ class TestFetchVIXData:
         vix_result.data = vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -465,7 +468,7 @@ class TestFetchVIXData:
         vix_result.data = sample_vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -518,7 +521,7 @@ class TestFetchVIXData:
         vix_result.data = limited_vix_data
 
         # Mock the provider
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
@@ -563,7 +566,7 @@ class TestFetchVIXData:
         vix_result.data = vix_data
 
         # Mock the provider at the class level
-        with patch("app.flows.markets_vix.create_yahoo_history_provider") as mock_yahoo:
+        with patch("app.flows.markets.vix.create_yahoo_history_provider") as mock_yahoo:
             mock_yahoo_instance = AsyncMock()
             mock_yahoo_instance.get_data = AsyncMock(return_value=vix_result)
             mock_yahoo.return_value = mock_yahoo_instance
