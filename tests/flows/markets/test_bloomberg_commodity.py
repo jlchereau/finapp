@@ -103,7 +103,9 @@ class TestFetchBloombergCommodityData:
             assert "BCOM_MA200" in data.columns
 
             latest_value = result["latest_value"]
-            assert isinstance(latest_value, (float, int)) or hasattr(latest_value, 'dtype')
+            assert isinstance(latest_value, (float, int)) or hasattr(
+                latest_value, "dtype"
+            )
             assert 50 <= latest_value <= 200  # Reasonable BCOM range
 
             mock_yahoo_instance.get_data.assert_called_once_with("^BCOM")

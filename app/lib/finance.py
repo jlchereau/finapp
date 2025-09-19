@@ -7,6 +7,28 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 
+from app.lib.logger import logger
+
+
+def get_close_prices(data: pd.DataFrame, ticker: str) -> pd.Series | None:
+    """
+    Extract close prices from OHLCV data with fallback to Adj Close.
+
+    Args:
+        data: OHLCV DataFrame
+        ticker: Ticker symbol for logging
+
+    Returns:
+        Close price Series or None if not available
+    """
+    if "Close" in data.columns:
+        return data["Close"].dropna()
+    elif "Adj Close" in data.columns:
+        return data["Adj Close"].dropna()
+    else:
+        logger.warning(f"No Close price data for {ticker}")
+        return None
+
 
 def calculate_returns(
     data: pd.DataFrame, base_date: Optional[pd.Timestamp] = None
@@ -14,9 +36,14 @@ def calculate_returns(
     """
     Calculate percentage returns from price data.
 
+    IMPORTANT: For workflow usage, pass base_date=None and filter the result afterwards.
+    This ensures calculations are done on full historical data before period filtering.
+
     Args:
         data: DataFrame with price data (must have 'Close' or 'Adj Close' column)
         base_date: Optional base date to normalize from (if None, uses first row)
+                  For workflows: pass None and filter result with
+                  ensure_minimum_data_points()
 
     Returns:
         DataFrame with percentage returns normalized to base date
@@ -24,15 +51,12 @@ def calculate_returns(
     if data.empty:
         return pd.DataFrame()
 
-    # Get close prices
-    if "Close" in data.columns:
-        prices = data["Close"]
-    elif "Adj Close" in data.columns:
-        prices = data["Adj Close"]
-    else:
+    # Get close prices using centralized function
+    prices = get_close_prices(data, "unknown")
+    if prices is None:
         raise ValueError("No Close price data found in DataFrame")
 
-    # Filter to base date if provided
+    # Filter to base date if provided (legacy behavior for backward compatibility)
     if base_date is not None:
         prices = prices[prices.index >= base_date]
 
@@ -67,12 +91,9 @@ def calculate_volatility(
     if data.empty:
         return pd.DataFrame()
 
-    # Get close prices
-    if "Close" in data.columns:
-        prices = data["Close"]
-    elif "Adj Close" in data.columns:
-        prices = data["Adj Close"]
-    else:
+    # Get close prices using centralized function
+    prices = get_close_prices(data, "unknown")
+    if prices is None:
         raise ValueError("No Close price data found in DataFrame")
 
     # Calculate daily returns
@@ -105,12 +126,9 @@ def calculate_rsi(data: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     if data.empty:
         return pd.DataFrame()
 
-    # Get close prices
-    if "Close" in data.columns:
-        prices = data["Close"]
-    elif "Adj Close" in data.columns:
-        prices = data["Adj Close"]
-    else:
+    # Get close prices using centralized function
+    prices = get_close_prices(data, "unknown")
+    if prices is None:
         raise ValueError("No Close price data found in DataFrame")
 
     # Calculate price changes

@@ -125,8 +125,10 @@ class TestFetchCrudeOilData:
 
             latest_wti = result["latest_wti"]
             latest_brent = result["latest_brent"]
-            assert isinstance(latest_wti, (float, int)) or hasattr(latest_wti, 'dtype')
-            assert isinstance(latest_brent, (float, int)) or hasattr(latest_brent, 'dtype')
+            assert isinstance(latest_wti, (float, int)) or hasattr(latest_wti, "dtype")
+            assert isinstance(latest_brent, (float, int)) or hasattr(
+                latest_brent, "dtype"
+            )
             assert 20 <= latest_wti <= 150  # Reasonable WTI range
             assert 20 <= latest_brent <= 150  # Reasonable Brent range
 

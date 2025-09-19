@@ -247,7 +247,9 @@ class FlowRunner[T]:
 
             return result_event
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            # FlowRunner is the exception boundary - catch all exceptions
+            # and convert to FlowResultEvent for consistent error handling
             execution_time = time.time() - self._start_time
             logger.error(f"Workflow {self.workflow.__class__.__name__} failed: {e}")
 

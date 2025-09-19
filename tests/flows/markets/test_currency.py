@@ -296,8 +296,12 @@ class TestFetchCurrencyData:
             # Verify exchange rates are within reasonable ranges
             latest_usdeur = result["latest_usdeur"]
             latest_gbpeur = result["latest_gbpeur"]
-            assert isinstance(latest_usdeur, (float, int)) or hasattr(latest_usdeur, 'dtype')
-            assert isinstance(latest_gbpeur, (float, int)) or hasattr(latest_gbpeur, 'dtype')
+            assert isinstance(latest_usdeur, (float, int)) or hasattr(
+                latest_usdeur, "dtype"
+            )
+            assert isinstance(latest_gbpeur, (float, int)) or hasattr(
+                latest_gbpeur, "dtype"
+            )
             assert 0.5 <= latest_usdeur <= 1.5  # Reasonable USD/EUR range
             assert 0.8 <= latest_gbpeur <= 1.5  # Reasonable GBP/EUR range
 

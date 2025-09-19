@@ -335,7 +335,7 @@ All tests are automatically isolated via global configuration:
 
 ```bash
 # Safe: Run specific test modules (automatically isolated)
-.venv/bin/python -m pytest tests/flows/test_compare.py -vv
+.venv/bin/python -m pytest tests/flows/compare/ -vv
 
 # Safe: Run all tests (automatically isolated)
 make test

@@ -53,10 +53,8 @@ class MarketState(rx.State):
     active_tab: rx.Field[str] = rx.field("overview")
 
     # Chart settings
-    base_date_option: rx.Field[str] = rx.field(default_factory=get_period_default)
-    base_date_options: rx.Field[List[str]] = rx.field(
-        default_factory=get_period_options
-    )
+    period_option: rx.Field[str] = rx.field(default_factory=get_period_default)
+    period_options: rx.Field[List[str]] = rx.field(default_factory=get_period_options)
 
     # Chart data
     chart_figure_buffet: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
@@ -92,9 +90,9 @@ class MarketState(rx.State):
         """Get neutral colors that work well in both themes."""
         return get_default_theme_colors()
 
-    def set_base_date(self, option: str):
+    def set_period_option(self, option: str):
         """Set base date option and update all market charts."""
-        self.base_date_option = option
+        self.period_option = option
         yield rx.toast.info(f"Changed time period to {option}")
         yield from self.update_all_charts()
 
@@ -115,7 +113,7 @@ class MarketState(rx.State):
     ) -> tuple[pd.DataFrame, dict | None, dict]:
         """Get Buffet Indicator data using workflow."""
         # Use the markets workflow to fetch and calculate data
-        result = await fetch_buffet_indicator_data(base_date, self.base_date_option)
+        result = await fetch_buffet_indicator_data(base_date, self.period_option)
 
         # Extract the DataFrame and trend data
         buffet_data = result.get("data")
@@ -132,7 +130,7 @@ class MarketState(rx.State):
                 ),
                 context={
                     "base_date": str(base_date),
-                    "base_date_option": self.base_date_option,
+                    "period_option": self.period_option,
                 },
             )
 
@@ -155,7 +153,7 @@ class MarketState(rx.State):
                 ),
                 context={
                     "base_date": str(base_date),
-                    "base_date_option": self.base_date_option,
+                    "period_option": self.period_option,
                 },
             )
 
@@ -178,7 +176,7 @@ class MarketState(rx.State):
                 ),
                 context={
                     "base_date": str(base_date),
-                    "base_date_option": self.base_date_option,
+                    "period_option": self.period_option,
                 },
             )
 
@@ -186,7 +184,7 @@ class MarketState(rx.State):
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
-        base_date = calculate_base_date(self.base_date_option)
+        base_date = calculate_base_date(self.period_option)
         if base_date is None:
             return None
         return base_date.strftime("%Y-%m-%d")
@@ -210,8 +208,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
             # Get Buffet Indicator data
@@ -290,7 +288,7 @@ class MarketState(rx.State):
                     "Failed to generate Buffet Indicator chart. Please try "
                     "refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -315,8 +313,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -411,7 +409,7 @@ class MarketState(rx.State):
                 user_message=(
                     "Failed to generate VIX chart. Please try refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -437,8 +435,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -626,7 +624,7 @@ class MarketState(rx.State):
                     "Failed to generate yield curve chart. "
                     "Please try refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -651,8 +649,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -744,7 +742,7 @@ class MarketState(rx.State):
                 user_message=(
                     "Failed to generate currency chart. Please try refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -769,8 +767,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -867,7 +865,7 @@ class MarketState(rx.State):
                     "Failed to generate precious metals chart. Please try "
                     "refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -892,8 +890,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -994,7 +992,7 @@ class MarketState(rx.State):
                     "Failed to generate Bloomberg Commodity Index chart. Please try "
                     "refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -1019,8 +1017,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -1141,7 +1139,7 @@ class MarketState(rx.State):
                     "Failed to generate MSCI World chart. "
                     "Please try refreshing the data."
                 ),
-                context={"base_date_option": self.base_date_option, "error": str(e)},
+                context={"period_option": self.period_option, "error": str(e)},
             ) from e
         finally:
             async with self:
@@ -1166,8 +1164,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -1216,7 +1214,7 @@ class MarketState(rx.State):
                 output_type="crypto_chart",
                 message=f"Failed to generate cryptocurrency chart: {e}",
                 user_message="Failed to load cryptocurrency chart. Please try again.",
-                context={"base_date_option": self.base_date_option},
+                context={"period_option": self.period_option},
             ) from e
         finally:
             async with self:
@@ -1241,8 +1239,8 @@ class MarketState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -1287,7 +1285,7 @@ class MarketState(rx.State):
                 output_type="crude_oil_chart",
                 message=f"Failed to generate crude oil chart: {e}",
                 user_message="Failed to load crude oil chart. Please try again.",
-                context={"base_date_option": self.base_date_option},
+                context={"period_option": self.period_option},
             ) from e
         finally:
             async with self:
@@ -1341,9 +1339,9 @@ def tabs_overview() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.base_date_options,
-                value=MarketState.base_date_option,
-                on_change=MarketState.set_base_date,
+                MarketState.period_options,
+                value=MarketState.period_option,
+                on_change=MarketState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -1423,9 +1421,9 @@ def tabs_us() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.base_date_options,
-                value=MarketState.base_date_option,
-                on_change=MarketState.set_base_date,
+                MarketState.period_options,
+                value=MarketState.period_option,
+                on_change=MarketState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -1450,9 +1448,9 @@ def tabs_eu() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.base_date_options,
-                value=MarketState.base_date_option,
-                on_change=MarketState.set_base_date,
+                MarketState.period_options,
+                value=MarketState.period_option,
+                on_change=MarketState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -1528,9 +1526,9 @@ def tabs_commodities() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.base_date_options,
-                value=MarketState.base_date_option,
-                on_change=MarketState.set_base_date,
+                MarketState.period_options,
+                value=MarketState.period_option,
+                on_change=MarketState.set_period_option,
             ),
             spacing="2",
             align="center",

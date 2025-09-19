@@ -260,7 +260,9 @@ class TestFetchPreciousMetalsData:
 
             # Verify latest value is within reasonable range
             latest_value = result["latest_value"]
-            assert isinstance(latest_value, (float, int)) or hasattr(latest_value, 'dtype')
+            assert isinstance(latest_value, (float, int)) or hasattr(
+                latest_value, "dtype"
+            )
             assert 1000 <= latest_value <= 3000  # Reasonable gold price range
 
             # Verify moving averages are calculated

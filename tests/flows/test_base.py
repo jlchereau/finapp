@@ -7,7 +7,7 @@ and integration patterns.
 
 import pytest
 from datetime import datetime
-from unittest.mock import Mock, AsyncMock, MagicMock
+from unittest.mock import Mock, AsyncMock
 import pandas as pd
 
 from app.flows.base import FlowResult, FlowRunner, FlowResultEvent
@@ -225,7 +225,7 @@ class TestFlowRunner:
         mock_result_event = FlowResultEvent.success_result(
             data=pd.DataFrame({"A": [1, 2, 3]}),
             successful_items=["AAPL"],
-            failed_items=[]
+            failed_items=[],
         )
         mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
@@ -276,9 +276,7 @@ class TestFlowRunner:
 
         # Mock workflow result as FlowResultEvent with direct DataFrame
         test_data = pd.DataFrame({"B": [4, 5, 6]})
-        mock_result_event = FlowResultEvent.success_result(
-            data=test_data
-        )
+        mock_result_event = FlowResultEvent.success_result(data=test_data)
         mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
         runner = FlowRunner[pd.DataFrame](mock_workflow)
@@ -299,8 +297,7 @@ class TestFlowRunner:
 
         # Mock workflow result as FlowResultEvent with error
         mock_result_event = FlowResultEvent.error_result(
-            error_message="Test workflow error",
-            failed_items=["INVALID"]
+            error_message="Test workflow error", failed_items=["INVALID"]
         )
         mock_workflow.run = AsyncMock(return_value=mock_result_event)
 
@@ -560,7 +557,7 @@ class TestFlowRunnerIntegration:
                         "original_period": original_period,
                         "actual_period": "5Y",
                         "data_points": 3,
-                    }
+                    },
                 )
 
         # Test the FlowRunner pattern

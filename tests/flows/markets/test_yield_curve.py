@@ -109,7 +109,9 @@ def sample_yield_curve_result():
 async def test_fetch_yield_curve_data_success(sample_yield_curve_data):
     """Test successful yield curve data fetch and processing."""
     # Mock the FRED provider
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         # Setup provider mock
         mock_fred_instance = AsyncMock()
 
@@ -180,7 +182,9 @@ async def test_fetch_yield_curve_data_success(sample_yield_curve_data):
 async def test_fetch_yield_curve_data_fred_error():
     """Test yield curve data fetch with FRED provider error."""
     # Mock the FRED provider to raise exception
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = AsyncMock()
         # Return failed ProviderResult instead of exception
         mock_fred_instance.get_data = AsyncMock(
@@ -205,7 +209,9 @@ async def test_fetch_yield_curve_data_fred_error():
 async def test_yield_curve_data_empty_handling():
     """Test yield curve data fetch with empty data."""
     # Mock the FRED provider to return empty data for all series
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = AsyncMock()
         mock_fred_instance.get_data = AsyncMock(
             return_value=ProviderResult(
@@ -244,7 +250,9 @@ async def test_yield_curve_workflow_direct():
     )
 
     # Mock the FRED provider at the workflow level
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = AsyncMock()
 
         # Create individual series data
@@ -306,7 +314,9 @@ async def test_yield_curve_workflow_direct():
 async def test_yield_curve_data_filtering_by_base_date(sample_yield_curve_data):
     """Test yield curve data is properly filtered by base date."""
     # Mock the FRED provider
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = create_mock_series_provider(sample_yield_curve_data)
         mock_fred.return_value = mock_fred_instance
 
@@ -326,7 +336,9 @@ async def test_yield_curve_data_filtering_by_base_date(sample_yield_curve_data):
 async def test_yield_curve_provider_failure():
     """Test yield curve workflow handles provider instantiation failure."""
     # Mock provider creation to fail
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred.side_effect = Exception("Provider creation failed")
 
         base_date = datetime(2024, 1, 1)
@@ -341,7 +353,9 @@ async def test_yield_curve_provider_failure():
 async def test_yield_curve_maturities_order(sample_yield_curve_data):
     """Test that yield curve maturities are returned in correct order."""
     # Mock the FRED provider
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = create_mock_series_provider(sample_yield_curve_data)
         mock_fred.return_value = mock_fred_instance
 
@@ -362,7 +376,9 @@ async def test_yield_curve_maturities_order(sample_yield_curve_data):
 async def test_yield_curve_data_values_realistic(sample_yield_curve_data):
     """Test that yield curve data values are within realistic ranges."""
     # Mock the FRED provider
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = create_mock_series_provider(sample_yield_curve_data)
         mock_fred.return_value = mock_fred_instance
 
@@ -404,7 +420,9 @@ async def test_yield_curve_workflow_integration():
     )
 
     # Mock the FRED provider at the workflow level
-    with patch("app.flows.markets.yield_curve.create_fred_series_provider") as mock_fred:
+    with patch(
+        "app.flows.markets.yield_curve.create_fred_series_provider"
+    ) as mock_fred:
         mock_fred_instance = create_mock_series_provider(sample_data)
         mock_fred.return_value = mock_fred_instance
 

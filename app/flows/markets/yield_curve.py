@@ -169,9 +169,7 @@ class YieldCurveWorkflow(Workflow):
         else:
             # Provider failed
             error_msg = provider_result.error_message or "Provider failed"
-            logger.warning(
-                f"Provider failed for series {ev.series_id}: {error_msg}"
-            )
+            logger.warning(f"Provider failed for series {ev.series_id}: {error_msg}")
             return SeriesResultEvent(
                 series_id=ev.series_id,
                 maturity_label=ev.maturity_label,

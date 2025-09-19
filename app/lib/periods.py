@@ -269,8 +269,15 @@ def ensure_minimum_data_points(
         return pd.DataFrame(columns=data.columns)
 
     # Convert to pandas timestamps for consistent filtering
-    base_date_ts = pd.Timestamp(base_date.date())
-    reference_date_ts = pd.Timestamp(reference_date.date())
+    # Handle timezone-aware data by aligning timezones
+    if len(data) > 0 and hasattr(data.index, 'tz') and data.index.tz is not None:
+        # Data has timezone-aware index - convert our dates to same timezone
+        base_date_ts = pd.Timestamp(base_date.date()).tz_localize(data.index.tz)
+        reference_date_ts = pd.Timestamp(reference_date.date()).tz_localize(data.index.tz)
+    else:
+        # Data has timezone-naive index - use naive timestamps
+        base_date_ts = pd.Timestamp(base_date.date())
+        reference_date_ts = pd.Timestamp(reference_date.date())
 
     # Validate that base_date is within data bounds
     if base_date_ts < data.index.min():

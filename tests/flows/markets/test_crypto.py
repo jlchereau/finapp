@@ -214,8 +214,8 @@ class TestFetchCryptoData:
 
             latest_btc = result["latest_btc"]
             latest_eth = result["latest_eth"]
-            assert isinstance(latest_btc, (float, int)) or hasattr(latest_btc, 'dtype')
-            assert isinstance(latest_eth, (float, int)) or hasattr(latest_eth, 'dtype')
+            assert isinstance(latest_btc, (float, int)) or hasattr(latest_btc, "dtype")
+            assert isinstance(latest_eth, (float, int)) or hasattr(latest_eth, "dtype")
             assert 10000 <= latest_btc <= 100000  # Reasonable BTC range
             assert 1000 <= latest_eth <= 10000  # Reasonable ETH range
 

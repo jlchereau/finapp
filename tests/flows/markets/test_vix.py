@@ -256,7 +256,9 @@ class TestFetchVIXData:
 
             # Verify historical mean is calculated
             historical_mean = result["historical_mean"]
-            assert isinstance(historical_mean, (float, int)) or hasattr(historical_mean, 'dtype')
+            assert isinstance(historical_mean, (float, int)) or hasattr(
+                historical_mean, "dtype"
+            )
             assert 10 <= historical_mean <= 50  # Reasonable VIX range
 
             # Verify 50-day moving average is calculated

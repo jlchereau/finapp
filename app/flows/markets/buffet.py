@@ -160,9 +160,7 @@ class BuffetIndicatorWorkflow(Workflow):
         if provider_result.success and provider_result.data is not None:
             data_df = provider_result.data
             if isinstance(data_df, pd.DataFrame) and not data_df.empty:
-                logger.debug(
-                    f"Successfully fetched {len(data_df)} GDP observations"
-                )
+                logger.debug(f"Successfully fetched {len(data_df)} GDP observations")
                 return GDPResultEvent(
                     data=data_df,
                     error=None,

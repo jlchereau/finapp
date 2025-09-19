@@ -72,10 +72,8 @@ class CompareState(rx.State):
 
     # Chart settings
     active_tab: rx.Field[str] = rx.field("plots")
-    base_date_option: rx.Field[str] = rx.field(default_factory=get_period_default)
-    base_date_options: rx.Field[List[str]] = rx.field(
-        default_factory=get_period_options
-    )
+    period_option: rx.Field[str] = rx.field(default_factory=get_period_default)
+    period_options: rx.Field[List[str]] = rx.field(default_factory=get_period_options)
 
     # Chart data
     chart_figure_returns: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
@@ -98,11 +96,11 @@ class CompareState(rx.State):
         if not tickers:
             return pd.DataFrame()
 
-        # Use the compare workflow to fetch and normalize data
-        result = await fetch_returns_data(tickers, base_date)
+        # Use the wrapper function for graceful error handling
+        result = await fetch_returns_data(tickers=tickers, base_date=base_date)
 
         # Extract the normalized DataFrame
-        normalized_data = result.data
+        normalized_data = result.get("data")
 
         if normalized_data is None or normalized_data.empty:
             raise PageOutputException(
@@ -124,8 +122,9 @@ class CompareState(rx.State):
         if not tickers:
             return pd.DataFrame()
 
-        result = await fetch_volatility_data(tickers, base_date)
-        volatility_data = result.data
+        result = await fetch_volatility_data(tickers=tickers, base_date=base_date)
+
+        volatility_data = result.get("data")
 
         if volatility_data is None or volatility_data.empty:
             raise PageOutputException(
@@ -147,8 +146,9 @@ class CompareState(rx.State):
         if not tickers:
             return pd.DataFrame()
 
-        result = await fetch_volume_data(tickers, base_date)
-        volume_data = result.data
+        result = await fetch_volume_data(tickers=tickers, base_date=base_date)
+
+        volume_data = result.get("data")
 
         if volume_data is None or volume_data.empty:
             raise PageOutputException(
@@ -170,8 +170,9 @@ class CompareState(rx.State):
         if not tickers:
             return pd.DataFrame()
 
-        result = await fetch_rsi_data(tickers, base_date)
-        rsi_data = result.data
+        result = await fetch_rsi_data(tickers=tickers, base_date=base_date)
+
+        rsi_data = result.get("data")
 
         if rsi_data is None or rsi_data.empty:
             raise PageOutputException(
@@ -236,9 +237,9 @@ class CompareState(rx.State):
         """Switch between metrics and plot tabs."""
         self.active_tab = tab
 
-    def set_base_date(self, option: str):
+    def set_period_option(self, option: str):
         """Set base date option and update all charts."""
-        self.base_date_option = option
+        self.period_option = option
         yield rx.toast.info(f"Changed time period to {option}")
         yield CompareState.update_returns_chart
         yield CompareState.update_volatility_chart
@@ -269,8 +270,8 @@ class CompareState(rx.State):
 
             async with self:
                 message = format_date_range_message(
-                    self.base_date_option,
-                    base_date if self.base_date_option != "MAX" else None,
+                    self.period_option,
+                    base_date if self.period_option != "MAX" else None,
                 )
                 yield rx.toast.info(message)
 
@@ -520,7 +521,7 @@ class CompareState(rx.State):
 
     def _get_base_date(self) -> Optional[str]:
         """Convert base date option to actual date string."""
-        base_date = calculate_base_date(self.base_date_option)
+        base_date = calculate_base_date(self.period_option)
         if base_date is None:
             return None
         return base_date.strftime("%Y-%m-%d")
@@ -970,9 +971,9 @@ def plots_tab_content() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                CompareState.base_date_options,
-                value=CompareState.base_date_option,
-                on_change=CompareState.set_base_date,
+                CompareState.period_options,
+                value=CompareState.period_option,
+                on_change=CompareState.set_period_option,
             ),
             spacing="2",
             align="center",

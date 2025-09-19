@@ -56,9 +56,7 @@ class FlowException(FinAppException):
         **kwargs,
     ):
         if user_message is None:
-            user_message = (
-                "Analysis flow failed. Please try again or contact support."
-            )
+            user_message = "Analysis flow failed. Please try again or contact support."
 
         context = {"workflow": workflow, "step": step}
         context.update(kwargs.get("context", {}))
