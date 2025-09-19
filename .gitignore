@@ -1,4 +1,5 @@
 __pycache__/
+.playwright-mcp/
 .pytest_cache/
 .states
 .venv/
