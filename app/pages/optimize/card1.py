@@ -2,19 +2,40 @@
 
 import reflex as rx
 
-from app.pages.optimize.state import SharedState
+
+class Card1State(rx.State):  # pylint: disable=inherit-non-class
+    """
+    The card1 state.
+    This could be a chart state.
+    """
+
+    base_date: rx.Field[str] = rx.field("")
+
+    @rx.event
+    def set_base_date(self, base_date: str):
+        self.base_date = base_date
 
 
-class Card1State(SharedState, rx.State):  # pylint: disable=inherit-non-class
-    """The card1 state."""
-
-    text: rx.Field[str] = rx.field("Card1")
-
-    @rx.var
-    def text_with_period_option(self) -> str:
-        # This will be recomputed with changes
-        return self.text + " " + self.period_option
+@rx.event
+def update_card1(state: Card1State, base_date: str):
+    """
+    A decentralized event handler to be called from the page state
+    when the period_option, and therefore the base_date changes.
+    See https://reflex.dev/docs/events/decentralized-event-handlers/
+    """
+    state.set_base_date(f"Period: {base_date}")
 
 
 def card1() -> rx.Component:
-    return rx.card(Card1State.text_with_period_option, padding="1rem", width="100%")
+    """
+    The card1 component.
+    This could be a chart component
+    """
+    return rx.card(
+        rx.vstack(
+            rx.heading("Card 1", size="4"),
+            rx.text(Card1State.base_date),
+        ),
+        padding="1rem",
+        width="100%"
+    )
