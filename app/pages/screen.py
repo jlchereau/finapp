@@ -4,7 +4,7 @@ import reflex as rx
 from app.templates.template import template
 from app.components.combobox import combobox_wrapper as combobox
 from app.components.gaugechart import gaugechart
-from app.components.querybuilder import querybuilder, Field
+# from app.components.querybuilder import querybuilder, Field
 
 
 # pylint: disable=inherit-non-class
@@ -98,12 +98,12 @@ def page():
             ),
             rx.box(
                 rx.text("Sample Query Builder"),
-                querybuilder(
-                    fields=[
-                        Field(name="field1", label="Field 1"),
-                        Field(name="field2", label="Field 2"),
-                    ]
-                ),
+                # querybuilder(
+                #     fields=[
+                #         Field(name="field1", label="Field 1"),
+                #         Field(name="field2", label="Field 2"),
+                #     ]
+                # ),
                 class_name="mb-6 max-w-xs",
             ),
             class_name="mt-8",
