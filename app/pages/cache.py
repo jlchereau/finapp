@@ -6,7 +6,8 @@ from app.lib.storage import DateBasedStorage
 from app.templates.template import template
 
 
-class State(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class State(rx.State):
     """The app state."""
 
     cache_dirs: rx.Field[List[str]] = rx.field(default_factory=list)
@@ -30,19 +31,6 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         """Get storage instance."""
         return DateBasedStorage()
 
-    def on_load(self):
-        """Load cache directories on page load."""
-        self.cache_dirs = self.storage.list_date_folders()
-        if self.cache_dirs and not self.selected_cache:
-            self.selected_cache = self.cache_dirs[0]  # Select most recent by default
-            self.load_log_data()
-
-    def select_cache(self, cache_dir: str):
-        """Handle cache selection."""
-        if cache_dir != self.selected_cache:
-            self.selected_cache = cache_dir
-            self.load_log_data()
-
     def load_log_data(self):
         """Load log data for selected cache."""
         if not self.selected_cache:
@@ -54,11 +42,28 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         self.log_data = log_entries
         self.is_loading = False
 
+    @rx.event
+    def on_load(self):
+        """Load cache directories on page load."""
+        self.cache_dirs = self.storage.list_date_folders()
+        if self.cache_dirs and not self.selected_cache:
+            self.selected_cache = self.cache_dirs[0]  # Select most recent by default
+            self.load_log_data()
+
+    @rx.event
+    def select_cache(self, cache_dir: str):
+        """Handle cache selection."""
+        if cache_dir != self.selected_cache:
+            self.selected_cache = cache_dir
+            self.load_log_data()
+
+    @rx.event
     def show_delete_confirmation(self):
         """Show delete confirmation dialog."""
         if self.selected_cache:
             self.show_delete_dialog = True
 
+    @rx.event
     def confirm_delete(self):
         """Confirm and execute cache deletion."""
         if not self.selected_cache:
@@ -75,6 +80,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
         self.show_delete_dialog = False
 
+    @rx.event
     def cancel_delete(self):
         """Cancel delete operation."""
         self.show_delete_dialog = False
@@ -157,7 +163,7 @@ def confirm_delete_dialog() -> rx.Component:
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable,bad-argument-type]
+# pyrefly: ignore[bad-argument-type]
 @rx.page(route="/cache", on_load=State.on_load)
 @template
 def page():

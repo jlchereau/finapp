@@ -7,7 +7,8 @@ from app.components.gaugechart import gaugechart
 from app.components.querybuilder import querybuilder, Field
 
 
-class State(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class State(rx.State):
     """The app state."""
 
     text: rx.Field[str] = rx.field("")
@@ -24,19 +25,16 @@ class State(rx.State):  # pylint: disable=inherit-non-class
         ]
     )
 
-    # pyrefly: ignore[not-callable]
     @rx.event
     def set_text(self, value: str) -> None:
         """Set the text."""
         self.text = value
 
-    # pyrefly: ignore[not-callable]
     @rx.event
     def set_selected(self, value: str) -> None:
         """Set selected value."""
         self.selected = value
 
-    # pyrefly: ignore[not-callable]
     @rx.event
     def set_searched(self, value: str | None) -> None:
         """Set searched value."""
@@ -45,7 +43,7 @@ class State(rx.State):  # pylint: disable=inherit-non-class
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable,bad-argument-type]
+# pyrefly: ignore[bad-argument-type]
 @rx.page(route="/screen")
 @template
 def page():

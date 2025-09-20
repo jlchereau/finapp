@@ -6,13 +6,14 @@ import reflex as rx
 from app.templates.template import template
 
 
-class State(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class State(rx.State):
     """The app state."""
 
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable,bad-argument-type]
+# pyrefly: ignore[bad-argument-type]
 @rx.page(route="/backtest")
 @template
 def page():
