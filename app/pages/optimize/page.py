@@ -27,6 +27,7 @@ class PageState(rx.State):  # pylint: disable=inherit-non-class
     period_options: rx.Field[List[str]] = rx.field(default_factory=get_period_options)
     text: rx.Field[str] = rx.field("Optimize Page")
 
+    @rx.event
     def set_period_option(self, option: str):
         """Set period option and update all cards."""
         self.period_option = option

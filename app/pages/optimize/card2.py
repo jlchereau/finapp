@@ -23,7 +23,7 @@ def update_card2(state: Card2State, base_date: str):
     when the period_option, and therefore the base_date changes.
     See https://reflex.dev/docs/events/decentralized-event-handlers/
     """
-    state.set_base_date(f"Period: {base_date}")
+    yield state.set_base_date(f"Period: {base_date}")
 
 
 def card2() -> rx.Component:
