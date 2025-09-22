@@ -102,8 +102,8 @@ def test_market_state_methods():
     state.set_active_tab("us")
     assert state.active_tab == "us"
 
-    # Test _get_base_date returns datetime
-    base_date = state._get_base_date()
+    # Test base_date computed var returns datetime
+    base_date = state.base_date
     assert isinstance(base_date, datetime)
 
     # Test run_workflows returns a list

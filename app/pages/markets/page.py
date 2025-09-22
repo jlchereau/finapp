@@ -33,7 +33,7 @@ from .bloomberg_commodity import bloomberg_commodity, update_bloomberg_commodity
 # )
 
 
-# pylint: disable=inherit-non-class,too-many-instance-attributes
+# pylint: disable=inherit-non-class
 class MarketState(rx.State):
     """The markets page state."""
 
@@ -48,11 +48,12 @@ class MarketState(rx.State):
         """Switch between metrics and plot tabs."""
         self.active_tab = tab
 
-    # TODO: probably a good candidate for a computed var
-    # See https://reflex.dev/docs/vars/computed-vars/
-    # @rx.var
-    def _get_base_date(self) -> datetime:
-        """Convert base date option to actual datetime."""
+    @rx.var
+    def base_date(self) -> datetime:
+        """
+        Convert periodoption to actual datetime.
+        See https://reflex.dev/docs/vars/computed-vars/
+        """
         base_date = calculate_base_date(self.period_option)
         if base_date is None:
             # For MAX option, use appropriate fallback date
@@ -69,7 +70,7 @@ class MarketState(rx.State):
     @rx.event
     def run_workflows(self):
         """Load initial chart data."""
-        base_date = self._get_base_date()
+        base_date = self.base_date
         return [
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
