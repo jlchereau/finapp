@@ -9,7 +9,6 @@ See https://reflex.dev/docs/advanced-onboarding/code-structure/
 from .pages import (
     backtest,
     cache,
-    compare,
     index,
     optimize,
     portfolio,
@@ -17,6 +16,7 @@ from .pages import (
     test,
 )
 from .pages.markets import page as markets
+from .pages.compare import page as compare
 
 __all__ = [
     # "state",
