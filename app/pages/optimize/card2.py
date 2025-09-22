@@ -1,6 +1,11 @@
 """Card 2 module."""
 
+import asyncio
+from datetime import datetime
+
 import reflex as rx
+
+from app.lib.periods import fix_datetime
 
 
 class Card2State(rx.State):  # pylint: disable=inherit-non-class
@@ -9,21 +14,25 @@ class Card2State(rx.State):  # pylint: disable=inherit-non-class
     This could be a chart state.
     """
 
-    base_date: rx.Field[str] = rx.field("")
+    base_date: rx.Field[datetime] = rx.field(default_factory=datetime.now)
 
     @rx.event
-    def set_base_date(self, base_date: str):
+    def set_base_date(self, base_date: datetime):
         self.base_date = base_date
 
 
 @rx.event
-def update_card2(state: Card2State, base_date: str):
+async def update_card2(state: Card2State, base_date: datetime):
     """
     A decentralized event handler to be called from the page state
     when the period_option, and therefore the base_date changes.
     See https://reflex.dev/docs/events/decentralized-event-handlers/
+    It is async because flows are async in our app.
     """
-    yield state.set_base_date(f"Period: {base_date}")
+    base_date = fix_datetime(base_date)
+    print(f"Card2 date: {base_date}")
+    state.set_base_date(base_date)
+    await asyncio.sleep(0.5)
 
 
 def card2() -> rx.Component:
@@ -37,5 +46,5 @@ def card2() -> rx.Component:
             rx.text(Card2State.base_date),
         ),
         padding="1rem",
-        width="100%"
+        width="100%",
     )

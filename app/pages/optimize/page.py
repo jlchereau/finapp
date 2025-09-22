@@ -1,5 +1,7 @@
 """Optimize page"""
 
+from datetime import datetime, timedelta
+import re
 from typing import List
 
 import reflex as rx
@@ -13,9 +15,27 @@ from app.lib.periods import (
 )
 
 
-def compute(period_option: str) -> str:
-    """Compute the base date."""
-    return period_option  # Placeholder for actual computation logic
+def compute(period_option: str) -> datetime:
+    """
+    Compute the base date.
+    The following is an approximation using 1M=30d and 1Q=90d.
+    A more accurate result can be achieved with dateutil.relativedelta.
+    """
+    match = re.match(r"(\d+)([WMQY])", period_option)
+    if match:
+        number, unit = int(match.group(1)), match.group(2)
+        if unit == "W":
+            base_date = datetime.now() - timedelta(days=number * 7)
+        elif unit == "M":
+            base_date = datetime.now() - timedelta(days=number * 30)
+        elif unit == "Q":
+            base_date = datetime.now() - timedelta(days=number * 90)
+        else:  # elif unit == "Y":
+            base_date = datetime.now() - timedelta(days=number * 365)
+        return base_date
+    else:
+        # "YTD" and "MAX" will raise an error, but that's fine for this prototype.
+        raise ValueError(f"Invalid period option: {period_option}")
 
 
 class PageState(rx.State):  # pylint: disable=inherit-non-class
@@ -23,6 +43,7 @@ class PageState(rx.State):  # pylint: disable=inherit-non-class
     The page state
     In a separate file to avoid circular imports.
     """
+
     period_option: rx.Field[str] = rx.field(default_factory=get_period_default)
     period_options: rx.Field[List[str]] = rx.field(default_factory=get_period_options)
     text: rx.Field[str] = rx.field("Optimize Page")
@@ -31,7 +52,13 @@ class PageState(rx.State):  # pylint: disable=inherit-non-class
     def set_period_option(self, option: str):
         """Set period option and update all cards."""
         self.period_option = option
-        base_date = compute(option)
+        for w in self.run_workflows():
+            yield w
+
+    @rx.event
+    def run_workflows(self):
+        """Load initial chart data."""
+        base_date = compute(self.period_option)
         return [
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
@@ -39,14 +66,13 @@ class PageState(rx.State):  # pylint: disable=inherit-non-class
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
             update_card2(base_date=base_date),
-            rx.toast.info(f"Changed time period to {option}")
         ]
 
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
 # pyrefly: ignore[not-callable,bad-argument-type]
-@rx.page(route="/optimize")
+@rx.page(route="/optimize", on_load=PageState.run_workflows)
 @template
 def page():
     """The optimize page."""
