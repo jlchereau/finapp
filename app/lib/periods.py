@@ -270,10 +270,12 @@ def ensure_minimum_data_points(
 
     # Convert to pandas timestamps for consistent filtering
     # Handle timezone-aware data by aligning timezones
-    if len(data) > 0 and hasattr(data.index, 'tz') and data.index.tz is not None:
+    if len(data) > 0 and hasattr(data.index, "tz") and data.index.tz is not None:
         # Data has timezone-aware index - convert our dates to same timezone
         base_date_ts = pd.Timestamp(base_date.date()).tz_localize(data.index.tz)
-        reference_date_ts = pd.Timestamp(reference_date.date()).tz_localize(data.index.tz)
+        reference_date_ts = pd.Timestamp(reference_date.date()).tz_localize(
+            data.index.tz
+        )
     else:
         # Data has timezone-naive index - use naive timestamps
         base_date_ts = pd.Timestamp(base_date.date())
@@ -373,3 +375,10 @@ def filter_trend_data_to_period(trend_data, filtered_data: pd.DataFrame):
             filtered_trend[key] = values_array[mask_array].tolist()
 
     return filtered_trend
+
+
+def fix_datetime(d: datetime | str) -> datetime:
+    """
+    Temporary fix for https://github.com/reflex-dev/reflex/issues/5811
+    """
+    return datetime.strptime(d, "%Y-%m-%d %H:%M:%S.%f") if isinstance(d, str) else d

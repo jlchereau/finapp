@@ -37,6 +37,7 @@ def handle_backend_exception(exception: Exception):
     else:
         # Unexpected system exceptions
         error_id = str(hash(str(exception)))[-8:]
+        print(exception)
         logger.error(
             f"Unexpected exception [{error_id}]: {exception} | "
             f"Type: {type(exception).__name__} | Traceback: {traceback.format_exc()}"

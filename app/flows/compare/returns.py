@@ -192,9 +192,7 @@ class ReturnsWorkflow(Workflow):
 
 
 # FlowRunner wrapper function for graceful error handling
-async def fetch_returns_data(
-    tickers: List[str], base_date: datetime
-) -> Dict[str, Any]:
+async def fetch_returns_data(tickers: List[str], base_date: datetime) -> Dict[str, Any]:
     """
     Fetch returns data using FlowRunner for graceful error handling.
 

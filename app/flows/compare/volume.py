@@ -224,7 +224,9 @@ async def fetch_volume_data(
     workflow = VolumeWorkflow()
     runner = FlowRunner[DataFrame](workflow)
 
-    result_event = await runner.run(tickers=tickers, base_date=base_date, ma_window=ma_window)
+    result_event = await runner.run(
+        tickers=tickers, base_date=base_date, ma_window=ma_window
+    )
 
     return {
         "data": result_event.data if result_event.success else None,

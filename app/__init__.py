@@ -11,12 +11,12 @@ from .pages import (
     cache,
     compare,
     index,
-    markets,
     optimize,
     portfolio,
     screen,
     test,
 )
+from .pages.markets import page as markets
 
 __all__ = [
     # "state",
