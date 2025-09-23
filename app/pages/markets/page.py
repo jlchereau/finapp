@@ -69,7 +69,7 @@ class MarketState(rx.State):
 
     @rx.event
     def run_workflows(self):
-        """Update data forall charts and metrics."""
+        """Update data for all charts and metrics."""
         base_date = self.base_date
         return [
             # pylint: disable=no-value-for-parameter

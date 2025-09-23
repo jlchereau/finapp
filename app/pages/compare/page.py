@@ -122,7 +122,7 @@ class CompareState(rx.State):
 
     @rx.event
     def run_workflows(self):
-        """Update data forall charts and metrics."""
+        """Update data for all charts and metrics."""
         tickers = self.selected_tickers
         base_date = self.base_date
         return [
