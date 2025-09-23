@@ -64,10 +64,12 @@ class CompareState(rx.State):
             return get_max_fallback_date("stocks")
         return base_date
 
+    @rx.event
     def set_currency(self, value: str):
         """Set the currency for the comparison."""
         self.currency = value
 
+    @rx.event
     def add_ticker(self):
         """Add ticker to selected list."""
         if not self.ticker_input:
@@ -82,17 +84,19 @@ class CompareState(rx.State):
         self.selected_tickers.append(ticker)
         self.ticker_input = ""
         yield rx.toast.info(f"Added {ticker} to comparison")
-        yield CompareState.update_all_charts
+        yield CompareState.run_workflows
 
+    @rx.event
     def remove_ticker(self, ticker: str):
         """Remove ticker from selected list."""
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
             yield rx.toast.info(f"Removed {ticker} from comparison")
-            yield CompareState.update_all_charts
+            yield CompareState.run_workflows
         else:
             yield rx.toast.warning(f"{ticker} not found in comparison list")
 
+    @rx.event
     def set_ticker_input(self, value: str | None):
         """Set ticker input value."""
         self.ticker_input = value or ""
@@ -104,40 +108,39 @@ class CompareState(rx.State):
         else:
             self.favorites.append(ticker)
 
+    @rx.event
     def set_active_tab(self, tab: str):
         """Switch between metrics and plot tabs."""
         self.active_tab = tab
 
+    @rx.event
     def set_period_option(self, option: str):
         """Set base date option and update all charts."""
         self.period_option = option
         yield rx.toast.info(f"Changed time period to {option}")
-        yield CompareState.update_all_charts
+        yield CompareState.run_workflows
 
-    def update_all_charts(self):
-        """Update all charts and metrics."""
+    @rx.event
+    def run_workflows(self):
+        """Update data forall charts and metrics."""
+        tickers = self.selected_tickers
+        base_date = self.base_date
         return [
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
-            update_returns_chart(
-                tickers=self.selected_tickers, base_date=self.base_date
-            ),
+            update_returns_chart(tickers=tickers, base_date=base_date),
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
-            update_volatility_chart(
-                tickers=self.selected_tickers, base_date=self.base_date
-            ),
+            update_volatility_chart(tickers=tickers, base_date=base_date),
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
-            update_volume_chart(
-                tickers=self.selected_tickers, base_date=self.base_date
-            ),
+            update_volume_chart(tickers=tickers, base_date=base_date),
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
-            update_rsi_chart(tickers=self.selected_tickers, base_date=self.base_date),
+            update_rsi_chart(tickers=tickers, base_date=base_date),
             # pylint: disable=no-value-for-parameter
             # pyrefly: ignore[no-matching-overload]
-            update_metrics(tickers=self.selected_tickers, base_date=self.base_date),
+            update_metrics(tickers=tickers, base_date=base_date),
         ]
 
 
@@ -309,8 +312,8 @@ def main_content() -> rx.Component:
 
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
-# pyrefly: ignore[not-callable,bad-argument-type]
-@rx.page(route="/compare", on_load=CompareState.update_all_charts)
+# pyrefly: ignore[bad-argument-type]
+@rx.page(route="/compare", on_load=CompareState.run_workflows)
 @template
 def page():
     """The compare page."""
