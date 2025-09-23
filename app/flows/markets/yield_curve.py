@@ -285,7 +285,9 @@ class YieldCurveWorkflow(Workflow):
                     display_data.index[-1] if not display_data.empty else None
                 ),
                 "latest_yields": (
-                    display_data.iloc[-1].to_dict() if not display_data.empty else {}
+                    display_data.iloc[-1].to_dict()
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else {}
                 ),
                 "data_points": len(display_data),
                 "maturities": (

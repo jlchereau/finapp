@@ -473,7 +473,7 @@ class BuffetIndicatorWorkflow(Workflow):
                 "original_period": original_period,
                 "latest_value": (
                     display_data["Buffet_Indicator"].iloc[-1]
-                    if not display_data.empty
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
                     else None
                 ),
                 "data_points": len(display_data),

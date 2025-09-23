@@ -5,7 +5,9 @@ Tests IBKRApp, IBKRPositionsProvider, and IBKRCashProvider.
 
 import asyncio
 import threading
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
+import pandas as pd
 from pandas import DataFrame
 import pytest
 
@@ -73,7 +75,7 @@ class TestIBKRApp:
         mock_contract.currency = "USD"
         mock_contract.exchange = "NASDAQ"
 
-        self.app.position("U123456", mock_contract, 100.0, 150.50)
+        self.app.position("U123456", mock_contract, Decimal("100.0"), 150.50)
 
         assert len(self.app.positions_data) == 1
         position = self.app.positions_data[0]
@@ -215,7 +217,7 @@ class TestIBKRPositionsProvider:
             "position",
             "avgCost",
         ]
-        empty_data = DataFrame(data=[], columns=expected_columns)
+        empty_data = DataFrame(data=[], columns=pd.Index(expected_columns))
         mock_to_thread.return_value = empty_data
 
         result = await self.provider.get_data(None)
@@ -342,7 +344,7 @@ class TestIBKRCashProvider:
         """Test handling of empty cash response."""
         # Mock empty DataFrame
         expected_columns = ["account", "currency", "value"]
-        empty_data = DataFrame(data=[], columns=expected_columns)
+        empty_data = DataFrame(data=[], columns=pd.Index(expected_columns))
         mock_to_thread.return_value = empty_data
 
         result = await self.provider.get_data(None)

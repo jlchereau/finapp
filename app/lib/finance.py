@@ -22,9 +22,15 @@ def get_close_prices(data: pd.DataFrame, ticker: str) -> pd.Series | None:
         Close price Series or None if not available
     """
     if "Close" in data.columns:
-        return data["Close"].dropna()
+        close_series = data["Close"]
+        return close_series.dropna() if isinstance(close_series, pd.Series) else None
     elif "Adj Close" in data.columns:
-        return data["Adj Close"].dropna()
+        adj_close_series = data["Adj Close"]
+        return (
+            adj_close_series.dropna()
+            if isinstance(adj_close_series, pd.Series)
+            else None
+        )
     else:
         logger.warning(f"No Close price data for {ticker}")
         return None

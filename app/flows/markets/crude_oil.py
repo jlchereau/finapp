@@ -340,7 +340,7 @@ class CrudeOilWorkflow(Workflow):
 
         if common_dates.empty:
             logger.warning("No common dates between WTI and Brent data")
-            result_df = pd.DataFrame(columns=["WTI", "Brent"])
+            result_df = pd.DataFrame(columns=pd.Index(["WTI", "Brent"]))
         else:
             result_df = pd.DataFrame(
                 {
@@ -357,7 +357,7 @@ class CrudeOilWorkflow(Workflow):
         if display_data.empty:
             logger.warning(f"No crude oil data after base_date {base_date} for display")
             # Return empty result but don't error - this is just a display filter
-            display_data = pd.DataFrame(columns=["WTI", "Brent"])
+            display_data = pd.DataFrame(columns=pd.Index(["WTI", "Brent"]))
 
         logger.info(
             f"Crude oil processing completed: {len(display_data)} data points "
@@ -369,10 +369,14 @@ class CrudeOilWorkflow(Workflow):
             base_date=base_date,
             metadata={
                 "latest_wti": (
-                    display_data["WTI"].iloc[-1] if not display_data.empty else None
+                    display_data["WTI"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "latest_brent": (
-                    display_data["Brent"].iloc[-1] if not display_data.empty else None
+                    display_data["Brent"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "data_points": len(display_data),
             },

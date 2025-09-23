@@ -349,7 +349,7 @@ class CryptoCurrencyWorkflow(Workflow):
 
         if common_dates.empty:
             logger.warning("No common dates between Bitcoin and Ethereum data")
-            result_df = pd.DataFrame(columns=["BTC", "ETH"])
+            result_df = pd.DataFrame(columns=pd.Index(["BTC", "ETH"]))
         else:
             result_df = pd.DataFrame(
                 {
@@ -366,7 +366,7 @@ class CryptoCurrencyWorkflow(Workflow):
         if display_data.empty:
             logger.warning(f"No crypto data after base_date {base_date} for display")
             # Return empty result but don't error - this is just a display filter
-            display_data = pd.DataFrame(columns=["BTC", "ETH"])
+            display_data = pd.DataFrame(columns=pd.Index(["BTC", "ETH"]))
 
         logger.info(
             f"Crypto processing completed: {len(display_data)} data points "
@@ -378,10 +378,14 @@ class CryptoCurrencyWorkflow(Workflow):
             base_date=base_date,
             metadata={
                 "latest_btc": (
-                    display_data["BTC"].iloc[-1] if not display_data.empty else None
+                    display_data["BTC"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "latest_eth": (
-                    display_data["ETH"].iloc[-1] if not display_data.empty else None
+                    display_data["ETH"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "data_points": len(display_data),
             },

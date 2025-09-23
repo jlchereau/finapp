@@ -7,6 +7,7 @@
       "WebFetch(domain:reflex.dev)",
       "Bash(make format)",
       "Bash(make lint)",
+      "Bash(make pyrefly)",
       "Bash(make build)",
       "Bash(make test)",
       "Bash(.venv/bin/blake:*)",
@@ -14,8 +15,11 @@
       "Bash(.venv/bin/pylint:*)",
       "Bash(.venv/bin/pyrefly:*)",
       "Bash(.venv/bin/python -m pytest:*)",
+      "mcp__playwright__browser_click",
       "mcp__playwright__browser_navigate",
-      "mcp__playwright__browser_take_screenshot"
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_wait_for"
     ],
     "deny": [
       "Bash(make run)",

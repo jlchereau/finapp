@@ -465,7 +465,7 @@ class TestEnsureMinimumDataPoints:
         """Test handling of empty data."""
         import pandas as pd
 
-        data = pd.DataFrame(columns=["value"])
+        data = pd.DataFrame(columns=pd.Index(["value"]))
 
         base_date = datetime(2023, 6, 1)
 
@@ -686,7 +686,7 @@ class TestFilterTrendDataToPeriod:
         import pandas as pd
 
         full_trend = self.create_sample_trend_data()
-        empty_data = pd.DataFrame(columns=["value"])
+        empty_data = pd.DataFrame(columns=pd.Index(["value"]))
 
         result = filter_trend_data_to_period(full_trend, empty_data)
 

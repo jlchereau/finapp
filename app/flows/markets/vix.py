@@ -146,7 +146,7 @@ class VIXWorkflow(Workflow):
                 "historical_mean": historical_mean,
                 "latest_value": (
                     float(display_data["VIX"].iloc[-1])
-                    if not display_data.empty
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
                     else None
                 ),
                 "data_points": len(display_data),

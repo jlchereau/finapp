@@ -153,14 +153,16 @@ class MSCIWorldWorkflow(Workflow):
             )
             # Return empty result but don't error - this is just a display filter
             display_data = pd.DataFrame(
-                columns=[
-                    "MSCI_World",
-                    "MSCI_MA50",
-                    "MSCI_MA200",
-                    "MSCI_BB_Upper",
-                    "MSCI_BB_Lower",
-                    "MSCI_BB_Mid",
-                ]
+                columns=pd.Index(
+                    [
+                        "MSCI_World",
+                        "MSCI_MA50",
+                        "MSCI_MA200",
+                        "MSCI_BB_Upper",
+                        "MSCI_BB_Lower",
+                        "MSCI_BB_Mid",
+                    ]
+                )
             )
 
         logger.info(
@@ -174,7 +176,7 @@ class MSCIWorldWorkflow(Workflow):
             metadata={
                 "latest_value": (
                     display_data["MSCI_World"].iloc[-1]
-                    if not display_data.empty
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
                     else None
                 ),
                 "data_points": len(display_data),

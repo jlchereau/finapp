@@ -329,12 +329,12 @@ class CurrencyWorkflow(Workflow):
             )
 
         # Normalize timezones to ensure proper alignment
-        if usdeur_close.index.tz is not None:
+        if hasattr(usdeur_close.index, "tz") and usdeur_close.index.tz is not None:
             usdeur_close_naive = usdeur_close.tz_localize(None)
         else:
             usdeur_close_naive = usdeur_close
 
-        if gbpeur_close.index.tz is not None:
+        if hasattr(gbpeur_close.index, "tz") and gbpeur_close.index.tz is not None:
             gbpeur_close_naive = gbpeur_close.tz_localize(None)
         else:
             gbpeur_close_naive = gbpeur_close
@@ -366,7 +366,9 @@ class CurrencyWorkflow(Workflow):
         if display_data.empty:
             logger.warning(f"No currency data after base_date {base_date} for display")
             # Return empty result but don't error - this is just a display filter
-            display_data: pd.DataFrame = pd.DataFrame(columns=["USD_EUR", "GBP_EUR"])
+            display_data: pd.DataFrame = pd.DataFrame(
+                columns=pd.Index(["USD_EUR", "GBP_EUR"])
+            )
 
         logger.info(
             f"Currency processing completed: {len(display_data)} data points "
@@ -378,10 +380,14 @@ class CurrencyWorkflow(Workflow):
             base_date=base_date,
             metadata={
                 "latest_usdeur": (
-                    display_data["USD_EUR"].iloc[-1] if not display_data.empty else None
+                    display_data["USD_EUR"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "latest_gbpeur": (
-                    display_data["GBP_EUR"].iloc[-1] if not display_data.empty else None
+                    display_data["GBP_EUR"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "data_points": len(display_data),
             },

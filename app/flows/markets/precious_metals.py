@@ -138,7 +138,9 @@ class PreciousMetalsWorkflow(Workflow):
         if display_data.empty:
             logger.warning(f"No gold data after base_date {base_date} for display")
             # Return empty result but don't error - this is just a display filter
-            display_data = pd.DataFrame(columns=["Gold", "Gold_MA50", "Gold_MA200"])
+            display_data = pd.DataFrame(
+                columns=pd.Index(["Gold", "Gold_MA50", "Gold_MA200"])
+            )
 
         logger.info(
             f"Gold processing completed: {len(display_data)} data points "
@@ -150,7 +152,9 @@ class PreciousMetalsWorkflow(Workflow):
             base_date=base_date,
             metadata={
                 "latest_value": (
-                    display_data["Gold"].iloc[-1] if not display_data.empty else None
+                    display_data["Gold"].iloc[-1]
+                    if not display_data.empty and isinstance(display_data, pd.DataFrame)
+                    else None
                 ),
                 "data_points": len(display_data),
             },
