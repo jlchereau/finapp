@@ -32,20 +32,40 @@ FinApp is a modern web application built with Python and Reflex that provides so
 
 ## 🏗️ Architecture
 
+### Modular Component Design
+FinApp follows a sophisticated modular component architecture where complex pages are broken down into self-contained components:
+
+- **Component Isolation**: Each chart or feature component manages its own state and calls exactly one workflow
+- **Decentralized Events**: Components communicate through Reflex decentralized event handlers
+- **Computed Variables**: Main pages use `@rx.var` for shared computed properties like `base_date`
+- **Page Coordination**: Main `page.py` files coordinate multiple components through update methods
+
+**Example Structure**:
+```
+app/pages/compare/
+├── page.py              # Main layout + computed vars + coordination
+├── returns_chart.py     # Self-contained returns component
+├── volatility_chart.py  # Self-contained volatility component
+└── metrics.py           # Combined metrics component
+```
+
+Each component exports both a rendering function and an update event handler, enabling clean separation of concerns and improved maintainability.
+
 ### Technology Stack
-- **Frontend**: Reflex (Python-to-React) with TailwindV4 styling
-- **Backend**: Python 3.10+ with async/await support
-- **Data Processing**: pandas, numpy, DuckDB for analytics
-- **Visualization**: matplotlib, reflex-pyplot for interactive charts
+- **Frontend**: Reflex 0.8.12 (Python-to-React) with TailwindV4 styling
+- **Backend**: Python 3.12+ with async/await support
+- **Data Processing**: pandas 2.3.2, numpy 2.3.3, DuckDB 1.4.0 for analytics
+- **Visualization**: matplotlib 3.10.6, plotly 6.3.0, reflex-pyplot for interactive charts
 - **Storage**: Date-based file organization (JSON, Parquet, CSV)
-- **Testing**: pytest with 196+ comprehensive unit tests
+- **Testing**: pytest 8.4.2 with 627 comprehensive unit tests
 
 ### Key Components
+- **Modular Components**: Self-contained chart and feature components with individual state management
 - **Data Providers**: Modular system for financial API integration
 - **Caching Layer**: Automatic response caching with configurable TTL
 - **Logging System**: Structured CSV logging with context detection
 - **Storage Utilities**: Date-based folder management and cleanup
-- **Web Interface**: Multi-page application with reactive state management
+- **Web Interface**: Multi-page application with reactive state management and decentralized event handlers
 
 ## 🛠️ Development
 
@@ -76,18 +96,33 @@ make test
 make all
 ```
 
+### Creating New Components
+When adding new functionality, follow the modular component pattern:
+
+1. **Create Component File**: Add `new_component.py` in the appropriate page directory
+2. **Component Structure**: Include state class, update method, event handler, and component function
+3. **Single Flow Rule**: Each component should call exactly one workflow for data processing
+4. **Export Pattern**: Export both component function and update event handler
+5. **Page Integration**: Import and coordinate in main `page.py` file
+6. **Add Tests**: Create comprehensive unit tests for the new component
+
+See `app/pages/compare/returns_chart.py` for a complete example following this pattern.
+
 ### Project Structure
 ```
 finapp/
 ├── app/                   # Main application code
-│   ├── flows/             # LlamaIndex workflows
+│   ├── flows/             # LlamaIndex workflows (markets/, compare/)
 │   ├── lib/               # Core utilities (storage, logging, settings)
-│   ├── models/            # Data providers and caching
+│   ├── providers/         # Data providers and caching
 │   ├── pages/             # Web application pages
+│   │   ├── markets/       # Modular markets page (page.py + components)
+│   │   ├── compare/       # Modular comparison page (page.py + components)
+│   │   └── optimize/      # Modular optimization page (page.py + components)
 │   └── templates/         # Layout templates
 ├── data/                  # Date-organized cache storage
 │   └── YYYYMMDD/          # Daily folders with logs and cached data
-├── tests/                 # Comprehensive test suite (196 tests)
+├── tests/                 # Comprehensive test suite (627 tests)
 ├── temp/                  # Temporary workspace for experiments
 └── assets/                # Static assets and content
 ```
@@ -121,15 +156,20 @@ Currently integrated providers:
 - **BlackRock**: ETF holdings and fund information
 - **TipRanks**: Analyst ratings and price targets
 - **Zacks**: Research and financial analysis data
+- **FRED (Federal Reserve)**: Economic data and indicators
+- **Shiller**: CAPE ratio and market valuation data
+- **IBKR**: Interactive Brokers integration (placeholder)
 
 ## 🧪 Testing
 
 The application includes comprehensive unit testing:
-- **196 test cases** covering all major components
-- **Provider testing** with mocked HTTP responses
+- **627 test cases** covering all major components
+- **Modular component testing** with individual state and event handler validation
+- **Provider testing** with mocked HTTP responses and Pydantic model validation
 - **Storage testing** with temporary directory isolation
 - **Logging testing** with thread safety validation
-- **Cache testing** with various data formats
+- **Cache testing** with various data formats (JSON, Parquet)
+- **Workflow testing** with LlamaIndex integration
 
 Run tests with: `make test`
 

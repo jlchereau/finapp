@@ -67,7 +67,7 @@ Examples at:
 
 ## Coding Guidelines
 
-Code is written in Python >=3.12 (configured in pyproject.toml), leveraging Reflex components for the UI and state management. Compilation generates a React single-page application (SPA) with a python backend. Follow [documented reflex conventions](https://reflex.dev/docs) and recent Python best practices considering there is no need to support any version of Python <3.12.
+Code is written in Python >=3.12 (configured in pyproject.toml), leveraging Reflex components for the UI and state management. Compilation generates a React single-page application (SPA) with a Python backend. Follow [documented reflex conventions](https://reflex.dev/docs) and recent Python best practices, with particular emphasis on the [modular component architecture](#modular-component-architecture) and [decentralized event handlers](https://reflex.dev/docs/events/decentralized-event-handlers/) patterns. There is no need to support any version of Python <3.12.
 
 Use `make build` to compile the application and check for errors. This will generate a `.web/` directory containing the compiled application.
 
@@ -78,7 +78,7 @@ Use `make format` to format the code with `black`, ensuring consistent style acr
 Core structure follows the principles of https://reflex.dev/docs/advanced-onboarding/code-structure/.
 - **rxconfig.py**: Reflex configuration with app name "app" and plugins (Sitemap, TailwindV4)
 - **app/app.py**: Main application entry point with Reflex components
-- **app/flows/**: LlamaIndex workflows for background processing (markets.py, test.py)
+- **app/flows/**: LlamaIndex workflows for background processing (markets/, compare/, test.py)
 - **app/lib/**: Application utilities and business logic
   - **logger.py**: Custom CSV logging system with date-based storage
   - **storage.py**: Unified date-based storage utilities for cache and data management
@@ -93,9 +93,22 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **app/pages/**: Application pages (presentation layer)
   - **index.py**: Landing page with markdown content
   - **cache.py**: Cache management and log viewing interface
-  - **markets.py, compare.py, screen.py**: Financial analysis pages
-  - **portfolio.py, optimize.py, backtest.py**: Portfolio management pages
+  - **screen.py**: Stock/ETF screening page
+  - **portfolio.py, backtest.py**: Portfolio management pages (single files)
   - **test.py**: Development testing interface
+  - **markets/**: Modular markets analysis page
+    - **page.py**: Main markets page layout with computed vars
+    - **buffet_indicator.py, vix_chart.py, crude_oil.py**: Market component charts
+    - **currency_chart.py, crypto_chart.py, precious_metals.py**: Asset component charts
+    - **bloomberg_commodity.py, msci_world.py, yield_curve.py**: Index component charts
+  - **compare/**: Modular comparison analysis page
+    - **page.py**: Main compare page layout with computed vars
+    - **returns_chart.py, volatility_chart.py, volume_chart.py**: Time series components
+    - **rsi_chart.py**: Technical indicator components
+    - **metrics.py**: Combined fundamental metrics component
+  - **optimize/**: Modular portfolio optimization page
+    - **page.py**: Main optimization page layout
+    - **card1.py, card2.py**: Optimization component cards
 - **app/templates/**: Application layout templates
 - **assets/**: Static assets and markdown content
 - **data/**: Date-organized cache storage (YYYYMMDD folders)
@@ -103,7 +116,7 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
   - **YYYYMMDD/\*.json**: Cached JSON responses from providers
   - **YYYYMMDD/\*.parquet**: Cached DataFrame data
 - **temp/**: Temporary workspace for experiments (in .gitignore)
-- **tests/**: Comprehensive unit test suite (282 tests)
+- **tests/**: Comprehensive unit test suite (627 tests)
   - **conftest.py**: Global test configuration with automatic cache isolation
 
 ## Application Components
@@ -116,21 +129,135 @@ Core structure follows the principles of https://reflex.dev/docs/advanced-onboar
 - **Storage System**: Unified date-based storage for cache management and data persistence
 - **Cache Management**: Web interface for viewing logs and managing cached data
 - **Workflows**: LlamaIndex-based workflows for complex background processing
+- **Modular Components**: Self-contained chart and feature components with individual state management
+- **Decentralized Event Handlers**: Component communication using Reflex decentralized event patterns
 
 ## Dependencies
-- **Core**: reflex, reflex-pyplot
-- **Finance**: bt, cvxpy, yfinance, riskfolio-lib, factor_analyzer
-- **Data Processing**: numpy, pandas, httpx, pydantic, pydantic-settings
-- **Web Scraping**: beautifulsoup4, lxml
-- **Serialization**: orjson, pyarrow (parquet)
-- **Templates**: Jinja2
-- **Workflows**: llama-index-workflows
-- **Visualization**: matplotlib, plotly
-- **Database**: duckdb
-- **Build Tools**: pybind11
-- **Development**: black, flake8, pylint, pylint-per-file-ignores, pyrefly, pytest, pytest-asyncio, pytest-cov, ipykernel
+- **Core**: reflex 0.8.12, reflex-pyplot
+- **Finance**: bt 1.1.2, cvxpy 1.7.3, yfinance 0.2.66, riskfolio-lib 7.0.1, factor_analyzer 0.5.1
+- **Data Processing**: numpy 2.3.3, pandas 2.3.2, httpx 0.28.1, pydantic 2.11.9, pydantic-settings 2.10.1
+- **Web Scraping**: beautifulsoup4 4.13.5, lxml 6.0.2
+- **Serialization**: orjson 3.11.3, pyarrow 21.0.0 (parquet)
+- **Templates**: Jinja2 3.1.6
+- **Workflows**: llama-index-workflows 2.2.2, llama-index-core 0.14.2
+- **Visualization**: matplotlib 3.10.6, plotly 6.3.0
+- **Database**: duckdb 1.4.0
+- **Build Tools**: pybind11 3.0.1
+- **Development**: black 25.9.0, flake8 7.3.0, pylint 3.3.8, pylint-per-file-ignores 2.0.3, pyrefly 0.34.0, pytest 8.4.2, pytest-asyncio 1.2.0, pytest-cov 7.0.0, ipykernel 6.30.1
 
 ## Key Architecture Features
+
+### Modular Component Architecture
+FinApp uses a sophisticated modular component architecture following Reflex best practices and the pattern established in `markets/`, `compare/`, and `optimize/` pages.
+
+#### **Component Pattern Structure**
+Each self-contained component follows this standardized pattern:
+
+```python
+# Example: app/pages/compare/returns_chart.py
+
+class ReturnsChartState(rx.State):
+    """Component-specific state management."""
+    loading: rx.Field[bool] = rx.field(False)
+    chart_figure: rx.Field[go.Figure] = rx.field(default_factory=go.Figure)
+
+    @rx.event
+    async def update_returns_chart_data(self, tickers: List[str], base_date: datetime):
+        """Component logic calling exactly one flow."""
+        result = await fetch_returns_data(tickers=tickers, base_date=base_date)
+        # Process and update component state
+
+@rx.event
+async def update_returns_chart(state: ReturnsChartState, tickers: List[str], base_date: datetime):
+    """Decentralized event handler for main page coordination."""
+    # IMPORTANT: fix_datetime() is required for datetime parameters in decentralized event handlers
+    # due to JSON serialization issues between JavaScript and Python (see reflex-dev/reflex#5811)
+    # This pattern may be needed for other complex data types that don't support JSON serialization
+    base_date = fix_datetime(base_date)
+    await state.update_returns_chart_data(tickers, base_date)
+
+def returns_chart() -> rx.Component:
+    """Component function with conditional rendering."""
+    return rx.cond(
+        ReturnsChartState.loading,
+        rx.center(rx.spinner(), height="300px"),
+        rx.plotly(data=ReturnsChartState.chart_figure, width="100%", height="300px"),
+    )
+```
+
+#### **Architectural Principles**
+1. **One Component, One Flow**: Each component calls exactly one workflow for data processing
+2. **Self-Contained State**: Components manage their own state classes inheriting from `rx.State`
+3. **Decentralized Events**: Components expose `@rx.event` handlers for main page coordination
+4. **Computed Vars Pattern**: Main pages use `@rx.var` for shared computed properties (e.g., `base_date`)
+5. **Component Function Export**: Each module exports both a component function and update handler
+6. **Data Type Serialization**: Use helper functions like `fix_datetime()` for complex data types in decentralized event handlers due to JSON serialization limitations between JavaScript and Python (see [reflex-dev/reflex#5811](https://github.com/reflex-dev/reflex/issues/5811))
+7. **Event Handler Decoration**: ALL event handlers must be decorated with `@rx.event` to avoid pyrefly type checking issues and ensure proper Reflex event system integration
+
+#### **Page Structure Pattern**
+Modular pages follow this organization:
+
+```
+app/pages/compare/
+├── __init__.py          # Exports: from .page import page
+├── page.py              # Main layout with computed vars and coordination logic
+├── returns_chart.py     # Self-contained returns component
+├── volatility_chart.py  # Self-contained volatility component
+├── volume_chart.py      # Self-contained volume component
+├── rsi_chart.py         # Self-contained RSI component
+└── metrics.py           # Combined metrics component (multiple tables, one flow)
+```
+
+#### **Main Page Coordination**
+Main page files (`page.py`) coordinate components using computed vars and workflow coordination methods:
+
+```python
+class CompareState(rx.State):
+    @rx.var
+    def base_date(self) -> datetime:
+        """Computed var replacing _get_base_date() method."""
+        return calculate_base_date(self.period_option)
+
+    @rx.event
+    def set_period_option(self, option: str):
+        """Set period option and trigger all component updates."""
+        self.period_option = option
+        yield rx.toast.info(f"Changed time period to {option}")
+        yield CompareState.run_workflows
+
+    @rx.event
+    def run_workflows(self):
+        """
+        Coordinate all component updates - NOT async.
+
+        CRITICAL: This method CANNOT be async because it returns a list of event handlers
+        that Reflex needs to process. Making it async breaks the event system.
+        The individual component updates are async, but this coordination method is not.
+        """
+        tickers = self.selected_tickers
+        base_date = self.base_date
+        return [
+            # Note: These are NOT awaited - they return event handlers for Reflex to process
+            update_returns_chart(tickers=tickers, base_date=base_date),
+            update_volatility_chart(tickers=tickers, base_date=base_date),
+            update_volume_chart(tickers=tickers, base_date=base_date),
+            update_rsi_chart(tickers=tickers, base_date=base_date),
+        ]
+```
+
+#### **Component Testing Pattern**
+Each component includes dedicated unit tests verifying:
+- State initialization and methods
+- Component function rendering
+- Import compatibility with main application
+- Event handler functionality
+
+#### **Benefits of Modular Architecture**
+- **Maintainability**: Small, focused files (~40-130 lines vs 1000+ line monoliths)
+- **Testability**: Individual component testing with clear boundaries
+- **Reusability**: Components can be easily moved or reused across pages
+- **Parallel Development**: Different components can be developed independently
+- **Performance**: Selective component updates without full page re-renders
 
 ### Date-Based Storage System (`app/lib/storage.py`)
 - **DateBasedStorage class**: Manages data in YYYYMMDD-organized folders
