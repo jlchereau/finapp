@@ -18,7 +18,8 @@ from app.flows.markets.precious_metals import fetch_precious_metals_data
 from app.lib.exceptions import PageOutputException
 
 
-class PreciousMetalsState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class PreciousMetalsState(rx.State):
     """State for the precious metals chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

@@ -23,7 +23,8 @@ from app.flows.markets.buffet import fetch_buffet_indicator_data
 from app.lib.exceptions import PageOutputException
 
 
-class BuffetIndicatorState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class BuffetIndicatorState(rx.State):
     """State for the Buffet Indicator chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

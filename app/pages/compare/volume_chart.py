@@ -16,7 +16,8 @@ from app.lib.charts import (
 from app.lib.exceptions import PageOutputException
 
 
-class VolumeChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class VolumeChartState(rx.State):
     """State for the volume chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

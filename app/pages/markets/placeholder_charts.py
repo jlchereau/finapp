@@ -5,22 +5,22 @@ from datetime import datetime
 import reflex as rx
 
 
-class FearAndGreedState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class FearAndGreedState(rx.State):
     """State for the Fear and Greed Index placeholder component."""
 
     content: rx.Field[str] = rx.field("Fear and Greed index plot")
 
 
-class ShillerCapeState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class ShillerCapeState(rx.State):
     """State for the Shiller CAPE placeholder component."""
 
     content: rx.Field[str] = rx.field("Shiller CAPE plot")
 
 
 @rx.event
-def update_fear_and_greed(
-    state: FearAndGreedState, base_date: datetime  # pylint: disable=unused-argument
-):
+def update_fear_and_greed(state: FearAndGreedState, base_date: datetime):
     """
     Decentralized event handler to update Fear and Greed Index.
     Called from the main page when period changes.
@@ -32,9 +32,7 @@ def update_fear_and_greed(
 
 
 @rx.event
-def update_shiller_cape(
-    state: ShillerCapeState, base_date: datetime  # pylint: disable=unused-argument
-):
+def update_shiller_cape(state: ShillerCapeState, base_date: datetime):
     """
     Decentralized event handler to update Shiller CAPE.
     Called from the main page when period changes.

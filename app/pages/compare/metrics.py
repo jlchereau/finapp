@@ -15,14 +15,15 @@ from app.lib.metrics import (
 from app.lib.exceptions import PageOutputException
 
 
-class MetricsState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class MetricsState(rx.State):
     """State for the combined metrics component."""
 
     loading: rx.Field[bool] = rx.field(False)
     # Future: metrics_data for when the flow is implemented
 
     @rx.event
-    async def update_metrics_data(self, tickers: List[str], base_date: datetime):
+    async def update_metrics_data(self, tickers: List[str]):
         """Update the metrics data using workflow (future implementation)."""
         if not tickers:
             return

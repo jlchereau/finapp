@@ -16,7 +16,8 @@ from app.lib.charts import (
 from app.lib.exceptions import PageOutputException
 
 
-class ReturnsChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class ReturnsChartState(rx.State):
     """State for the returns chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

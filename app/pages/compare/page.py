@@ -25,7 +25,7 @@ from .rsi_chart import rsi_chart, update_rsi_chart
 from .metrics import metrics, update_metrics
 
 
-# pylint: disable=inherit-non-class,too-many-instance-attributes
+# pylint: disable=inherit-non-class
 class CompareState(rx.State):
     """State management for the compare page."""
 

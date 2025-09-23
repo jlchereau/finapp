@@ -18,7 +18,8 @@ from app.flows.markets.bloomberg_commodity import fetch_bloomberg_commodity_data
 from app.lib.exceptions import PageOutputException
 
 
-class BloombergCommodityState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class BloombergCommodityState(rx.State):
     """State for the Bloomberg Commodity Index chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

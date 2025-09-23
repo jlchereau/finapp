@@ -16,7 +16,8 @@ from app.flows.markets.msci_world import fetch_msci_world_data
 from app.lib.exceptions import PageOutputException
 
 
-class MsciWorldState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class MsciWorldState(rx.State):
     """State for the MSCI World Index chart component."""
 
     # base_date: rx.Field[datetime] = rx.field(default_factory=datetime.now)

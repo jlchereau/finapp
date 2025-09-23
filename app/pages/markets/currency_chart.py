@@ -16,7 +16,8 @@ from app.flows.markets.currency import fetch_currency_data
 from app.lib.exceptions import PageOutputException
 
 
-class CurrencyChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class CurrencyChartState(rx.State):
     """State for the currency chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

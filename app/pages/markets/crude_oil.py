@@ -15,7 +15,8 @@ from app.flows.markets.crude_oil import fetch_crude_oil_data
 from app.lib.exceptions import PageOutputException
 
 
-class CrudeOilState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class CrudeOilState(rx.State):
     """State for the crude oil chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

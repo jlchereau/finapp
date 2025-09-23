@@ -19,7 +19,8 @@ from app.lib.charts import (
 from app.lib.exceptions import PageOutputException
 
 
-class RSIChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class RSIChartState(rx.State):
     """State for the RSI chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

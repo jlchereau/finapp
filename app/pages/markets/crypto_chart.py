@@ -15,7 +15,8 @@ from app.flows.markets.crypto import fetch_crypto_data
 from app.lib.exceptions import PageOutputException
 
 
-class CryptoChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class CryptoChartState(rx.State):
     """State for the cryptocurrency chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

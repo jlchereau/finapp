@@ -16,7 +16,8 @@ from app.lib.charts import (
 from app.lib.exceptions import PageOutputException
 
 
-class VolatilityChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class VolatilityChartState(rx.State):
     """State for the volatility chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

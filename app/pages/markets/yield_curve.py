@@ -18,7 +18,8 @@ from app.lib.logger import logger
 from app.lib.exceptions import PageOutputException
 
 
-class YieldCurveState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class YieldCurveState(rx.State):
     """State for the yield curve chart component."""
 
     loading: rx.Field[bool] = rx.field(False)

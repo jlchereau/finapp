@@ -20,7 +20,8 @@ from app.flows.markets.vix import fetch_vix_data
 from app.lib.exceptions import PageOutputException
 
 
-class VixChartState(rx.State):  # pylint: disable=inherit-non-class
+# pylint: disable=inherit-non-class
+class VixChartState(rx.State):
     """State for the VIX chart component."""
 
     loading: rx.Field[bool] = rx.field(False)
