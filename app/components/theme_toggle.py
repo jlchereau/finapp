@@ -19,6 +19,7 @@ def theme_toggle() -> rx.Component:
             rx.icon(tag="moon", size=20),
             value="dark",
         ),
+        # pyrefly: ignore[bad-argument-type]
         on_change=set_color_mode,
         variant="classic",
         radius="large",

@@ -7,6 +7,7 @@ Based on https://react-querybuilder.js.org
 # For wrapping react guide, visit https://reflex.dev/docs/wrapping-react/overview/
 
 import reflex as rx
+from reflex.utils.imports import ImportDict
 from dataclasses import dataclass
 from dataclasses_json import dataclass_json
 
@@ -74,7 +75,7 @@ class Querybuilder(rx.Component):
     # To add custom code to your component
     # def _get_custom_code(self) -> str:
     #     return "const customCode = 'customCode';"
-    def add_imports(self):
+    def add_imports(self) -> ImportDict:
         return {"": ["react-querybuilder/dist/query-builder.css"]}
 
 
