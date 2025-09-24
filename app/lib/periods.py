@@ -281,13 +281,37 @@ def ensure_minimum_data_points(
         base_date_ts = pd.Timestamp(base_date.date())
         reference_date_ts = pd.Timestamp(reference_date.date())
 
-    # Validate that base_date is within data bounds
-    if base_date_ts < data.index.min():
-        # base_date is before all data - use earliest data
-        base_date_ts = data.index.min()
-    elif base_date_ts > data.index.max():
-        # base_date is after all data - use latest data
-        base_date_ts = data.index.max()
+    # Validate that base_date is within data bounds - only for datetime-like indices
+    if isinstance(data.index, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        try:
+            data_min = data.index.min()
+            if (
+                pd.notna(data_min)
+                and isinstance(data_min, pd.Timestamp)
+                and isinstance(base_date_ts, pd.Timestamp)
+                and pd.notna(base_date_ts)
+            ):
+                if base_date_ts < data_min:
+                    # base_date is before all data - use earliest data
+                    base_date_ts = data_min
+        except (TypeError, ValueError):
+            # Handle comparison failures gracefully
+            pass
+
+        try:
+            data_max = data.index.max()
+            if (
+                pd.notna(data_max)
+                and isinstance(data_max, pd.Timestamp)
+                and isinstance(base_date_ts, pd.Timestamp)
+                and pd.notna(base_date_ts)
+            ):
+                if base_date_ts > data_max:
+                    # base_date is after all data - use latest data
+                    base_date_ts = data_max
+        except (TypeError, ValueError):
+            # Handle comparison failures gracefully
+            pass
 
     # Filter data up to reference_date
     data_up_to_ref = data[data.index <= reference_date_ts]
@@ -301,12 +325,14 @@ def ensure_minimum_data_points(
 
     if len(data_from_base) >= min_points:
         # We have enough points from base_date to reference_date
-        return data_from_base
+        result = data_from_base
+        return result if isinstance(result, pd.DataFrame) else pd.DataFrame(result)
     else:
         # Not enough points from base_date - take last min_points from data_up_to_ref
         # This extends backwards beyond base_date if necessary
         start_pos = max(0, len(data_up_to_ref) - min_points)
-        return data_up_to_ref.iloc[start_pos:]
+        result = data_up_to_ref.iloc[start_pos:]
+        return result if isinstance(result, pd.DataFrame) else pd.DataFrame(result)
 
 
 def format_period_adjustment_message(
