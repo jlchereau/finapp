@@ -69,6 +69,8 @@ class RedditProvider(BaseProvider[BaseModel]):
         return ProviderType.CUSTOM
     
     @apply_provider_cache
+    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
+    # pyrefly: ignore=[bad-param-name-override]
     async def _fetch_data(self, query: str | None, **kwargs) -> BaseModel:
         """
         Fetch Reddit posts mentioning a ticker and analyze sentiment.
