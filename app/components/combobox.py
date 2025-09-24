@@ -58,7 +58,11 @@ class Combobox(HeadlessUIComponent):
     # class_name is inherited
 
     # Events
+    # see https://github.com/reflex-dev/reflex/blob/main/reflex/
+    # components/radix/themes/components/text_field.py
+    # pyrefly: ignore=[bad-specialization]
     on_change: EventHandler[passthrough_event_spec(str | None)]
+    # pyrefly: ignore=[bad-specialization]
     on_close: EventHandler[no_args_event_spec]  # Fired when the combobox is closed
 
     @classmethod
@@ -81,6 +85,7 @@ class ComboboxInput(HeadlessUIComponent):
     display_value: Var[str | None]  # JavaScript function as string for display value
 
     # Events
+    # pyrefly: ignore=[bad-specialization]
     on_change: EventHandler[input_event]
 
     @classmethod
