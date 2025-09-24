@@ -5,6 +5,7 @@ Unit tests for the finance utilities.
 import numpy as np
 import pandas as pd
 import pytest
+from typing import cast
 
 from app.lib.finance import (
     calculate_returns,
@@ -67,7 +68,7 @@ class TestCalculateReturns:
 
     def test_with_base_date(self, sample_price_data):
         """Test with base_date parameter."""
-        base_date = pd.Timestamp("2023-01-05")
+        base_date: pd.Timestamp = cast(pd.Timestamp, pd.Timestamp("2023-01-05"))
         result = calculate_returns(sample_price_data, base_date=base_date)
 
         # Should only include data from base_date onwards
@@ -76,14 +77,18 @@ class TestCalculateReturns:
 
     def test_base_date_filters_all_data(self, sample_price_data):
         """Test with base_date that filters out all data."""
-        base_date = pd.Timestamp("2024-01-01")  # After all sample data
+        base_date: pd.Timestamp = cast(
+            pd.Timestamp, pd.Timestamp("2024-01-01")
+        )  # After all sample data
         result = calculate_returns(sample_price_data, base_date=base_date)
 
         assert result.empty
 
     def test_single_data_point(self):
         """Test with single data point."""
-        df = pd.DataFrame({"Close": [100]}, index=[pd.Timestamp("2023-01-01")])
+        df = pd.DataFrame(
+            {"Close": [100]}, index=pd.DatetimeIndex([pd.Timestamp("2023-01-01")])
+        )
         result = calculate_returns(df)
 
         assert len(result) == 1
@@ -94,7 +99,9 @@ class TestCalculateReturns:
         # Create simple test case: 100 -> 110 (10% increase)
         df = pd.DataFrame(
             {"Close": [100, 110]},
-            index=[pd.Timestamp("2023-01-01"), pd.Timestamp("2023-01-02")],
+            index=pd.DatetimeIndex(
+                [pd.Timestamp("2023-01-01"), pd.Timestamp("2023-01-02")]
+            ),
         )
         result = calculate_returns(df)
 
@@ -112,7 +119,7 @@ class TestCalculateVolatility:
         dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
         # Create some price movement for volatility calculation
         np.random.seed(42)  # For reproducible tests
-        prices = [100]
+        prices = [100.0]
         for _ in range(49):
             # Random walk with some volatility
             change = np.random.normal(0, 0.02)  # 2% daily volatility
@@ -195,7 +202,7 @@ class TestCalculateRSI:
         # Create data that will produce predictable RSI values
         dates = pd.date_range(start="2023-01-01", periods=30, freq="D")
         # Alternating gains and losses
-        prices = [100]
+        prices = [100.0]
         for i in range(29):
             if i % 2 == 0:
                 prices.append(prices[-1] * 1.02)  # 2% gain
@@ -417,7 +424,9 @@ class TestCalculateExponentialTrend:
 
     def test_insufficient_data(self):
         """Test with insufficient data points."""
-        df = pd.DataFrame({"value": [100]}, index=[pd.Timestamp("2020-01-01")])
+        df = pd.DataFrame(
+            {"value": [100]}, index=pd.DatetimeIndex([pd.Timestamp("2020-01-01")])
+        )
         result = calculate_exponential_trend(df, "value")
         assert result is None
 
@@ -448,6 +457,9 @@ class TestCalculateExponentialTrend:
         """Test that function returns expected structure."""
         result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
 
+        # Ensure result is not None
+        assert result is not None
+
         required_keys = [
             "dates",
             "trend",
@@ -470,6 +482,9 @@ class TestCalculateExponentialTrend:
     def test_confidence_bands_ordering(self, quarterly_buffet_data):
         """Test that confidence bands are properly ordered."""
         result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        # Ensure result is not None
+        assert result is not None
 
         trend = result["trend"]
         plus1 = result["plus1_std"]
@@ -519,12 +534,14 @@ class TestCalculateExponentialTrend:
     def test_fractional_year_conversion_accuracy(self):
         """Test that fractional year conversion produces expected values."""
         # Test specific quarterly dates
-        dates = [
-            pd.Timestamp("2020-01-01"),  # Q1 -> ~2020.0
-            pd.Timestamp("2020-04-01"),  # Q2 -> ~2020.25
-            pd.Timestamp("2020-07-01"),  # Q3 -> ~2020.5
-            pd.Timestamp("2020-10-01"),  # Q4 -> ~2020.75
-        ]
+        dates = pd.DatetimeIndex(
+            [
+                pd.Timestamp("2020-01-01"),  # Q1 -> ~2020.0
+                pd.Timestamp("2020-04-01"),  # Q2 -> ~2020.25
+                pd.Timestamp("2020-07-01"),  # Q3 -> ~2020.5
+                pd.Timestamp("2020-10-01"),  # Q4 -> ~2020.75
+            ]
+        )
         df = pd.DataFrame({"value": [100, 110, 121, 133]}, index=dates)
 
         result = calculate_exponential_trend(df, "value")
@@ -537,6 +554,9 @@ class TestCalculateExponentialTrend:
     def test_regression_quality(self, quarterly_buffet_data):
         """Test that regression produces reasonable exponential fit."""
         result = calculate_exponential_trend(quarterly_buffet_data, "Buffet_Indicator")
+
+        # Ensure result is not None
+        assert result is not None
 
         trend = result["trend"]
         original = quarterly_buffet_data["Buffet_Indicator"].values

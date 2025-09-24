@@ -347,6 +347,11 @@ class TestEdgeCases:
         one_month = calculate_base_date("1M", reference_date)
         one_year = calculate_base_date("1Y", reference_date)
 
+        # Ensure none of these return None (they shouldn't for these periods)
+        assert one_week is not None
+        assert one_month is not None
+        assert one_year is not None
+
         assert one_week > one_month > one_year
 
 
@@ -360,12 +365,14 @@ class TestEnsureMinimumDataPoints:
         if data_type == "quarterly":
             # Quarterly data with specific quarter dates
             return pd.DataFrame(
-                {"value": list(range(len(dates)))}, index=pd.to_datetime(dates)
+                {"value": list(range(len(dates)))},
+                index=pd.DatetimeIndex(pd.to_datetime(dates)),
             )
         else:
             # Daily data
             return pd.DataFrame(
-                {"value": list(range(len(dates)))}, index=pd.to_datetime(dates)
+                {"value": list(range(len(dates)))},
+                index=pd.DatetimeIndex(pd.to_datetime(dates)),
             )
 
     def test_quarterly_data_no_adjustment_needed(self):
@@ -663,6 +670,9 @@ class TestFilterTrendDataToPeriod:
         # Filter trend data to match
         filtered_trend = filter_trend_data_to_period(full_trend, filtered_data)
 
+        # Ensure filtered_trend is not None
+        assert filtered_trend is not None
+
         # Should have fewer points than full trend
         assert len(filtered_trend["trend"]) < len(full_trend["trend"])
         assert len(filtered_trend["trend"]) == len(filtered_data)
@@ -701,6 +711,9 @@ class TestFilterTrendDataToPeriod:
         filtered_data = self.create_sample_filtered_data("2023-07-01", "2023-12-31")
 
         filtered_trend = filter_trend_data_to_period(full_trend, filtered_data)
+
+        # Ensure filtered_trend is not None
+        assert filtered_trend is not None
 
         # Should have same keys as original
         assert set(filtered_trend.keys()) == set(full_trend.keys())

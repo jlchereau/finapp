@@ -48,7 +48,9 @@ load-plugins = ["pylint_per_file_ignores"]
 [tool.pylint."messages control"]
 # Disable refactoring (R) and convention (C) messages globally
 # These categories focus on code style and structure rather than correctness
-disable = ["R", "C"]
+# Also disable fixme (W0511) to prevent TODO comments from causing build failures
+# while keeping them visible in code for tracking purposes
+disable = ["R", "C", "fixme"]
 
 # Per-file ignores for test files to handle legitimate pytest patterns
 # that are not applicable to production code quality standards

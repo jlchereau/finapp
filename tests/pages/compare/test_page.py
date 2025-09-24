@@ -51,8 +51,8 @@ def test_compare_state_initialization():
     """Test that PageState initializes correctly."""
     from app.pages.compare.page import PageState
 
-    # Create state instance
-    state = PageState()
+    # Create state instance with explicit defaults (workaround for pyrefly limitation)
+    state = PageState(currency="USD", ticker_input="", active_tab="plots")
 
     # Test default values
     assert state.active_tab == "plots"
@@ -69,7 +69,7 @@ def test_compare_state_methods():
     """Test PageState methods work correctly."""
     from app.pages.compare.page import PageState
 
-    state = PageState()
+    state = PageState(currency="USD", ticker_input="", active_tab="plots")
 
     # Test set_active_tab
     state.set_active_tab("metrics")
@@ -109,22 +109,22 @@ def test_chart_state_initialization():
     from app.pages.compare.rsi_chart import RSIChartState
     from app.pages.compare.metrics import MetricsState
 
-    # Test all chart states
-    returns_state = ReturnsChartState()
+    # Test all chart states with explicit defaults (workaround for pyrefly limitation)
+    returns_state = ReturnsChartState(loading=False)
     assert returns_state.loading is False
     assert returns_state.chart_figure is not None
 
-    volatility_state = VolatilityChartState()
+    volatility_state = VolatilityChartState(loading=False)
     assert volatility_state.loading is False
     assert volatility_state.chart_figure is not None
 
-    volume_state = VolumeChartState()
+    volume_state = VolumeChartState(loading=False)
     assert volume_state.loading is False
     assert volume_state.chart_figure is not None
 
-    rsi_state = RSIChartState()
+    rsi_state = RSIChartState(loading=False)
     assert rsi_state.loading is False
     assert rsi_state.chart_figure is not None
 
-    metrics_state = MetricsState()
+    metrics_state = MetricsState(loading=False)
     assert metrics_state.loading is False

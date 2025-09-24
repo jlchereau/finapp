@@ -11,6 +11,7 @@ from unittest.mock import Mock, AsyncMock
 import pandas as pd
 
 from app.flows.base import FlowResult, FlowRunner, FlowResultEvent
+from llama_index.core.workflow import Workflow
 
 
 class TestFlowResult:
@@ -328,6 +329,7 @@ class TestFlowRunner:
         assert isinstance(result, FlowResultEvent)
         assert result.success is False
         assert result.data is None
+        assert result.error_message is not None
         assert "Workflow execution failed" in result.error_message
         assert result.metadata["execution_time"] is not None
         assert result.metadata["workflow"] == "Mock"
@@ -521,6 +523,7 @@ class TestFlowRunner:
         # Verify error FlowResult
         assert flow_result.success is False
         assert flow_result.data is None
+        assert flow_result.error_message is not None
         assert "Failed to process all items" in flow_result.error_message
         assert flow_result.failed_items == ["INVALID"]
 
@@ -532,36 +535,29 @@ class TestFlowRunnerIntegration:
     async def test_flow_runner_workflow_pattern_example(self):
         """Test FlowRunner with a workflow pattern similar to existing codebase."""
 
-        # Simulate the pattern used in markets.py
-        class MockMarketWorkflow:
-            """Mock workflow similar to BuffetIndicatorWorkflow."""
-
-            def __init__(self):
-                self.provider = Mock()
-
-            async def run(self, base_date=None, original_period=None):
-                """Simulate workflow.run() from markets.py pattern."""
-                # Simulate FlowResultEvent with result
-                return FlowResultEvent.success_result(
-                    data=pd.DataFrame(
-                        {
-                            "Market_Cap": [100, 120, 110],
-                            "GDP": [50, 55, 60],
-                            "Ratio": [2.0, 2.18, 1.83],
-                        }
-                    ),
-                    base_date=base_date,
-                    metadata={
-                        "trend_data": {"slope": 0.1, "r_squared": 0.85},
-                        "was_adjusted": False,
-                        "original_period": original_period,
-                        "actual_period": "5Y",
-                        "data_points": 3,
-                    },
-                )
+        # Create a proper mock workflow that satisfies the Workflow type
+        workflow = Mock(spec=Workflow)
+        workflow.run = AsyncMock(
+            return_value=FlowResultEvent.success_result(
+                data=pd.DataFrame(
+                    {
+                        "Market_Cap": [100, 120, 110],
+                        "GDP": [50, 55, 60],
+                        "Ratio": [2.0, 2.18, 1.83],
+                    }
+                ),
+                base_date=datetime(2024, 1, 1),
+                metadata={
+                    "trend_data": {"slope": 0.1, "r_squared": 0.85},
+                    "was_adjusted": False,
+                    "original_period": "5Y",
+                    "actual_period": "5Y",
+                    "data_points": 3,
+                },
+            )
+        )
 
         # Test the FlowRunner pattern
-        workflow = MockMarketWorkflow()
         runner = FlowRunner[pd.DataFrame](workflow)
 
         # Execute using FlowRunner

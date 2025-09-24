@@ -351,7 +351,7 @@ def add_threshold_lines(
 
 def add_trend_display(
     fig: go.Figure,
-    trend_data: Dict[str, Any],
+    trend_data: Dict[str, Any] | None,
 ) -> None:
     """
     Display pre-calculated trend lines and deviation bands.

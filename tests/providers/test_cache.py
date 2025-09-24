@@ -13,11 +13,8 @@ class DummyDFProvider(BaseProvider[pd.DataFrame]):
         return ProviderType.DUMMY
 
     @apply_provider_cache
-    # pyrefly: ignore[bad-override]
-    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    async def _fetch_data(
-        self, query: str | None, *args, cache_date: str | None = None, **kwargs
-    ) -> pd.DataFrame:
+    # pyrefly: ignore[bad-param-name-override] - decorator confuses parameter analysis
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> pd.DataFrame:
         """Simulate fetching a DataFrame with unique content using query"""
         return pd.DataFrame({"value": [len(query) if query else 0]})
 
@@ -31,11 +28,8 @@ class DummyModelProvider(BaseProvider[SimpleModel]):
         return ProviderType.DUMMY
 
     @apply_provider_cache
-    # pyrefly: ignore[bad-override]
-    # @apply_provider_cache triggers pyrefly bad-override - no easy fix
-    async def _fetch_data(
-        self, query: str | None, *args, cache_date: str | None = None, **kwargs
-    ) -> SimpleModel:
+    # pyrefly: ignore[bad-param-name-override] - decorator confuses parameter analysis
+    async def _fetch_data(self, query: str | None, *args, **kwargs) -> SimpleModel:
         """Simulate fetching a SimpleModel with unique content using query"""
         return SimpleModel(value=len(query) if query else 0)
 
