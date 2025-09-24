@@ -34,7 +34,7 @@ from .bloomberg_commodity import bloomberg_commodity, update_bloomberg_commodity
 
 
 # pylint: disable=inherit-non-class
-class MarketState(rx.State):
+class PageState(rx.State):
     """The markets page state."""
 
     active_tab: rx.Field[str] = rx.field("overview")
@@ -108,9 +108,9 @@ def tabs_overview() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.period_options,
-                value=MarketState.period_option,
-                on_change=MarketState.set_period_option,
+                PageState.period_options,
+                value=PageState.period_option,
+                on_change=PageState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -138,9 +138,9 @@ def tabs_us() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.period_options,
-                value=MarketState.period_option,
-                on_change=MarketState.set_period_option,
+                PageState.period_options,
+                value=PageState.period_option,
+                on_change=PageState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -164,9 +164,9 @@ def tabs_eu() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.period_options,
-                value=MarketState.period_option,
-                on_change=MarketState.set_period_option,
+                PageState.period_options,
+                value=PageState.period_option,
+                on_change=PageState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -190,9 +190,9 @@ def tabs_commodities() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                MarketState.period_options,
-                value=MarketState.period_option,
-                on_change=MarketState.set_period_option,
+                PageState.period_options,
+                value=PageState.period_option,
+                on_change=PageState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -213,7 +213,7 @@ def tabs_commodities() -> rx.Component:
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
 # pyrefly: ignore[bad-argument-type]
-@rx.page(route="/markets", on_load=MarketState.run_workflows)
+@rx.page(route="/markets", on_load=PageState.run_workflows)
 @template
 def page():
     """The markets page."""
@@ -233,8 +233,8 @@ def page():
             rx.tabs.content(
                 tabs_commodities(), value="commodities", padding_top="1rem"
             ),
-            value=MarketState.active_tab,
-            on_change=MarketState.set_active_tab,
+            value=PageState.active_tab,
+            on_change=PageState.set_active_tab,
             width="100%",
         ),
         # height="100%",

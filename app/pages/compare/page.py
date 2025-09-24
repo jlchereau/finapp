@@ -26,7 +26,7 @@ from .metrics import metrics, update_metrics
 
 
 # pylint: disable=inherit-non-class
-class CompareState(rx.State):
+class PageState(rx.State):
     """State management for the compare page."""
 
     # Currency selection
@@ -84,7 +84,7 @@ class CompareState(rx.State):
         self.selected_tickers.append(ticker)
         self.ticker_input = ""
         yield rx.toast.info(f"Added {ticker} to comparison")
-        yield CompareState.run_workflows
+        yield PageState.run_workflows
 
     @rx.event
     def remove_ticker(self, ticker: str):
@@ -92,7 +92,7 @@ class CompareState(rx.State):
         if ticker in self.selected_tickers:
             self.selected_tickers.remove(ticker)
             yield rx.toast.info(f"Removed {ticker} from comparison")
-            yield CompareState.run_workflows
+            yield PageState.run_workflows
         else:
             yield rx.toast.warning(f"{ticker} not found in comparison list")
 
@@ -118,7 +118,7 @@ class CompareState(rx.State):
         """Set base date option and update all charts."""
         self.period_option = option
         yield rx.toast.info(f"Changed time period to {option}")
-        yield CompareState.run_workflows
+        yield PageState.run_workflows
 
     @rx.event
     def run_workflows(self):
@@ -149,9 +149,9 @@ def currency_input_section() -> rx.Component:
     return rx.vstack(
         rx.text("Currency:", font_weight="bold"),
         rx.select(
-            CompareState.currencies,
-            value=CompareState.currency,
-            on_change=CompareState.set_currency,
+            PageState.currencies,
+            value=PageState.currency,
+            on_change=PageState.set_currency,
         ),
         width="100%",
         spacing="2",
@@ -164,13 +164,13 @@ def ticker_input_section() -> rx.Component:
         rx.text("Ticker:", font_weight="bold"),
         rx.hstack(
             combobox(
-                options=CompareState.favorites,
-                value=CompareState.ticker_input,
-                on_change=CompareState.set_ticker_input,
+                options=PageState.favorites,
+                value=PageState.ticker_input,
+                on_change=PageState.set_ticker_input,
             ),
             rx.button(
                 "+",
-                on_click=CompareState.add_ticker,
+                on_click=PageState.add_ticker,
                 size="2",
                 variant="solid",
             ),
@@ -186,7 +186,7 @@ def ticker_list_section() -> rx.Component:
     """Selected tickers list with prices and remove buttons."""
     return rx.vstack(
         rx.foreach(
-            CompareState.selected_tickers,
+            PageState.selected_tickers,
             ticker_item,
         ),
         width="100%",
@@ -214,7 +214,7 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 # but then reflex compile fails
                 # pylint: disable=no-value-for-parameter
                 # pyrefly: ignore[missing-argument,bad-argument-type]
-                on_click=lambda _: CompareState.toggle_favorite(ticker),
+                on_click=lambda _: PageState.toggle_favorite(ticker),
             ),
             rx.button(
                 rx.icon("minus", size=16),
@@ -225,7 +225,7 @@ def ticker_item(ticker: rx.Var[str]) -> rx.Component:
                 # but reflex compile then fails
                 # pylint: disable=no-value-for-parameter
                 # pyrefly: ignore[missing-argument,bad-argument-type]
-                on_click=lambda _: CompareState.remove_ticker(ticker),
+                on_click=lambda _: PageState.remove_ticker(ticker),
             ),
             spacing="1",
         ),
@@ -261,9 +261,9 @@ def plots_tab_content() -> rx.Component:
         rx.hstack(
             rx.text("Period:", font_weight="bold"),
             rx.select(
-                CompareState.period_options,
-                value=CompareState.period_option,
-                on_change=CompareState.set_period_option,
+                PageState.period_options,
+                value=PageState.period_option,
+                on_change=PageState.set_period_option,
             ),
             spacing="2",
             align="center",
@@ -300,8 +300,8 @@ def main_content() -> rx.Component:
                 metrics(),
                 value="metrics",
             ),
-            value=CompareState.active_tab,
-            on_change=CompareState.set_active_tab,
+            value=PageState.active_tab,
+            on_change=PageState.set_active_tab,
             width="100%",
         ),
         flex="1",
@@ -313,7 +313,7 @@ def main_content() -> rx.Component:
 # pylint: disable=not-callable
 # pyright: ignore[reportArgumentType]
 # pyrefly: ignore[bad-argument-type]
-@rx.page(route="/compare", on_load=CompareState.run_workflows)
+@rx.page(route="/compare", on_load=PageState.run_workflows)
 @template
 def page():
     """The compare page."""

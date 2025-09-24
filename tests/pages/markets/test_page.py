@@ -79,11 +79,11 @@ def test_markets_page_imports():
 
 
 def test_market_state_initialization():
-    """Test that MarketState initializes correctly."""
-    from app.pages.markets.page import MarketState
+    """Test that PageState initializes correctly."""
+    from app.pages.markets.page import PageState
 
     # Create state instance
-    state = MarketState()
+    state = PageState(active_tab="overview")
 
     # Test default values
     assert state.active_tab == "overview"
@@ -93,10 +93,10 @@ def test_market_state_initialization():
 
 
 def test_market_state_methods():
-    """Test MarketState methods work correctly."""
-    from app.pages.markets.page import MarketState
+    """Test PageState methods work correctly."""
+    from app.pages.markets.page import PageState
 
-    state = MarketState(
+    state = PageState(
         active_tab="overview",
         period_option="1Y",
         period_options=["1Y"],

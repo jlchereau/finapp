@@ -48,11 +48,11 @@ def test_compare_page_imports():
 
 
 def test_compare_state_initialization():
-    """Test that CompareState initializes correctly."""
-    from app.pages.compare.page import CompareState
+    """Test that PageState initializes correctly."""
+    from app.pages.compare.page import PageState
 
     # Create state instance
-    state = CompareState()
+    state = PageState()
 
     # Test default values
     assert state.active_tab == "plots"
@@ -66,10 +66,10 @@ def test_compare_state_initialization():
 
 
 def test_compare_state_methods():
-    """Test CompareState methods work correctly."""
-    from app.pages.compare.page import CompareState
+    """Test PageState methods work correctly."""
+    from app.pages.compare.page import PageState
 
-    state = CompareState()
+    state = PageState()
 
     # Test set_active_tab
     state.set_active_tab("metrics")
@@ -110,9 +110,7 @@ def test_chart_state_initialization():
     from app.pages.compare.metrics import MetricsState
 
     # Test all chart states
-    returns_state = ReturnsChartState(
-        
-    )
+    returns_state = ReturnsChartState()
     assert returns_state.loading is False
     assert returns_state.chart_figure is not None
 
