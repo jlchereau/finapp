@@ -535,8 +535,9 @@ class TestFlowRunnerIntegration:
     async def test_flow_runner_workflow_pattern_example(self):
         """Test FlowRunner with a workflow pattern similar to existing codebase."""
 
-        # Create a proper mock workflow that satisfies the Workflow type
+        # Create a mock workflow with custom class name for proper testing
         workflow = Mock(spec=Workflow)
+        workflow.__class__.__name__ = "MockMarketWorkflow"
         workflow.run = AsyncMock(
             return_value=FlowResultEvent.success_result(
                 data=pd.DataFrame(
