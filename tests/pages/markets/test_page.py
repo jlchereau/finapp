@@ -96,7 +96,11 @@ def test_market_state_methods():
     """Test MarketState methods work correctly."""
     from app.pages.markets.page import MarketState
 
-    state = MarketState()
+    state = MarketState(
+        active_tab="overview",
+        period_option="1Y",
+        period_options=["1Y"],
+    )
 
     # Test set_active_tab
     state.set_active_tab("us")
@@ -107,9 +111,9 @@ def test_market_state_methods():
     assert isinstance(base_date, datetime)
 
     # Test run_workflows returns a list
-    update_events = state.run_workflows()
-    assert isinstance(update_events, list)
-    assert len(update_events) == 9  # All 9 charts are now implemented
+    workflow_events = state.run_workflows()
+    assert isinstance(workflow_events, list)
+    assert len(workflow_events) == 9  # All 9 charts are now implemented
 
 
 def test_main_import_compatibility():

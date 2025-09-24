@@ -87,10 +87,10 @@ def test_compare_state_methods():
     base_date = state.base_date
     assert isinstance(base_date, datetime)
 
-    # Test update_all_charts returns a list
-    update_events = state.update_all_charts()
-    assert isinstance(update_events, list)
-    assert len(update_events) == 5  # 4 charts + 1 metrics
+    # Test run_workflows returns a list
+    workflow_events = state.run_workflows()
+    assert isinstance(workflow_events, list)
+    assert len(workflow_events) == 5  # 4 charts + 1 metrics
 
 
 def test_main_import_compatibility():
@@ -110,7 +110,9 @@ def test_chart_state_initialization():
     from app.pages.compare.metrics import MetricsState
 
     # Test all chart states
-    returns_state = ReturnsChartState()
+    returns_state = ReturnsChartState(
+        
+    )
     assert returns_state.loading is False
     assert returns_state.chart_figure is not None
 
